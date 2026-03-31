@@ -1,0 +1,30 @@
+# dependencies
+node_modules/
+
+# build outputs
+dist/
+build/
+
+# cloudflare
+.wrangler/
+.dev.vars
+
+# environment
+.env
+.env.local
+.env.*.local
+
+# editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# turbo
+.turbo/
+
+# test
+coverage/
+test-results/
+playwright-report/

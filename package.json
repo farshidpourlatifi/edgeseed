@@ -1,0 +1,29 @@
+{
+  "name": "cloudflare-starter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "test:e2e": "playwright test",
+    "db:generate": "tsx packages/cli/src/db-generate.ts",
+    "db:migrate": "tsx packages/cli/src/db-migrate.ts",
+    "db:seed": "tsx packages/cli/src/db-seed.ts",
+    "db:reset": "tsx packages/cli/src/db-reset.ts",
+    "api:spec": "tsx packages/cli/src/api-spec.ts",
+    "version:bump": "tsx packages/cli/src/version-bump.ts"
+  },
+  "devDependencies": {
+    "turbo": "^2",
+    "typescript": "^5.7",
+    "prettier": "^3",
+    "@types/node": "^22",
+    "tsx": "^4",
+    "vitest": "^3",
+    "@playwright/test": "^1"
+  },
+  "packageManager": "pnpm@9.15.4"
+}

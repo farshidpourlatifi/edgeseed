@@ -1,0 +1,41 @@
+{
+  "name": "@starter/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "react-router dev",
+    "build": "react-router build",
+    "typecheck": "tsc --noEmit",
+    "start": "wrangler dev"
+  },
+  "dependencies": {
+    "react": "^19",
+    "react-dom": "^19",
+    "react-router": "^7",
+    "@react-router/node": "^7",
+    "hono": "^4",
+    "@hono/zod-openapi": "^0.18",
+    "hono-react-router-adapter": "^0.6",
+    "zod": "^3.24",
+    "@starter/config": "workspace:*",
+    "@starter/db": "workspace:*",
+    "@starter/auth": "workspace:*",
+    "@starter/ui": "workspace:*",
+    "isbot": "^5"
+  },
+  "devDependencies": {
+    "@react-router/dev": "^7",
+    "@cloudflare/vite-plugin": "^1",
+    "@cloudflare/workers-types": "^4",
+    "@hono/vite-dev-server": "^0.19",
+    "@tailwindcss/vite": "^4",
+    "tailwindcss": "^4",
+    "vite": "^6",
+    "vite-tsconfig-paths": "^5",
+    "wrangler": "^4",
+    "typescript": "^5.7",
+    "@types/react": "^19",
+    "@types/react-dom": "^19"
+  }
+}

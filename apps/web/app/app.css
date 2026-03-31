@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+@source "../app/**/*.{ts,tsx}";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  /* Semantic color tokens — neutral default theme */
+  --color-background: oklch(1 0 0);
+  --color-foreground: oklch(0.145 0 0);
+  --color-card: oklch(1 0 0);
+  --color-card-foreground: oklch(0.145 0 0);
+  --color-popover: oklch(1 0 0);
+  --color-popover-foreground: oklch(0.145 0 0);
+  --color-primary: oklch(0.205 0.015 286);
+  --color-primary-foreground: oklch(0.985 0 0);
+  --color-secondary: oklch(0.97 0.001 286);
+  --color-secondary-foreground: oklch(0.205 0.015 286);
+  --color-muted: oklch(0.97 0.001 286);
+  --color-muted-foreground: oklch(0.556 0.01 286);
+  --color-accent: oklch(0.97 0.001 286);
+  --color-accent-foreground: oklch(0.205 0.015 286);
+  --color-destructive: oklch(0.577 0.245 27.325);
+  --color-destructive-foreground: oklch(0.985 0 0);
+  --color-border: oklch(0.922 0.004 286);
+  --color-input: oklch(0.922 0.004 286);
+  --color-ring: oklch(0.87 0.006 286);
+
+  /* Radius tokens */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+
+  /* Typography */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
