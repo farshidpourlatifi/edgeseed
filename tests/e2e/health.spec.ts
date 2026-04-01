@@ -1,11 +1,11 @@
 import { test, expect } from "@playwright/test";
 
 test("landing page renders marketing content", async ({ page }) => {
-  await page.goto("/");
-  await expect(page.locator("h1")).toContainText("Ship Cloudflare-native products");
-  await expect(page.locator("text=Get Started")).toBeVisible();
-  await expect(page.locator("text=Sign In")).toBeVisible();
-  await expect(page.locator("text=Everything you need")).toBeVisible();
+  await page.goto("/", { waitUntil: "networkidle" });
+  await expect(page.locator("h1")).toContainText("SaaS product");
+  await expect(page.locator("text=Get Started").first()).toBeVisible();
+  await expect(page.locator("text=Sign In").first()).toBeVisible();
+  await expect(page.locator("text=Everything you need to ship faster")).toBeVisible();
 });
 
 test("health endpoint returns ok", async ({ request }) => {

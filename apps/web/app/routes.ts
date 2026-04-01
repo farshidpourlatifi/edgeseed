@@ -6,5 +6,6 @@ export default [
   route("register", "routes/register.tsx"),
   layout("routes/dashboard.tsx", [
     route("dashboard", "routes/dashboard._index.tsx"),
+    route("dashboard/settings", "routes/dashboard.settings.tsx"),
   ]),
 ] satisfies RouteConfig;

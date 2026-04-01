@@ -10,32 +10,34 @@
     "start": "wrangler dev"
   },
   "dependencies": {
+    "@hono/zod-openapi": "^0.18",
+    "@react-router/node": "^7",
+    "@starter/auth": "workspace:*",
+    "@starter/config": "workspace:*",
+    "@starter/db": "workspace:*",
+    "@starter/ui": "workspace:*",
+    "hono": "^4",
+    "hono-react-router-adapter": "^0.6",
+    "isbot": "^5",
+    "lucide-react": "^0.473",
     "react": "^19",
     "react-dom": "^19",
     "react-router": "^7",
-    "@react-router/node": "^7",
-    "hono": "^4",
-    "@hono/zod-openapi": "^0.18",
-    "hono-react-router-adapter": "^0.6",
-    "zod": "^3.24",
-    "@starter/config": "workspace:*",
-    "@starter/db": "workspace:*",
-    "@starter/auth": "workspace:*",
-    "@starter/ui": "workspace:*",
-    "isbot": "^5"
+    "sonner": "^2.0.7",
+    "zod": "^3.24"
   },
   "devDependencies": {
-    "@react-router/dev": "^7",
     "@cloudflare/vite-plugin": "^1",
     "@cloudflare/workers-types": "^4",
     "@hono/vite-dev-server": "^0.19",
+    "@react-router/dev": "^7",
     "@tailwindcss/vite": "^4",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
     "tailwindcss": "^4",
+    "typescript": "^5.7",
     "vite": "^6",
     "vite-tsconfig-paths": "^5",
-    "wrangler": "^4",
-    "typescript": "^5.7",
-    "@types/react": "^19",
-    "@types/react-dom": "^19"
+    "wrangler": "^4"
   }
 }

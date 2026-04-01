@@ -29,4 +29,3 @@ app.on(["GET", "POST"], "/api/auth/**", (c) => {
 app.route("/api/v1", apiApp);
 
 export default app;
-export type { ServerEnv };

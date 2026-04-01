@@ -2,12 +2,14 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": ".",
+    "rootDirs": [".", "./.react-router/types"],
     "outDir": "dist",
     "jsx": "react-jsx",
-    "types": ["@cloudflare/workers-types", "vite/client"],
+    "lib": ["esnext", "dom", "dom.iterable"],
+    "types": ["@cloudflare/workers-types/experimental", "vite/client"],
     "paths": {
       "~/*": ["./app/*"]
     }
   },
-  "include": ["app", "server", "*.ts", "*.tsx", "env.d.ts"]
+  "include": ["app", "server", "*.ts", "*.tsx", "env.d.ts", ".react-router/types/**/*.ts"]
 }
