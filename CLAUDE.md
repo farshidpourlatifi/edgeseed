@@ -115,6 +115,40 @@ pnpm test:e2e               # Run Playwright
 - **Auth guard:** Use `redirect("/login")` in loader if no session (see `dashboard.tsx` loader pattern)
 - **Toast notifications:** `import { toast } from "sonner"` — Toaster is already mounted at root
 
+## Deployment
+
+Production URL: `https://starter-web.farshid-pourlatifi-3fa.workers.dev`
+D1 database ID: `510ae3cb-6a46-4409-a1db-b07b59cd504b`
+
+### Deploy steps
+
+```bash
+# 1. Build
+pnpm --filter @starter/web build
+
+# 2. Deploy
+cd apps/web && npx wrangler deploy
+
+# 3. Run remote migrations (only when schema changes)
+npx wrangler d1 migrations apply starter-db --remote
+```
+
+### Secrets (set once via `wrangler secret put`)
+
+All sensitive vars go through `wrangler secret put <NAME>` — not in `wrangler.jsonc`.
+
+Required:
+- `BETTER_AUTH_SECRET` — random 32+ char string
+- `BETTER_AUTH_URL` — production URL (e.g. `https://starter-web.farshid-pourlatifi-3fa.workers.dev`)
+
+Optional (for social login):
+- `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+
+### Local dev
+
+All dev vars live in `apps/web/.dev.vars` (gitignored). Wrangler merges them automatically during `pnpm dev`.
+
 ## Route examples
 
 `apps/web/app/routes/_examples/` contains reference implementations — rich UI pages that are NOT registered as routes. They exist as copy-paste starting points when building a product.
