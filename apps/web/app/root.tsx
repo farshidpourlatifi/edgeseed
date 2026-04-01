@@ -4,7 +4,10 @@ import { ThemeProvider } from "@starter/ui/hooks/use-theme";
 import { Toaster } from "@starter/ui/components/ui/sonner";
 import styles from "./app.css?url";
 
-export const links: LinksFunction = () => [{ rel: "stylesheet", href: styles }];
+export const links: LinksFunction = () => [
+  { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
+  { rel: "stylesheet", href: styles },
+];
 
 const themeScript = `
 (function() {
