@@ -75,9 +75,16 @@ const orgs = await context.auth.api.listOrganizations({ headers: request.headers
 
 The loader returns `{ user, activeOrganizationId, organizations }` — child routes access user data through the parent layout.
 
-### GitHub social login
+### Social login (GitHub + Google)
 
-The login/register pages have a "Continue with GitHub" button that calls `authClient.signIn.social({ provider: "github" })`. This requires `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` env vars and enabling the GitHub provider in `packages/auth/src/server.ts`. **Not wired yet.**
+Login/register pages have GitHub and Google social login buttons. To enable:
+
+1. Set env vars in `wrangler.jsonc` (or Cloudflare dashboard for production):
+   - `GITHUB_CLIENT_ID` + `GITHUB_CLIENT_SECRET` — get from https://github.com/settings/developers
+   - `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` — get from https://console.cloud.google.com/apis/credentials
+2. Providers are auto-enabled when their credentials are set (conditional in `packages/auth/src/server.ts`)
+3. For GitHub: set callback URL to `{BETTER_AUTH_URL}/api/auth/callback/github`
+4. For Google: set authorized redirect URI to `{BETTER_AUTH_URL}/api/auth/callback/google`
 
 ## Dev commands
 

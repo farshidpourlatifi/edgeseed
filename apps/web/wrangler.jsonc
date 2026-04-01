@@ -18,6 +18,13 @@
   "vars": {
     "BETTER_AUTH_SECRET": "dev-secret-must-be-at-least-32-characters-long",
     "BETTER_AUTH_URL": "http://localhost:5173",
-    "ENVIRONMENT": "development"
+    "ENVIRONMENT": "development",
+    // Social login — set these to enable GitHub/Google OAuth
+    // Get GitHub credentials at: https://github.com/settings/developers
+    // Get Google credentials at: https://console.cloud.google.com/apis/credentials
+    "GITHUB_CLIENT_ID": "",
+    "GITHUB_CLIENT_SECRET": "",
+    "GOOGLE_CLIENT_ID": "",
+    "GOOGLE_CLIENT_SECRET": ""
   }
 }

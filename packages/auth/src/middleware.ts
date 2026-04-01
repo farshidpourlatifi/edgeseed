@@ -8,6 +8,10 @@ export interface AuthEnv {
     BETTER_AUTH_SECRET: string;
     BETTER_AUTH_URL: string;
     ENVIRONMENT: string;
+    GITHUB_CLIENT_ID?: string;
+    GITHUB_CLIENT_SECRET?: string;
+    GOOGLE_CLIENT_ID?: string;
+    GOOGLE_CLIENT_SECRET?: string;
   };
   Variables: {
     db: Database;
@@ -22,6 +26,10 @@ export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
     db,
     secret: c.env.BETTER_AUTH_SECRET,
     baseURL: c.env.BETTER_AUTH_URL,
+    githubClientId: c.env.GITHUB_CLIENT_ID,
+    githubClientSecret: c.env.GITHUB_CLIENT_SECRET,
+    googleClientId: c.env.GOOGLE_CLIENT_ID,
+    googleClientSecret: c.env.GOOGLE_CLIENT_SECRET,
   });
   c.set("db", db);
   c.set("auth", auth);

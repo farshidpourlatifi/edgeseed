@@ -7,6 +7,10 @@ export interface CreateAuthOptions {
   db: Database;
   secret: string;
   baseURL: string;
+  githubClientId?: string;
+  githubClientSecret?: string;
+  googleClientId?: string;
+  googleClientSecret?: string;
   waitUntil?: (p: Promise<unknown>) => void;
 }
 
@@ -19,6 +23,24 @@ export function createAuth(opts: CreateAuthOptions) {
     basePath: "/api/auth",
     emailAndPassword: {
       enabled: true,
+    },
+    socialProviders: {
+      ...(opts.githubClientId && opts.githubClientSecret
+        ? {
+            github: {
+              clientId: opts.githubClientId,
+              clientSecret: opts.githubClientSecret,
+            },
+          }
+        : {}),
+      ...(opts.googleClientId && opts.googleClientSecret
+        ? {
+            google: {
+              clientId: opts.googleClientId,
+              clientSecret: opts.googleClientSecret,
+            },
+          }
+        : {}),
     },
     plugins: [
       organization({
