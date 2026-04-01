@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 async function main() {
   // Dynamic import of the web app's Hono API app
-  const { apiApp } = await import("../../apps/web/server/api");
+  const { apiApp } = await import("../../../apps/web/server/api");
 
   const spec = apiApp.getOpenAPI31Document({
     openapi: "3.1.0",
