@@ -64,6 +64,8 @@ docs/api          — Generated OpenAPI specs
 | `pnpm verify`                    | Full pre-deploy gate                   |
 | `pnpm deploy:web`                | `verify` + deploy web app              |
 | `pnpm version:bump [type]`       | Bump version + git tag                 |
+| `pnpm init:product <name>`       | Stamp product identity (new repo)      |
+| `pnpm check:docs-sync`           | Scripts-vs-README drift check          |
 
 ## Adding a new page
 

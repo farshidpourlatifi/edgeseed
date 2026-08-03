@@ -108,6 +108,8 @@ pnpm lint / lint:fix        # ESLint (flat config in eslint.config.mjs)
 pnpm format / format:check  # Prettier
 pnpm verify                 # Full gate: lint, format, test, gitleaks, build, typecheck, e2e
 pnpm deploy:web             # verify + wrangler deploy (the gated deploy path)
+pnpm init:product <name>    # Stamp product identity on a fresh clone (docs/starter-as-upstream.md)
+pnpm check:docs-sync        # Fail if any root script is undocumented in READMEs
 ```
 
 ## Quality gates

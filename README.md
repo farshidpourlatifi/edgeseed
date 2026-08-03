@@ -44,26 +44,28 @@ docs/
 
 ## CLI Commands
 
-| Command                                   | Description                                                     |
-| ----------------------------------------- | --------------------------------------------------------------- |
-| `pnpm dev --filter @starter/web`          | Start web dev server                                            |
-| `pnpm dev --filter @starter/mcp`          | Start MCP server                                                |
-| `pnpm build`                              | Build all workspaces                                            |
-| `pnpm typecheck`                          | Type check all workspaces                                       |
-| `pnpm test`                               | Run unit/integration tests                                      |
-| `pnpm test:e2e`                           | Run end-to-end tests                                            |
-| `pnpm test:coverage`                      | Unit tests with coverage report (`coverage/`)                   |
-| `pnpm test:mutation`                      | Stryker mutation tests (`reports/mutation/`)                    |
-| `pnpm lint` / `pnpm lint:fix`             | ESLint check / autofix                                          |
-| `pnpm format` / `pnpm format:check`       | Prettier write / check                                          |
-| `pnpm verify`                             | Full gate: lint, format, tests, gitleaks, build, typecheck, e2e |
-| `pnpm deploy:web`                         | Run `verify`, then deploy the web app to Cloudflare             |
-| `pnpm db:generate`                        | Generate Drizzle migration from schema changes                  |
-| `pnpm db:migrate`                         | Apply pending migrations (local D1)                             |
-| `pnpm db:seed`                            | Seed development data                                           |
-| `pnpm db:reset`                           | Drop and re-apply all migrations locally                        |
-| `pnpm api:spec`                           | Regenerate OpenAPI spec to `docs/api/openapi.json`              |
-| `pnpm version:bump [major\|minor\|patch]` | Bump version and create git tag                                 |
+| Command                                   | Description                                                                      |
+| ----------------------------------------- | -------------------------------------------------------------------------------- |
+| `pnpm dev --filter @starter/web`          | Start web dev server                                                             |
+| `pnpm dev --filter @starter/mcp`          | Start MCP server                                                                 |
+| `pnpm build`                              | Build all workspaces                                                             |
+| `pnpm typecheck`                          | Type check all workspaces                                                        |
+| `pnpm test`                               | Run unit/integration tests                                                       |
+| `pnpm test:e2e`                           | Run end-to-end tests                                                             |
+| `pnpm test:coverage`                      | Unit tests with coverage report (`coverage/`)                                    |
+| `pnpm test:mutation`                      | Stryker mutation tests (`reports/mutation/`)                                     |
+| `pnpm lint` / `pnpm lint:fix`             | ESLint check / autofix                                                           |
+| `pnpm format` / `pnpm format:check`       | Prettier write / check                                                           |
+| `pnpm verify`                             | Full gate: lint, format, tests, gitleaks, build, typecheck, e2e                  |
+| `pnpm deploy:web`                         | Run `verify`, then deploy the web app to Cloudflare                              |
+| `pnpm db:generate`                        | Generate Drizzle migration from schema changes                                   |
+| `pnpm db:migrate`                         | Apply pending migrations (local D1)                                              |
+| `pnpm db:seed`                            | Seed development data                                                            |
+| `pnpm db:reset`                           | Drop and re-apply all migrations locally                                         |
+| `pnpm api:spec`                           | Regenerate OpenAPI spec to `docs/api/openapi.json`                               |
+| `pnpm version:bump [major\|minor\|patch]` | Bump version and create git tag                                                  |
+| `pnpm init:product <name>`                | Stamp product identity on a fresh clone ([guide](./docs/starter-as-upstream.md)) |
+| `pnpm check:docs-sync`                    | Fail if any script is undocumented in the READMEs                                |
 
 ## Key Conventions
 
