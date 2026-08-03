@@ -1,0 +1,25 @@
+name: gitleaks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so the scan covers every commit, not just the diff
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Free for personal accounts. Organization repos need a (free
+          # for <=10 devs) license key stored as the GITLEAKS_LICENSE secret:
+          # GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}

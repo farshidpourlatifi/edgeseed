@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks",
     "build": "turbo build",
     "dev": "turbo dev",
     "typecheck": "turbo typecheck",

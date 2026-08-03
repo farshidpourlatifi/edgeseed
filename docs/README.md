@@ -138,6 +138,7 @@ Don't use `wrangler secret put` for local development. Put the same variables in
 
 ## Further reading
 
+- [Secret Scanning with Gitleaks](./secret-scanning.md) — pre-commit hook, CI scan, and how to handle findings
 - [Security Audit](./security-audit.md) — findings from the 10-pass review
 - [Security Fix & Test Plan](./security-plan.md) — remediation phases and the standing review pass
 - [Cloudflare Costs and Guardrails](./costs-and-limits.md)

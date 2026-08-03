@@ -1,0 +1,10 @@
+# Gitleaks configuration — https://github.com/gitleaks/gitleaks#configuration
+# Extends the built-in default ruleset; add allowlists narrowly and prefer
+# inline `gitleaks:allow` comments for one-off false positives.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Well-known local-dev placeholder, never a real credential"
+regexes = ['''dev-secret-must-be-at-least-32-characters-long''']
