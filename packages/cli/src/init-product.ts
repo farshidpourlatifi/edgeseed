@@ -44,6 +44,8 @@ Done. Next steps:
        BETTER_AUTH_SECRET, BETTER_AUTH_URL, optional OAuth credentials
   3. Create apps/web/.dev.vars for local dev.
   4. Product packages go under your own scope (docs/creating-packages.md).
-  5. Starter updates: git fetch upstream && git merge upstream/main
+  5. Own your design workflow: create your product's V0 project and shadcn
+     theme preset, then replace the URLs in docs/design-workflow.md.
+  6. Starter updates: git fetch upstream && git merge upstream/main
      (docs/starter-as-upstream.md)
 `);

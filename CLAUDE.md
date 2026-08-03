@@ -185,49 +185,10 @@ To use an example: copy it to `app/routes/`, register the route in `routes.ts`, 
 
 See `_examples/README.md` for full instructions.
 
-## Generating new UI with V0
+## Generating new UI (design workflow)
 
-This project uses V0 (shadcn) for UI generation instead of writing UI from scratch.
-
-**V0 project:** https://v0.app/chat/cf-starter-TfaLZ8bWtZH
-**shadcn preset:** https://ui.shadcn.com/create?preset=b5KbFbLGd
-**Component gallery:** https://ui.shadcn.com/create?preset=b5KbFbLGd&item=preview (visual reference for charts, forms, sidebars, tables, empty states, etc.)
-
-### V0 prompt template
-
-When generating new pages/components in V0, always include:
-
-```
-Use shadcn/ui components, Tailwind CSS v4, and React. Use Lucide React icons.
-Apply the theme from this preset: https://ui.shadcn.com/create?preset=b5KbFbLGd
-Support dark mode via .dark class on <html> using CSS variables.
-All touch targets must be at least 44px on mobile.
-Include loading states, error states, and empty states.
-Make it fully responsive (mobile 320px, tablet 768px, desktop 1280px).
-```
-
-### Integration workflow
-
-1. Generate the design in V0 (at https://v0.app/chat/cf-starter-TfaLZ8bWtZH)
-2. Download the V0 output to a local folder
-3. Tell Claude the download path — Claude will:
-   - Pick only the components and pages needed
-   - Convert Next.js to React Router (`Link`, `usePathname` → React Router equivalents)
-   - Replace `next-themes` with our `use-theme.tsx` hook
-   - Replace `"use client"` directives (not needed in React Router)
-   - Wire auth data from loaders (replace hardcoded user data)
-   - Copy new shadcn components to `packages/ui/src/components/ui/`
-   - Fix imports: `@/lib/utils` → `../../lib/utils`, `@/components/ui/X` → `./X`
-   - Fix `"radix-ui"` imports (V0 already uses the unified package)
-
-### What to take from V0 output
-
-- `components/ui/*.tsx` → new shadcn primitives to `packages/ui/src/components/ui/`
-- `app/**/page.tsx` → adapted to React Router route files
-- `app/globals.css` → theme variables only if changing the theme
-
-### What to ignore from V0 output
-
-- `next.config.mjs`, `package.json`, `tsconfig.json` — we have our own
-- `components/theme-provider.tsx` — we have `packages/ui/src/hooks/use-theme.tsx`
-- `components/theme-toggle.tsx` — we have `packages/ui/src/components/ui/theme-toggle.tsx`
+UI is generated with V0/shadcn, not written from scratch. The workflow — V0
+project URL, theme preset, prompt template, integration steps, and where
+generated code goes — lives in `docs/design-workflow.md`. That file is
+**product-owned**: repos extending this starter replace it with their own
+design sources (see `docs/starter-as-upstream.md`); this pointer stays stable.

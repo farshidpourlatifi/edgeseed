@@ -3,10 +3,10 @@
 How to spin a product repo off this starter and keep receiving starter
 improvements. The model: **two ownership layers in one repo**.
 
-| Layer     | Scope                                         | Owner                | Downstream policy                                       |
-| --------- | --------------------------------------------- | -------------------- | ------------------------------------------------------- |
-| Framework | `@starter/*` packages, tooling, CI, docs      | this repo (upstream) | read-only — never edit in a product repo                |
-| Product   | your scope (e.g. `@acme/*`), `apps/*` content | the product repo     | owned downstream; upstream never ships product packages |
+| Layer     | Scope                                                                    | Owner                | Downstream policy                                       |
+| --------- | ------------------------------------------------------------------------ | -------------------- | ------------------------------------------------------- |
+| Framework | `@starter/*` packages, tooling, CI, docs                                 | this repo (upstream) | read-only — never edit in a product repo                |
+| Product   | your scope (e.g. `@acme/*`), `apps/*` content, `docs/design-workflow.md` | the product repo     | owned downstream; upstream never ships product packages |
 
 Because product packages live in directories upstream never creates, and
 `@starter/*` is never edited downstream, `git merge upstream/main` stays clean.
