@@ -5,17 +5,17 @@
   "compatibility_flags": ["nodejs_compat"],
   "main": "worker.ts",
   "assets": {
-    "directory": "build/client"
+    "directory": "build/client",
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "starter-db",
       "database_id": "510ae3cb-6a46-4409-a1db-b07b59cd504b",
-      "migrations_dir": "../../packages/db/migrations"
-    }
+      "migrations_dir": "../../packages/db/migrations",
+    },
   ],
   "vars": {
-    "ENVIRONMENT": "development"
-  }
+    "ENVIRONMENT": "development",
+  },
 }

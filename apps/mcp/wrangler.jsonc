@@ -9,12 +9,12 @@
       "binding": "DB",
       "database_name": "starter-db",
       "database_id": "local",
-      "migrations_dir": "../../packages/db/migrations"
-    }
+      "migrations_dir": "../../packages/db/migrations",
+    },
   ],
   "vars": {
     "BETTER_AUTH_SECRET": "dev-secret-must-be-at-least-32-characters-long",
     "BETTER_AUTH_URL": "http://localhost:5173",
-    "ENVIRONMENT": "development"
-  }
+    "ENVIRONMENT": "development",
+  },
 }

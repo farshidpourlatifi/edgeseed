@@ -34,6 +34,7 @@ tests/e2e         — Playwright e2e tests
 ### Web app server layer
 
 `apps/web/server/index.ts` is a Hono app that:
+
 - Runs `authMiddleware` to create db + auth per request
 - Mounts Better Auth at `/api/auth/**`
 - Mounts versioned API at `/api/v1`
@@ -42,6 +43,7 @@ tests/e2e         — Playwright e2e tests
 ### Routes
 
 Defined in `apps/web/app/routes.ts` (explicit route config, not file-based routing):
+
 - `/` — landing page
 - `/login` — email/password + GitHub social login
 - `/register` — with confirm password validation
@@ -61,6 +63,7 @@ Theme is CSS-variable-based (oklch colors) defined in `apps/web/app/app.css`. Th
 ### Dashboard layout
 
 The dashboard has:
+
 - **Sidebar** (desktop): collapsible, org switcher dropdown, nav links with active state, user dropdown, collapse button with tooltips
 - **Topbar**: breadcrumbs (desktop), hamburger dropdown (mobile), theme toggle, notification bell, user menu (mobile)
 - All sidebar/topbar code is inline in `dashboard.tsx` — not separate component files
@@ -68,6 +71,7 @@ The dashboard has:
 ### Auth in loaders
 
 Dashboard layout loader fetches session and orgs:
+
 ```ts
 const session = await context.auth.api.getSession({ headers: request.headers });
 const orgs = await context.auth.api.listOrganizations({ headers: request.headers });
@@ -138,10 +142,12 @@ npx wrangler d1 migrations apply starter-db --remote
 All sensitive vars go through `wrangler secret put <NAME>` — not in `wrangler.jsonc`.
 
 Required:
+
 - `BETTER_AUTH_SECRET` — random 32+ char string
 - `BETTER_AUTH_URL` — production URL (e.g. `https://starter-web.farshid-pourlatifi-3fa.workers.dev`)
 
 Optional (for social login):
+
 - `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
 
@@ -153,10 +159,10 @@ All dev vars live in `apps/web/.dev.vars` (gitignored). Wrangler merges them aut
 
 `apps/web/app/routes/_examples/` contains reference implementations — rich UI pages that are NOT registered as routes. They exist as copy-paste starting points when building a product.
 
-| File | What it shows |
-|------|--------------|
-| `dashboard-with-widgets.tsx` | Stats cards, activity table with empty state, quick action cards |
-| `settings-full.tsx` | Tabbed settings (General/Team/Billing), profile with avatar upload, danger zone, team member list |
+| File                         | What it shows                                                                                     |
+| ---------------------------- | ------------------------------------------------------------------------------------------------- |
+| `dashboard-with-widgets.tsx` | Stats cards, activity table with empty state, quick action cards                                  |
+| `settings-full.tsx`          | Tabbed settings (General/Team/Billing), profile with avatar upload, danger zone, team member list |
 
 To use an example: copy it to `app/routes/`, register the route in `routes.ts`, run `npx react-router typegen`, wire real data.
 

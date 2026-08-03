@@ -56,12 +56,12 @@ because the code-level fixes in Phase 2 partly depend on APIs from newer
 
 ### 1.1 Upgrade the four framework dependencies — **A1, A6**
 
-| Package | From | To (minimum) | Why |
-|---|---|---|---|
-| `better-auth` | 1.5.6 | **1.6.22** | account takeover, OAuth replay, org-invite bypass |
-| `hono` | 4.12.9 | **4.12.34** | CORS credential reflection, `app.mount()` path bug |
-| `drizzle-orm` | 0.41.0 | **0.45.2** | SQL injection via identifiers |
-| `react-router` | 7.13.2 | **7.18.0** | turbo-stream RCE primitive, DoS, open redirect |
+| Package        | From   | To (minimum) | Why                                                |
+| -------------- | ------ | ------------ | -------------------------------------------------- |
+| `better-auth`  | 1.5.6  | **1.6.22**   | account takeover, OAuth replay, org-invite bypass  |
+| `hono`         | 4.12.9 | **4.12.34**  | CORS credential reflection, `app.mount()` path bug |
+| `drizzle-orm`  | 0.41.0 | **0.45.2**   | SQL injection via identifiers                      |
+| `react-router` | 7.13.2 | **7.18.0**   | turbo-stream RCE primitive, DoS, open redirect     |
 
 The `drizzle-orm` **range** must change, not just the lockfile — `^0.41` can
 never resolve to `0.45.2` under semver. Same reasoning argues for tightening the
@@ -127,8 +127,9 @@ it("rejects a short secret", () => {
   expect(() => parseEnv(webEnvSchema, { BETTER_AUTH_SECRET: "short" })).toThrow();
 });
 it("rejects better-auth's default secret", () => {
-  expect(() => parseEnv(webEnvSchema,
-    { BETTER_AUTH_SECRET: "better-auth-secret-12345678901234567890" })).toThrow();
+  expect(() =>
+    parseEnv(webEnvSchema, { BETTER_AUTH_SECRET: "better-auth-secret-12345678901234567890" }),
+  ).toThrow();
 });
 ```
 
@@ -258,7 +259,7 @@ pnpm db:generate && pnpm db:migrate
 
 **Test:** a Vitest case that creates an org with members and invitations, deletes
 the org, and asserts no orphaned rows remain. Currently this would fail with a
-constraint error — that failure *is* the bug being fixed.
+constraint error — that failure _is_ the bug being fixed.
 
 ### 3.3 Client-side hardening — **A (low)**
 
@@ -285,7 +286,7 @@ The MCP worker is currently unbuildable, and **that broken build is the only
 thing keeping its unauthenticated endpoints off the internet.** It is an
 accidental control. Whoever fixes the build removes it.
 
-So: land all of this in the *same* change that makes the worker buildable.
+So: land all of this in the _same_ change that makes the worker buildable.
 
 1. Add the missing `agents` dependency, the Durable Object binding, and the
    migration that `McpAgent` requires; replace `database_id: "local"`.
@@ -334,7 +335,7 @@ git grep -nE 'sql\.raw|db\.run\(|execSync\(`|\$\{.*\}.*(SELECT|INSERT|UPDATE|DEL
 ```
 
 Each grep is a **tripwire, not a verdict** — every current hit is documented as
-clean in the audit's "Verified clean" section. A *new* hit is what warrants
+clean in the audit's "Verified clean" section. A _new_ hit is what warrants
 investigation.
 
 ### Manual review questions
@@ -387,10 +388,10 @@ from silently jumping minor versions on `better-auth`, `hono`, or
 
 ## Suggested ordering summary
 
-| Phase | Effort | Closes | Do it when |
-|---|---|---|---|
-| 0 | Minutes | A3 (verify), A7 | **Now** |
-| 1 | Hours | A1, A6, dev-toolchain | **Now** — highest risk reduction per effort |
-| 2 | Days | A2, A3, A4, A5, A10, A11, A14, A15 | Before any real user data |
-| 3 | Days | A9, A12, A13, low findings | Before publishing the starter |
-| 4 | Days | A8 | Before the MCP worker is ever deployed |
+| Phase | Effort  | Closes                             | Do it when                                  |
+| ----- | ------- | ---------------------------------- | ------------------------------------------- |
+| 0     | Minutes | A3 (verify), A7                    | **Now**                                     |
+| 1     | Hours   | A1, A6, dev-toolchain              | **Now** — highest risk reduction per effort |
+| 2     | Days    | A2, A3, A4, A5, A10, A11, A14, A15 | Before any real user data                   |
+| 3     | Days    | A9, A12, A13, low findings         | Before publishing the starter               |
+| 4     | Days    | A8                                 | Before the MCP worker is ever deployed      |

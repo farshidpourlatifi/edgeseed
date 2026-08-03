@@ -34,12 +34,10 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === "/sse" || url.pathname === "/sse/message") {
-      // @ts-expect-error — McpAgent.serve is provided by the Cloudflare agents runtime
       return StarterMcpAgent.serve("/sse").fetch(request, env, ctx);
     }
 
     if (url.pathname === "/mcp") {
-      // @ts-expect-error — McpAgent.serve is provided by the Cloudflare agents runtime
       return StarterMcpAgent.serve("/mcp").fetch(request, env, ctx);
     }
 

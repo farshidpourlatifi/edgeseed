@@ -3,16 +3,7 @@ import { Link } from "react-router";
 import { Button } from "@starter/ui/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@starter/ui/components/ui/card";
 import { ThemeToggle } from "@starter/ui/components/ui/theme-toggle";
-import {
-  Menu,
-  X,
-  Zap,
-  Shield,
-  Users,
-  BarChart3,
-  Globe,
-  Layers,
-} from "lucide-react";
+import { Menu, X, Zap, Shield, Users, BarChart3, Globe, Layers } from "lucide-react";
 
 const features = [
   {
@@ -46,7 +37,6 @@ const features = [
     description: "Connect with 100+ tools and build custom workflows with our API.",
   },
 ];
-
 
 function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -202,10 +192,16 @@ function Footer() {
           </span>
         </div>
         <div className="flex items-center gap-4">
-          <a href="#" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
+          <a
+            href="#"
+            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
             Privacy
           </a>
-          <a href="#" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
+          <a
+            href="#"
+            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
             Terms
           </a>
         </div>

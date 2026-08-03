@@ -20,9 +20,7 @@ test.describe("auth flow", () => {
     await page.click('button[type="submit"]');
 
     await page.waitForURL("**/dashboard", { timeout: 10000 });
-    await expect(
-      page.getByRole("heading", { name: "Welcome to your dashboard" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Welcome to your dashboard" })).toBeVisible();
   });
 
   test("should sign out from dashboard", async ({ page }) => {
@@ -50,9 +48,7 @@ test.describe("auth flow", () => {
     await page.click('button[type="submit"]');
 
     await page.waitForURL("**/dashboard", { timeout: 10000 });
-    await expect(
-      page.getByRole("heading", { name: "Welcome to your dashboard" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Welcome to your dashboard" })).toBeVisible();
   });
 
   test("should show error with wrong password", async ({ page }) => {
@@ -67,9 +63,7 @@ test.describe("auth flow", () => {
     await expect(page).toHaveURL(/.*login/);
   });
 
-  test("should redirect to login when accessing dashboard unauthenticated", async ({
-    page,
-  }) => {
+  test("should redirect to login when accessing dashboard unauthenticated", async ({ page }) => {
     await page.goto("/dashboard");
     await page.waitForURL("**/login", { timeout: 10000 });
     await expect(page.locator("text=Welcome back")).toBeVisible();

@@ -278,7 +278,7 @@ In-code:
 
 - JSDoc on every exported function, type, and class in `packages/`
 - no JSDoc required on internal/private helpers
-- keep comments short — explain *why*, not *what*
+- keep comments short — explain _why_, not _what_
 
 In `docs/`:
 

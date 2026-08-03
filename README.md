@@ -44,20 +44,20 @@ docs/
 
 ## CLI Commands
 
-| Command | Description |
-|---------|-------------|
-| `pnpm dev --filter @starter/web` | Start web dev server |
-| `pnpm dev --filter @starter/mcp` | Start MCP server |
-| `pnpm build` | Build all workspaces |
-| `pnpm typecheck` | Type check all workspaces |
-| `pnpm test` | Run unit/integration tests |
-| `pnpm test:e2e` | Run end-to-end tests |
-| `pnpm db:generate` | Generate Drizzle migration from schema changes |
-| `pnpm db:migrate` | Apply pending migrations (local D1) |
-| `pnpm db:seed` | Seed development data |
-| `pnpm db:reset` | Drop and re-apply all migrations locally |
-| `pnpm api:spec` | Regenerate OpenAPI spec to `docs/api/openapi.json` |
-| `pnpm version:bump [major\|minor\|patch]` | Bump version and create git tag |
+| Command                                   | Description                                        |
+| ----------------------------------------- | -------------------------------------------------- |
+| `pnpm dev --filter @starter/web`          | Start web dev server                               |
+| `pnpm dev --filter @starter/mcp`          | Start MCP server                                   |
+| `pnpm build`                              | Build all workspaces                               |
+| `pnpm typecheck`                          | Type check all workspaces                          |
+| `pnpm test`                               | Run unit/integration tests                         |
+| `pnpm test:e2e`                           | Run end-to-end tests                               |
+| `pnpm db:generate`                        | Generate Drizzle migration from schema changes     |
+| `pnpm db:migrate`                         | Apply pending migrations (local D1)                |
+| `pnpm db:seed`                            | Seed development data                              |
+| `pnpm db:reset`                           | Drop and re-apply all migrations locally           |
+| `pnpm api:spec`                           | Regenerate OpenAPI spec to `docs/api/openapi.json` |
+| `pnpm version:bump [major\|minor\|patch]` | Bump version and create git tag                    |
 
 ## Key Conventions
 

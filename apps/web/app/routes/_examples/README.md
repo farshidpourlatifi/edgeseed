@@ -12,10 +12,10 @@ They are **not registered as routes** — they exist as copy-paste starting poin
 
 ## Available examples
 
-| File | What it shows |
-|------|--------------|
-| `dashboard-with-widgets.tsx` | Stats cards, activity table with empty state, quick action cards |
-| `settings-full.tsx` | Tabbed settings (General/Team/Billing), profile with avatar, danger zone, team member list |
+| File                         | What it shows                                                                              |
+| ---------------------------- | ------------------------------------------------------------------------------------------ |
+| `dashboard-with-widgets.tsx` | Stats cards, activity table with empty state, quick action cards                           |
+| `settings-full.tsx`          | Tabbed settings (General/Team/Billing), profile with avatar, danger zone, team member list |
 
 ## Generating new designs with V0
 
@@ -46,6 +46,7 @@ This project uses V0 (shadcn) for UI generation.
 ### What V0 generates vs what we use
 
 V0 outputs a Next.js app. We only take:
+
 - `components/ui/*.tsx` → new shadcn primitives go to `packages/ui/src/components/ui/`
 - `app/**/page.tsx` → adapted to React Router route files in `app/routes/`
 - `app/globals.css` → theme variables (if changing theme)

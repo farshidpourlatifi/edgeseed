@@ -14,16 +14,7 @@ import {
   CardTitle,
 } from "@starter/ui/components/ui/card";
 import { Button } from "@starter/ui/components/ui/button";
-import {
-  Users,
-  Building2,
-  Activity,
-  Plus,
-  Settings,
-  FileText,
-  Inbox,
-  Zap,
-} from "lucide-react";
+import { Users, Building2, Activity, Plus, Settings, FileText, Inbox, Zap } from "lucide-react";
 
 const stats = [
   {
@@ -67,7 +58,7 @@ const quickActions = [
   },
 ];
 
-export async function loader({ context }: Route.LoaderArgs) {
+export async function loader({ context: _context }: Route.LoaderArgs) {
   // TODO: query real stats from DB
   return {};
 }

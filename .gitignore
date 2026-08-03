@@ -28,3 +28,5 @@ build/
 coverage/
 test-results/
 playwright-report/
+.stryker-tmp/
+reports/

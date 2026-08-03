@@ -1,7 +1,7 @@
 import type { Route } from "./+types/dashboard._index";
 import { Layers } from "lucide-react";
 
-export async function loader({ context }: Route.LoaderArgs) {
+export async function loader({ context: _context }: Route.LoaderArgs) {
   return {};
 }
 
@@ -14,8 +14,8 @@ export default function DashboardIndex() {
       <h1 className="text-2xl font-bold tracking-tight">Welcome to your dashboard</h1>
       <p className="max-w-md text-muted-foreground">
         Start building your product by adding routes, queries, and features. Check{" "}
-        <code className="rounded bg-muted px-1.5 py-0.5 text-sm">app/routes/_examples/</code>{" "}
-        for reference implementations.
+        <code className="rounded bg-muted px-1.5 py-0.5 text-sm">app/routes/_examples/</code> for
+        reference implementations.
       </p>
     </div>
   );

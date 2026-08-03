@@ -9,4 +9,8 @@ if ! command -v gitleaks >/dev/null 2>&1; then
   exit 1
 fi
 
+# Lint and format staged files first (fixes are re-staged automatically),
+# then scan the final staged content for secrets.
+pnpm exec lint-staged
+
 exec gitleaks git --pre-commit --staged --redact --verbose

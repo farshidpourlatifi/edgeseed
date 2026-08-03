@@ -1,0 +1,4 @@
+# generated files (tracked, but not hand-edited)
+pnpm-lock.yaml
+docs/api/
+packages/db/migrations/

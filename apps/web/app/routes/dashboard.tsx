@@ -116,9 +116,7 @@ function OrganizationSwitcher({
           {!collapsed && (
             <>
               <div className="flex flex-1 flex-col items-start text-left">
-                <span className="truncate text-sm font-medium">
-                  {activeOrg?.name ?? "No Org"}
-                </span>
+                <span className="truncate text-sm font-medium">{activeOrg?.name ?? "No Org"}</span>
               </div>
               <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
             </>
@@ -133,7 +131,11 @@ function OrganizationSwitcher({
         <DropdownMenuLabel>Organizations</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {organizations.map((org) => (
-          <DropdownMenuItem key={org.id} onClick={() => switchOrg(org.id)} className="cursor-pointer">
+          <DropdownMenuItem
+            key={org.id}
+            onClick={() => switchOrg(org.id)}
+            className="cursor-pointer"
+          >
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
               <Building2 className="h-4 w-4" />
             </div>
@@ -338,8 +340,6 @@ function Sidebar({
 function Topbar({
   sidebarCollapsed,
   user,
-  organizations,
-  activeOrganizationId,
 }: {
   sidebarCollapsed: boolean;
   user: { name: string; email: string };

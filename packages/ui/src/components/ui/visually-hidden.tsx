@@ -1,8 +1,8 @@
-import * as React from "react"
-import { cn } from "../../lib/utils"
+import * as React from "react";
+import { cn } from "../../lib/utils";
 
 interface VisuallyHiddenProps extends React.HTMLAttributes<HTMLSpanElement> {
-  children: React.ReactNode
+  children: React.ReactNode;
 }
 
 /**
@@ -14,7 +14,7 @@ function VisuallyHidden({ className, children, ...props }: VisuallyHiddenProps) 
     <span className={cn("sr-only", className)} {...props}>
       {children}
     </span>
-  )
+  );
 }
 
-export { VisuallyHidden }
+export { VisuallyHidden };

@@ -4,11 +4,11 @@
 changes for committed credentials. It runs at three layers in this repo, so a
 secret has to slip past all of them to land on a remote:
 
-| Layer | When | What it scans |
-|-------|------|---------------|
-| Pre-commit hook (`.githooks/pre-commit`) | Every `git commit` | Staged changes only |
-| GitHub Actions (`.github/workflows/gitleaks.yml`) | Every PR and push to `main` | Full history |
-| Manual scan | On demand | Whatever you point it at |
+| Layer                                             | When                        | What it scans            |
+| ------------------------------------------------- | --------------------------- | ------------------------ |
+| Pre-commit hook (`.githooks/pre-commit`)          | Every `git commit`          | Staged changes only      |
+| GitHub Actions (`.github/workflows/gitleaks.yml`) | Every PR and push to `main` | Full history             |
+| Manual scan                                       | On demand                   | Whatever you point it at |
 
 Configuration lives in [`.gitleaks.toml`](../.gitleaks.toml) — the default
 ruleset plus a narrow allowlist for the well-known local-dev placeholder
@@ -45,7 +45,7 @@ gitleaks dir --redact
    is not. Revoke the key at its provider (GitHub OAuth app, Google Cloud
    console, `wrangler secret put` a fresh `BETTER_AUTH_SECRET`, …).
 2. **Then clean history** with [git-filter-repo](https://github.com/newren/git-filter-repo)
-   or BFG if the commit was pushed. Deleting the file in a *new* commit does
+   or BFG if the commit was pushed. Deleting the file in a _new_ commit does
    nothing — the secret stays in history and in every clone and fork.
 3. **Never skip step 1.** History rewriting without rotation is theater.
 

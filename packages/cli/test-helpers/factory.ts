@@ -19,9 +19,7 @@ export function buildUser(overrides?: Partial<{ id: string; name: string; email:
 }
 
 /** Create test organization data */
-export function buildOrganization(
-  overrides?: Partial<{ id: string; name: string; slug: string }>,
-) {
+export function buildOrganization(overrides?: Partial<{ id: string; name: string; slug: string }>) {
   const id = nextId("org");
   return {
     id,

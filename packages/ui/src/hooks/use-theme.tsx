@@ -51,9 +51,7 @@ export function ThemeProvider({
   defaultMode?: Mode;
 }) {
   const [mode, setModeState] = useState<Mode>(defaultMode);
-  const [resolvedMode, setResolvedMode] = useState<"dark" | "light">(
-    getResolvedMode(defaultMode),
-  );
+  const [resolvedMode, setResolvedMode] = useState<"dark" | "light">(getResolvedMode(defaultMode));
 
   // Read from cookie on mount
   useEffect(() => {
@@ -65,7 +63,7 @@ export function ThemeProvider({
     } else {
       applyMode(defaultMode);
     }
-  }, []);
+  }, [defaultMode]);
 
   // React to mode changes
   useEffect(() => {
@@ -120,7 +118,5 @@ export function ThemeProvider({
     },
   };
 
-  return (
-    <ThemeProviderContext.Provider value={value}>{children}</ThemeProviderContext.Provider>
-  );
+  return <ThemeProviderContext.Provider value={value}>{children}</ThemeProviderContext.Provider>;
 }

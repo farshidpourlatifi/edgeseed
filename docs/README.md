@@ -47,17 +47,17 @@ docs/api          — Generated OpenAPI specs
 
 ## Dev workflow
 
-| Command | What it does |
-|---------|-------------|
-| `pnpm dev --filter @starter/web` | Start web dev server on :5173 |
-| `pnpm db:generate` | Generate migration from schema changes |
-| `pnpm db:migrate` | Apply migrations to local D1 |
-| `pnpm db:seed` | Insert seed data |
-| `pnpm db:reset` | Drop and re-apply all migrations |
-| `pnpm api:spec` | Regenerate `docs/api/openapi.json` |
-| `pnpm test` | Run Vitest |
-| `pnpm test:e2e` | Run Playwright e2e tests |
-| `pnpm version:bump [type]` | Bump version + git tag |
+| Command                          | What it does                           |
+| -------------------------------- | -------------------------------------- |
+| `pnpm dev --filter @starter/web` | Start web dev server on :5173          |
+| `pnpm db:generate`               | Generate migration from schema changes |
+| `pnpm db:migrate`                | Apply migrations to local D1           |
+| `pnpm db:seed`                   | Insert seed data                       |
+| `pnpm db:reset`                  | Drop and re-apply all migrations       |
+| `pnpm api:spec`                  | Regenerate `docs/api/openapi.json`     |
+| `pnpm test`                      | Run Vitest                             |
+| `pnpm test:e2e`                  | Run Playwright e2e tests               |
+| `pnpm version:bump [type]`       | Bump version + git tag                 |
 
 ## Adding a new page
 

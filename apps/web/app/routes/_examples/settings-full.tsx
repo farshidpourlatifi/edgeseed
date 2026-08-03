@@ -104,7 +104,9 @@ export default function SettingsFullPage({ loaderData }: Route.ComponentProps) {
           <Card>
             <CardHeader>
               <CardTitle>Profile</CardTitle>
-              <CardDescription>Update your personal information and profile picture.</CardDescription>
+              <CardDescription>
+                Update your personal information and profile picture.
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSaveProfile} className="space-y-6">

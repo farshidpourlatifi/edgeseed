@@ -12,23 +12,23 @@ or a **missing control that fails open as the starter grows**. Because this is a
 starter kit, the fail-open defaults matter more than usual: every fork inherits
 them.
 
-| # | Severity | Issue | Status |
-|---|----------|-------|--------|
-| 1 | Critical | `better-auth@1.5.6` account-takeover advisories | Live |
-| 2 | High | Account pre-hijacking via unverified signup + implicit OAuth linking | Live |
-| 3 | High | `BETTER_AUTH_SECRET` unvalidated; silent fallback to a public default | Live footgun |
-| 4 | High | No rate limiting on any auth endpoint | Live |
-| 5 | High | No security response headers anywhere | Live |
-| 6 | High | Vulnerable `hono`, `drizzle-orm`, `react-router` versions | Live |
-| 7 | High | Global `~/.npmrc` uses plaintext HTTP registry with TLS off | Live (machine) |
-| 8 | Medium | MCP server has no authentication | Latent |
-| 9 | Medium | `BETTER_AUTH_SECRET` committed in `apps/mcp/wrangler.jsonc` | Live |
-| 10 | Medium | Dashboard child loaders do not enforce auth themselves | Pattern risk |
-| 11 | Medium | IP-derived controls trust spoofable `x-forwarded-for` | Live |
-| 12 | Medium | OAuth and verification tokens stored in plaintext, never purged | Live |
-| 13 | Medium | `member`/`invitation` foreign keys do not cascade on delete | Live |
-| 14 | Medium | No `Cache-Control` on authenticated responses | Live |
-| 15 | Medium | No CSRF protection on the `/api/v1` mount | Pattern risk |
+| #   | Severity | Issue                                                                 | Status         |
+| --- | -------- | --------------------------------------------------------------------- | -------------- |
+| 1   | Critical | `better-auth@1.5.6` account-takeover advisories                       | Live           |
+| 2   | High     | Account pre-hijacking via unverified signup + implicit OAuth linking  | Live           |
+| 3   | High     | `BETTER_AUTH_SECRET` unvalidated; silent fallback to a public default | Live footgun   |
+| 4   | High     | No rate limiting on any auth endpoint                                 | Live           |
+| 5   | High     | No security response headers anywhere                                 | Live           |
+| 6   | High     | Vulnerable `hono`, `drizzle-orm`, `react-router` versions             | Live           |
+| 7   | High     | Global `~/.npmrc` uses plaintext HTTP registry with TLS off           | Live (machine) |
+| 8   | Medium   | MCP server has no authentication                                      | Latent         |
+| 9   | Medium   | `BETTER_AUTH_SECRET` committed in `apps/mcp/wrangler.jsonc`           | Live           |
+| 10  | Medium   | Dashboard child loaders do not enforce auth themselves                | Pattern risk   |
+| 11  | Medium   | IP-derived controls trust spoofable `x-forwarded-for`                 | Live           |
+| 12  | Medium   | OAuth and verification tokens stored in plaintext, never purged       | Live           |
+| 13  | Medium   | `member`/`invitation` foreign keys do not cascade on delete           | Live           |
+| 14  | Medium   | No `Cache-Control` on authenticated responses                         | Live           |
+| 15  | Medium   | No CSRF protection on the `/api/v1` mount                             | Pattern risk   |
 
 Low and informational findings follow the detailed section.
 
@@ -110,7 +110,7 @@ is non-functional and the login page has no "forgot password" path
 
 ### 3. A missing `BETTER_AUTH_SECRET` silently signs sessions with a publicly-known default
 
-*Verified directly against the installed package during this audit.*
+_Verified directly against the installed package during this audit._
 
 `packages/auth/src/middleware.ts:23-33` passes the binding straight through with
 no presence or length check:
@@ -217,7 +217,7 @@ will need a CSP nonce or hash.
 
 ### 7. Global `~/.npmrc` fetches packages over plaintext HTTP with TLS verification disabled
 
-*Machine-level, outside the repo, but it governs every install into this repo.*
+_Machine-level, outside the repo, but it governs every install into this repo._
 
 `/Users/farshid/.npmrc` contains `strict-ssl=false` and
 `registry=http://registry.npmjs.org/`. Every `pnpm install` on this machine
@@ -228,7 +228,7 @@ mandates HTTPS.
 
 The committed `pnpm-lock.yaml` contains integrity hashes and no `http://` URLs,
 so existing dependencies are still constrained — but a MITM'd fresh install of
-any *new* package would be poisoned at lockfile-creation time and the bad hash
+any _new_ package would be poisoned at lockfile-creation time and the bad hash
 would then be committed as truth.
 
 **Fix:** set `registry=https://registry.npmjs.org/` and delete
