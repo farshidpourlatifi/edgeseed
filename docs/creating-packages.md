@@ -29,9 +29,9 @@ packages/<name>/
 }
 ```
 
-- **Scope**: `@starter/*` is for starter-owned framework packages. Product
-  packages in downstream projects use the product's own scope — see
-  `docs/starter-as-upstream.md` (workflow decision pending).
+- **Scope**: `@starter/*` is for starter-owned framework packages only.
+  Product packages in downstream repos use the product's own scope (e.g.
+  `@acme/*`) — the full ownership model is in `docs/starter-as-upstream.md`.
 - Export TS source directly (`./src/index.ts`) — consumers compile it; there is
   no per-package build step.
 - Add subpath exports (`"./thing": "./src/thing.ts"`) instead of barrel-exporting
