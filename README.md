@@ -82,7 +82,9 @@ docs/
 - **Pre-commit hook** (`.githooks/`, wired automatically by `pnpm install`) — runs
   lint-staged (ESLint + Prettier on staged files) and a [gitleaks](./docs/secret-scanning.md)
   secret scan before every commit
-- **CI** — gitleaks scans full history on every PR and push to `main`
+- **CI** — every PR and push to `main` runs lint, format, tests, build, typecheck, e2e,
+  a full-history gitleaks scan, and drift checks (OpenAPI spec, docs-vs-scripts); a weekly
+  cron rerun catches rot between commits
 - **Deploys are gated** — `pnpm deploy:web` refuses to ship unless `pnpm verify` passes
 
 ## Cost planning
