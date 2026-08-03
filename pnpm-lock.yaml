@@ -250,6 +250,9 @@ importers:
       '@cloudflare/workers-types':
         specifier: ^4
         version: 4.20260331.1
+      '@starter/cli':
+        specifier: workspace:*
+        version: link:../cli
 
   packages/db:
     dependencies:

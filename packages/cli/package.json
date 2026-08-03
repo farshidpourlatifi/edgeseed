@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./test-helpers/*": "./test-helpers/*.ts"
+  },
   "dependencies": {
     "@starter/config": "workspace:*",
     "@starter/db": "workspace:*"
