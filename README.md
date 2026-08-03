@@ -68,6 +68,12 @@ docs/
 - **Testing**: TDD for domain logic, e2e for critical paths (Vitest + Playwright)
 - **OpenAPI**: auto-generated from zod schemas, checked into git
 
+## Cost planning
+
+See [Cloudflare costs and guardrails](./docs/costs-and-limits.md) for the audited resource
+inventory, current Workers/D1 pricing, monthly estimates, deployment caveats, and cost-control
+checklist.
+
 ## Architecture
 
 The web app uses **Hono** as the server middleware layer, bridged to **React Router v7** via `hono-react-router-adapter`. This gives:
