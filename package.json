@@ -7,7 +7,7 @@
     "build": "turbo build",
     "dev": "turbo dev",
     "typecheck": "turbo typecheck",
-    "test": "turbo test",
+    "test": "vitest run",
     "test:e2e": "playwright test",
     "db:generate": "tsx packages/cli/src/db-generate.ts",
     "db:migrate": "tsx packages/cli/src/db-migrate.ts",

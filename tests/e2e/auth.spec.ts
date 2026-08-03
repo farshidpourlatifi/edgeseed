@@ -20,7 +20,9 @@ test.describe("auth flow", () => {
     await page.click('button[type="submit"]');
 
     await page.waitForURL("**/dashboard", { timeout: 10000 });
-    await expect(page.locator("text=Dashboard")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Welcome to your dashboard" }),
+    ).toBeVisible();
   });
 
   test("should sign out from dashboard", async ({ page }) => {
@@ -31,10 +33,9 @@ test.describe("auth flow", () => {
     await page.click('button[type="submit"]');
     await page.waitForURL("**/dashboard", { timeout: 10000 });
 
-    // Sign out via the mobile menu (more reliable in tests)
-    // Click the hamburger/menu button to open dropdown
-    await page.click('button[aria-label="Open menu"]');
-    await page.click("text=Sign Out");
+    // Sign out via the sidebar user menu
+    await page.getByRole("button", { name: TEST_USER.name }).click();
+    await page.getByRole("menuitem", { name: "Sign Out" }).click();
 
     await page.waitForURL("/", { timeout: 10000 });
     await expect(page.locator("h1")).toContainText("SaaS product");
@@ -49,7 +50,9 @@ test.describe("auth flow", () => {
     await page.click('button[type="submit"]');
 
     await page.waitForURL("**/dashboard", { timeout: 10000 });
-    await expect(page.locator("text=Dashboard")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Welcome to your dashboard" }),
+    ).toBeVisible();
   });
 
   test("should show error with wrong password", async ({ page }) => {
