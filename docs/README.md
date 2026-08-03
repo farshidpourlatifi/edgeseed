@@ -90,16 +90,51 @@ pnpm --filter @starter/web build
 
 # Deploy to Cloudflare
 cd apps/web && wrangler deploy
+```
 
-# Set production secrets
-wrangler secret put BETTER_AUTH_SECRET
+### Production secrets
+
+Secrets are set once per environment with `wrangler secret put <NAME>` (run from
+`apps/web/`) and stored encrypted by Cloudflare — never in `wrangler.jsonc` or git.
+
+**Required:**
+
+```bash
+# Session signing key — any random 32+ char string:
+openssl rand -hex 32 | wrangler secret put BETTER_AUTH_SECRET
+
+# Public URL of the deployed app, e.g. https://starter-web.<subdomain>.workers.dev
+wrangler secret put BETTER_AUTH_URL
+```
+
+**Optional — GitHub social login.** Create an OAuth app at
+https://github.com/settings/developers with the callback URL
+`{BETTER_AUTH_URL}/api/auth/callback/github`, then:
+
+```bash
 wrangler secret put GITHUB_CLIENT_ID
 wrangler secret put GITHUB_CLIENT_SECRET
+```
+
+**Optional — Google social login.** Create OAuth credentials at
+https://console.cloud.google.com/apis/credentials with the authorized redirect URI
+`{BETTER_AUTH_URL}/api/auth/callback/google`, then:
+
+```bash
 wrangler secret put GOOGLE_CLIENT_ID
 wrangler secret put GOOGLE_CLIENT_SECRET
 ```
 
-For production OAuth apps, use your real domain for callback URLs.
+Social login providers are auto-enabled only when their credentials are set
+(conditional in `packages/auth/src/server.ts`) — leave them unset and
+email/password auth still works. For production OAuth apps, use your real domain
+in the callback URLs.
+
+### Local dev
+
+Don't use `wrangler secret put` for local development. Put the same variables in
+`apps/web/.dev.vars` (gitignored) — wrangler merges them automatically during
+`pnpm dev`.
 
 ## Further reading
 

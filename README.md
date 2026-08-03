@@ -74,6 +74,12 @@ See [Cloudflare costs and guardrails](./docs/costs-and-limits.md) for the audite
 inventory, current Workers/D1 pricing, monthly estimates, deployment caveats, and cost-control
 checklist.
 
+## Deploying
+
+See [Deploying in docs/README.md](./docs/README.md#deploying) for build/deploy
+commands and how to obtain and set the production secrets (`BETTER_AUTH_SECRET`,
+GitHub/Google OAuth credentials).
+
 ## Architecture
 
 The web app uses **Hono** as the server middleware layer, bridged to **React Router v7** via `hono-react-router-adapter`. This gives:
