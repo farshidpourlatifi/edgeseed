@@ -103,6 +103,9 @@ For production OAuth apps, use your real domain for callback URLs.
 
 ## Further reading
 
+- [Security Audit](./security-audit.md) — findings from the 10-pass review
+- [Security Fix & Test Plan](./security-plan.md) — remediation phases and the standing review pass
+- [Cloudflare Costs and Guardrails](./costs-and-limits.md)
 - [ADR 001: Monorepo Structure](./adr/001-monorepo-structure.md)
 - [OpenAPI Spec](./api/openapi.json)
 - [V1 Scope](./starter-v1-scope.md)
