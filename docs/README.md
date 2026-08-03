@@ -57,6 +57,12 @@ docs/api          — Generated OpenAPI specs
 | `pnpm api:spec`                  | Regenerate `docs/api/openapi.json`     |
 | `pnpm test`                      | Run Vitest                             |
 | `pnpm test:e2e`                  | Run Playwright e2e tests               |
+| `pnpm test:coverage`             | Vitest with coverage (`coverage/`)     |
+| `pnpm test:mutation`             | Stryker mutation tests                 |
+| `pnpm lint` / `pnpm lint:fix`    | ESLint check / autofix                 |
+| `pnpm format` / `format:check`   | Prettier write / check                 |
+| `pnpm verify`                    | Full pre-deploy gate                   |
+| `pnpm deploy:web`                | `verify` + deploy web app              |
 | `pnpm version:bump [type]`       | Bump version + git tag                 |
 
 ## Adding a new page
@@ -85,12 +91,12 @@ The UI uses shadcn/ui components with a single oklch color theme (light/dark/sys
 ## Deploying
 
 ```bash
-# Build the web app
-pnpm --filter @starter/web build
-
-# Deploy to Cloudflare
-cd apps/web && wrangler deploy
+# Gated deploy: runs the full verify suite (lint, format check, unit tests,
+# gitleaks history scan, build, typecheck, e2e), then deploys the web app
+pnpm deploy:web
 ```
+
+Avoid raw `wrangler deploy` — it skips the verify gate.
 
 ### Production secrets
 

@@ -44,20 +44,26 @@ docs/
 
 ## CLI Commands
 
-| Command                                   | Description                                        |
-| ----------------------------------------- | -------------------------------------------------- |
-| `pnpm dev --filter @starter/web`          | Start web dev server                               |
-| `pnpm dev --filter @starter/mcp`          | Start MCP server                                   |
-| `pnpm build`                              | Build all workspaces                               |
-| `pnpm typecheck`                          | Type check all workspaces                          |
-| `pnpm test`                               | Run unit/integration tests                         |
-| `pnpm test:e2e`                           | Run end-to-end tests                               |
-| `pnpm db:generate`                        | Generate Drizzle migration from schema changes     |
-| `pnpm db:migrate`                         | Apply pending migrations (local D1)                |
-| `pnpm db:seed`                            | Seed development data                              |
-| `pnpm db:reset`                           | Drop and re-apply all migrations locally           |
-| `pnpm api:spec`                           | Regenerate OpenAPI spec to `docs/api/openapi.json` |
-| `pnpm version:bump [major\|minor\|patch]` | Bump version and create git tag                    |
+| Command                                   | Description                                                     |
+| ----------------------------------------- | --------------------------------------------------------------- |
+| `pnpm dev --filter @starter/web`          | Start web dev server                                            |
+| `pnpm dev --filter @starter/mcp`          | Start MCP server                                                |
+| `pnpm build`                              | Build all workspaces                                            |
+| `pnpm typecheck`                          | Type check all workspaces                                       |
+| `pnpm test`                               | Run unit/integration tests                                      |
+| `pnpm test:e2e`                           | Run end-to-end tests                                            |
+| `pnpm test:coverage`                      | Unit tests with coverage report (`coverage/`)                   |
+| `pnpm test:mutation`                      | Stryker mutation tests (`reports/mutation/`)                    |
+| `pnpm lint` / `pnpm lint:fix`             | ESLint check / autofix                                          |
+| `pnpm format` / `pnpm format:check`       | Prettier write / check                                          |
+| `pnpm verify`                             | Full gate: lint, format, tests, gitleaks, build, typecheck, e2e |
+| `pnpm deploy:web`                         | Run `verify`, then deploy the web app to Cloudflare             |
+| `pnpm db:generate`                        | Generate Drizzle migration from schema changes                  |
+| `pnpm db:migrate`                         | Apply pending migrations (local D1)                             |
+| `pnpm db:seed`                            | Seed development data                                           |
+| `pnpm db:reset`                           | Drop and re-apply all migrations locally                        |
+| `pnpm api:spec`                           | Regenerate OpenAPI spec to `docs/api/openapi.json`              |
+| `pnpm version:bump [major\|minor\|patch]` | Bump version and create git tag                                 |
 
 ## Key Conventions
 
@@ -67,6 +73,15 @@ docs/
 - **DB migrations**: sequential Drizzle Kit migrations in `packages/db/migrations/`
 - **Testing**: TDD for domain logic, e2e for critical paths (Vitest + Playwright)
 - **OpenAPI**: auto-generated from zod schemas, checked into git
+
+## Code quality
+
+- **ESLint + Prettier** — flat config in `eslint.config.mjs`, settings in `.prettierrc`
+- **Pre-commit hook** (`.githooks/`, wired automatically by `pnpm install`) — runs
+  lint-staged (ESLint + Prettier on staged files) and a [gitleaks](./docs/secret-scanning.md)
+  secret scan before every commit
+- **CI** — gitleaks scans full history on every PR and push to `main`
+- **Deploys are gated** — `pnpm deploy:web` refuses to ship unless `pnpm verify` passes
 
 ## Cost planning
 
