@@ -11,9 +11,12 @@ test("landing page renders marketing content", async ({ page }) => {
 
 test("terminal demo animates on the landing page", async ({ page }) => {
   await page.goto("/");
+  // Static summary terminals render their full transcript immediately
+  const summary = page.locator("#quality .tw").first();
+  await summary.scrollIntoViewIfNeeded();
+  await expect(summary).toContainText("7 gates passed — deploy unlocked", { timeout: 15000 });
+  // The animated one types the command, then reveals gate results over time
   const body = page.locator("#terminal-demo .tw-body");
-  await body.scrollIntoViewIfNeeded();
-  // The scripted typewriter should type the command, then reveal gate results
   await expect(body).toContainText("pnpm verify", { timeout: 15000 });
   await expect(body).toContainText("lint — no errors", { timeout: 10000 });
 });

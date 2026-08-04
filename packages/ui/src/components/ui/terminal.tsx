@@ -19,6 +19,8 @@ import { buildTimeline, keyOf, stateAt, transcriptOf, type ScriptStep } from "./
  * - Respects `prefers-reduced-motion` (jumps to the finished transcript with a
  *   Replay button) and pauses off-screen via IntersectionObserver.
  * - Screen readers get the completed transcript, not a stuttering live region.
+ * - `animate={false}` renders the finished transcript as a static panel —
+ *   use it for instant-read summaries that should match the animated look.
  * - The animation model lives in `terminal-timeline.ts` (pure, unit-tested).
  *
  * Note: each instance injects its own <style> tag; fine for a page hero, but
@@ -27,6 +29,7 @@ import { buildTimeline, keyOf, stateAt, transcriptOf, type ScriptStep } from "./
 export function Terminal({
   script,
   theme = "auto",
+  animate = true,
   loop = true,
   speed = 1,
   label,
@@ -35,6 +38,7 @@ export function Terminal({
 }: {
   script: ScriptStep[];
   theme?: "auto" | "light" | "dark";
+  animate?: boolean;
   loop?: boolean;
   speed?: number;
   label?: string;
@@ -54,7 +58,7 @@ export function Terminal({
   const [frameMs, setFrameMs] = React.useState(0);
   const [done, setDone] = React.useState(false);
 
-  const running = inView && !reduced && !done;
+  const running = animate && inView && !reduced && !done;
 
   React.useEffect(() => {
     if (!running) return;
@@ -84,7 +88,7 @@ export function Terminal({
     return () => cancelAnimationFrame(raf);
   }, [running, speed, loop, timeline]);
 
-  const now = reduced || done ? timeline.duration : frameMs;
+  const now = !animate || reduced || done ? timeline.duration : frameMs;
   const visible = stateAt(timeline, now);
 
   // Keep the newest line in view; runs after every content re-render.
@@ -249,7 +253,7 @@ export function Terminal({
         )}
       </div>
 
-      {(done || reduced) && (
+      {animate && (done || reduced) && (
         <button type="button" className="tw-replay" onClick={replay}>
           Replay
         </button>

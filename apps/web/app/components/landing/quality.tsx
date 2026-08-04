@@ -35,30 +35,34 @@ const PIPELINE_SCRIPT: ScriptStep[] = [
   },
 ];
 
-// Mirrors the real `pnpm verify` chain and a real Stryker run — keep in sync.
-const terminals = [
+// Static instant-read summaries of the same runs, rendered with the same
+// <Terminal /> chrome as the animated walkthrough (animate={false}).
+const VERIFY_SUMMARY: ScriptStep[] = [
   {
-    title: "pnpm verify",
-    lines: [
-      { prompt: true, text: "pnpm verify" },
-      { text: "› lint       eslint .                ok" },
-      { text: "› format     prettier --check .      ok" },
-      { text: "› test       vitest run (60)         ok" },
-      { text: "› secrets    gitleaks git --redact   ok" },
-      { text: "› build      turbo build             ok" },
-      { text: "› types      turbo typecheck         ok" },
-      { text: "› e2e        playwright test (8)     ok" },
-      { text: "7 gates passed — deploy unlocked", accent: true },
+    cmd: "pnpm verify",
+    cwd: "~/cloudflare-starter",
+    out: [
+      "› lint       eslint .                ok",
+      "› format     prettier --check .      ok",
+      "› test       vitest run (60)         ok",
+      "› secrets    gitleaks git --redact   ok",
+      "› build      turbo build             ok",
+      "› types      turbo typecheck         ok",
+      "› e2e        playwright test (8)     ok",
+      { text: "7 gates passed — deploy unlocked", tone: "accent" },
     ],
   },
+];
+
+const MUTATION_SUMMARY: ScriptStep[] = [
   {
-    title: "pnpm test:mutation",
-    lines: [
-      { prompt: true, text: "pnpm test:mutation" },
-      { text: "Stryker  mutating schema, helpers, api…" },
-      { text: "killed 78   survived 87   no-coverage 4" },
-      { text: "mutation score 46.2%" },
-      { text: "report: reports/mutation/index.html", accent: true },
+    cmd: "pnpm test:mutation",
+    cwd: "~/cloudflare-starter",
+    out: [
+      "Stryker  mutating schema, helpers, api…",
+      "killed 78   survived 87   no-coverage 4",
+      "mutation score 46.2%",
+      { text: "report: reports/mutation/index.html", tone: "accent" },
     ],
   },
 ];
@@ -81,40 +85,20 @@ export function Quality() {
 
         <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-2 lg:gap-12">
           <div className="flex flex-col gap-4">
-            {terminals.map((terminal) => (
-              <div
-                key={terminal.title}
-                className="overflow-hidden rounded-xl border bg-zinc-950 shadow-sm"
-              >
-                <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
-                  <span className="flex gap-1.5" aria-hidden="true">
-                    <span className="size-2.5 rounded-full bg-zinc-700" />
-                    <span className="size-2.5 rounded-full bg-zinc-700" />
-                    <span className="size-2.5 rounded-full bg-zinc-700" />
-                  </span>
-                  <span className="font-mono text-xs text-zinc-400">{terminal.title}</span>
-                </div>
-                <pre className="overflow-x-auto px-4 py-4 font-mono text-xs leading-relaxed text-zinc-300">
-                  <code>
-                    {terminal.lines.map((line, index) => (
-                      <span
-                        key={index}
-                        className={
-                          line.accent
-                            ? "block text-sky-400"
-                            : line.prompt
-                              ? "block text-zinc-100"
-                              : "block"
-                        }
-                      >
-                        {line.prompt ? <span className="text-sky-400">$ </span> : null}
-                        {line.text}
-                      </span>
-                    ))}
-                  </code>
-                </pre>
-              </div>
-            ))}
+            <Terminal
+              script={VERIFY_SUMMARY}
+              animate={false}
+              label="pnpm verify"
+              height="auto"
+              className="w-full"
+            />
+            <Terminal
+              script={MUTATION_SUMMARY}
+              animate={false}
+              label="pnpm test:mutation"
+              height="auto"
+              className="w-full"
+            />
           </div>
 
           <div id="terminal-demo" className="w-full">

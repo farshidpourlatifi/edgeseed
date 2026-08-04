@@ -9,7 +9,7 @@ copied into apps.
 ## Layout
 
 - `src/components/ui/` — shadcn primitives (vendor-ish; keep close to upstream, regenerate via V0/shadcn rather than hand-editing heavily)
-- `src/components/ui/terminal.tsx` — our own animated scripted-terminal player (marketing/docs pages). View layer only; the animation model is `terminal-timeline.ts` (pure functions: `buildTimeline`, `stateAt`, `keyOf`, `transcriptOf`) and is unit + mutation tested. Honors reduced-motion, pauses off-screen, themes via `--term-*` CSS vars with `color-scheme` bound to the `.dark` class
+- `src/components/ui/terminal.tsx` — our own animated scripted-terminal player (marketing/docs pages). View layer only; the animation model is `terminal-timeline.ts` (pure functions: `buildTimeline`, `stateAt`, `keyOf`, `transcriptOf`) and is unit + mutation tested. Honors reduced-motion, pauses off-screen, themes via `--term-*` CSS vars with `color-scheme` bound to the `.dark` class. `animate={false}` renders the finished transcript statically — use it wherever a code-block-style terminal snippet should match the animated chrome
 - `src/components/layout/` — our own primitives (page-shell, empty-state, loading-state, stack)
 - `src/hooks/` — `use-theme` (light/dark/system via cookie), `use-mobile`, `use-toast`, `use-in-view` (IntersectionObserver, fails open), `use-reduced-motion`
 - `src/lib/utils.ts` — `cn()` (clsx + tailwind-merge)
