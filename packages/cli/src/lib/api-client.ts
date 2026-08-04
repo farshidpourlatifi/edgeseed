@@ -70,8 +70,17 @@ export interface BuiltRequest {
  */
 export function buildApiRequest(input: BuildRequestInput): BuiltRequest {
   if (!input.token) {
+    // A bare `VAR=value` line sets a shell variable, not an exported one, so the
+    // child process never sees it — by far the most common cause of landing here.
     throw new ApiUsageError(
-      "STARTER_API_TOKEN is not set. Create one in Dashboard → Settings → API tokens.",
+      [
+        "STARTER_API_TOKEN is not set.",
+        "",
+        "  STARTER_API_TOKEN='sk_...' pnpm api:call GET /me   # same line, or",
+        "  export STARTER_API_TOKEN='sk_...'                  # once per shell",
+        "",
+        "Create a token in Dashboard → Settings → API tokens.",
+      ].join("\n"),
     );
   }
 

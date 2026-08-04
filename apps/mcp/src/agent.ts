@@ -3,6 +3,7 @@ import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { createDb } from "@starter/db";
 import { APP_VERSION } from "@starter/config/version";
+import { MCP_SERVER_NAME } from "@starter/config/product";
 import { sentryOptionsOrDisabled } from "@starter/observability";
 import { registerTools, type McpProps } from "./tools";
 import type { Env } from "./env";
@@ -12,7 +13,9 @@ class StarterMcpAgentBase extends McpAgent<Env, unknown, McpProps> {
   // captures tool handler errors. No-op when Sentry is not configured.
   server = wrapMcpServerWithSentry(
     new McpServer({
-      name: "Starter MCP Server",
+      // Both from @starter/config so `pnpm init:product` renames them together —
+      // never hardcode either, or a downstream repo ships as "Starter".
+      name: MCP_SERVER_NAME,
       version: APP_VERSION,
     }),
   );

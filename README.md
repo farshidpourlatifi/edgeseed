@@ -143,7 +143,9 @@ Every request emits JSON that Cloudflare Workers Logs indexes as queryable field
 - **Error responses** carry `{ error, requestId }` — the internal message is never leaked.
 
 Logging works with no configuration. Sentry is **opt-in**: leave `SENTRY_DSN` unset and
-`withSentry()` is a pass-through, so a fresh clone needs no Sentry account.
+`withSentry()` is a pass-through, so a fresh clone needs no Sentry account. To turn it
+on, follow [Sentry setup](./docs/sentry-setup.md) — one project per Worker, keys into
+`.dev.vars` locally and `wrangler secret put` in production.
 
 | Variable                    | Default                             | Purpose                                |
 | --------------------------- | ----------------------------------- | -------------------------------------- |

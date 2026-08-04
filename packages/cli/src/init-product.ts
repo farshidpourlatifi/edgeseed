@@ -1,13 +1,17 @@
 /**
  * Stamp product identity onto a fresh clone of the starter.
- * Usage: pnpm init:product <product-name>   (kebab-case, e.g. "acme")
+ * Usage: pnpm init:product <product-name> [display name]
+ *   e.g. pnpm init:product acme            -> slug "acme",  display "Acme"
+ *        pnpm init:product acme "Acme Cloud"                display "Acme Cloud"
  * See docs/starter-as-upstream.md for the full workflow.
  */
 import { readFileSync, writeFileSync } from "node:fs";
 
 const name = process.argv[2];
 if (!name || !/^[a-z][a-z0-9-]*$/.test(name)) {
-  console.error("Usage: pnpm init:product <product-name>  (kebab-case, e.g. acme)");
+  console.error(
+    'Usage: pnpm init:product <product-name> [display name]  (kebab-case, e.g. acme "Acme Cloud")',
+  );
   process.exit(1);
 }
 
@@ -20,9 +24,26 @@ function rewrite(path: string, edit: (content: string) => string) {
   }
 }
 
-console.log(`Stamping product identity: ${name}`);
+/** "my-product" -> "My Product". Overridable with a second argument. */
+const displayName =
+  process.argv[3] ??
+  name
+    .split("-")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+
+console.log(`Stamping product identity: ${name} ("${displayName}")`);
 
 rewrite("package.json", (c) => c.replace(/"name": "cloudflare-starter"/, `"name": "${name}"`));
+
+// Single source of truth for every user-visible product name, including the one
+// MCP clients display. Renaming only the Workers leaves a repo that still calls
+// itself "Starter" to its users.
+rewrite("packages/config/src/product.ts", (c) =>
+  c
+    .replace(/export const PRODUCT_NAME = "[^"]*"/, `export const PRODUCT_NAME = "${displayName}"`)
+    .replace(/export const PRODUCT_SLUG = "[^"]*"/, `export const PRODUCT_SLUG = "${name}"`),
+);
 
 rewrite("apps/web/wrangler.jsonc", (c) =>
   c

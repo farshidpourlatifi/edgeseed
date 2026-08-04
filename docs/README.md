@@ -151,6 +151,7 @@ Don't use `wrangler secret put` for local development. Put the same variables in
 - [Design Workflow](./design-workflow.md) — V0/shadcn generation and integration (product-owned; swap in your own)
 - [Starter as Upstream](./starter-as-upstream.md) — ownership layers, init:product, pulling updates
 - [Secret Scanning with Gitleaks](./secret-scanning.md) — pre-commit hook, CI scan, and how to handle findings
+- [Sentry Setup](./sentry-setup.md) — project topology, `.dev.vars` keys, `wrangler secret put`, verification
 - [Security Audit](./security-audit.md) — findings from the 10-pass review
 - [Security Fix & Test Plan](./security-plan.md) — remediation phases and the standing review pass
 - [Cloudflare Costs and Guardrails](./costs-and-limits.md)

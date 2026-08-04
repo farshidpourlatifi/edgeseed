@@ -6,6 +6,7 @@ import type { Context } from "hono";
 import { createDb } from "@starter/db";
 import { createAuth } from "@starter/auth/server";
 import { APP_VERSION } from "@starter/config/version";
+import { MCP_SERVER_NAME, PRODUCT_NAME } from "@starter/config/product";
 import type { Env } from "./env";
 
 type AuthEnv = { Bindings: Env };
@@ -28,7 +29,29 @@ function authFor(c: Context<AuthEnv>) {
     db,
     secret: c.env.BETTER_AUTH_SECRET,
     baseURL: new URL(c.req.url).origin,
+    // Without these, an account created through Google or GitHub has no way in:
+    // it has no password, and the providers would be disabled on this Worker.
+    githubClientId: c.env.GITHUB_CLIENT_ID,
+    githubClientSecret: c.env.GITHUB_CLIENT_SECRET,
+    googleClientId: c.env.GOOGLE_CLIENT_ID,
+    googleClientSecret: c.env.GOOGLE_CLIENT_SECRET,
   });
+}
+
+const SOCIAL_INTENT = "social:";
+
+type SocialProvider = "github" | "google";
+
+/** Providers whose credentials are actually configured on this Worker. */
+function enabledProviders(env: Env): Array<{ id: SocialProvider; label: string }> {
+  const providers: Array<{ id: SocialProvider; label: string }> = [];
+  if (env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET) {
+    providers.push({ id: "github", label: "GitHub" });
+  }
+  if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
+    providers.push({ id: "google", label: "Google" });
+  }
+  return providers;
 }
 
 export const authApp = new Hono<AuthEnv>();
@@ -38,7 +61,7 @@ export const authApp = new Hono<AuthEnv>();
 authApp.on(["GET", "POST"], "/api/auth/**", (c) => authFor(c).handler(c.req.raw));
 
 authApp.get("/", (c) =>
-  c.json({ name: "Starter MCP Server", version: APP_VERSION, authorization: "/authorize" }),
+  c.json({ name: MCP_SERVER_NAME, version: APP_VERSION, authorization: "/authorize" }),
 );
 
 authApp.get("/authorize", async (c) => {
@@ -52,7 +75,7 @@ authApp.get("/authorize", async (c) => {
   return c.html(
     session
       ? consentPage({ client, oauthReq, email: session.user.email, search })
-      : loginPage({ client, search }),
+      : loginPage({ client, search, providers: enabledProviders(c.env) }),
   );
 });
 
@@ -63,8 +86,35 @@ authApp.post("/authorize", async (c) => {
 
   const form = await c.req.formData();
   const intent = String(form.get("intent") ?? "");
-  const search = new URL(c.req.url).search;
+  const url = new URL(c.req.url);
+  const search = url.search;
   const auth = authFor(c);
+
+  if (intent.startsWith(SOCIAL_INTENT)) {
+    const provider = intent.slice(SOCIAL_INTENT.length) as SocialProvider;
+    if (!enabledProviders(c.env).some((p) => p.id === provider)) {
+      return c.html(loginPage({ client, search, providers: enabledProviders(c.env) }), 400);
+    }
+
+    // Hand control to the provider, telling Better Auth to land the user back on
+    // /authorize with the original request intact so consent can resume.
+    const result = await auth.api
+      .signInSocial({ body: { provider, callbackURL: `${url.origin}/authorize${search}` } })
+      .catch(() => null);
+
+    if (!result?.url) {
+      return c.html(
+        loginPage({
+          client,
+          search,
+          providers: enabledProviders(c.env),
+          error: `Could not start sign-in with ${provider}.`,
+        }),
+        502,
+      );
+    }
+    return c.redirect(result.url, 302);
+  }
 
   if (intent === "login") {
     const email = String(form.get("email") ?? "");
@@ -75,7 +125,15 @@ authApp.post("/authorize", async (c) => {
       .catch(() => null);
 
     if (!res || !res.ok) {
-      return c.html(loginPage({ client, search, error: "Invalid email or password." }), 401);
+      return c.html(
+        loginPage({
+          client,
+          search,
+          providers: enabledProviders(c.env),
+          error: "Invalid email or password.",
+        }),
+        401,
+      );
     }
 
     // Carry Better Auth's session cookie onto the redirect back to /authorize.
@@ -85,7 +143,9 @@ authApp.post("/authorize", async (c) => {
   }
 
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
-  if (!session) return c.html(loginPage({ client, search }), 401);
+  if (!session) {
+    return c.html(loginPage({ client, search, providers: enabledProviders(c.env) }), 401);
+  }
 
   if (intent !== "approve") {
     // Denied — hand the client the spec's error rather than a dead end.
@@ -229,6 +289,29 @@ function layout(title: string, body: HtmlEscapedString | Promise<HtmlEscapedStri
             font-size: 0.85em;
             word-break: break-all;
           }
+          .social {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+          }
+          .social button {
+            width: 100%;
+          }
+          .divider {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin: 1.1rem 0;
+            color: color-mix(in srgb, CanvasText 45%, transparent);
+            font-size: 0.8rem;
+          }
+          .divider::before,
+          .divider::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: color-mix(in srgb, CanvasText 15%, transparent);
+          }
           .error {
             margin: 0 0 1rem;
             padding: 0.55rem 0.7rem;
@@ -248,18 +331,44 @@ function clientLabel(client: ClientInfo): string {
   return client.clientName?.trim() || client.clientId;
 }
 
-function loginPage(opts: { client: ClientInfo; search: string; error?: string }) {
+function loginPage(opts: {
+  client: ClientInfo;
+  search: string;
+  providers: Array<{ id: SocialProvider; label: string }>;
+  error?: string;
+}) {
   return layout(
     "Sign in",
     html`
-      <h1>Sign in</h1>
-      <p class="sub">${clientLabel(opts.client)} wants to connect to your account.</p>
+      <h1>Sign in to ${PRODUCT_NAME}</h1>
+      <p class="sub">
+        ${clientLabel(opts.client)} wants to connect to your ${PRODUCT_NAME} account.
+      </p>
       ${opts.error ? html`<p class="error">${opts.error}</p>` : ""}
+      ${opts.providers.length > 0
+        ? html`
+            <form method="post" action="/authorize${opts.search}" class="social">
+              ${opts.providers.map(
+                (provider) => html`
+                  <button
+                    class="secondary"
+                    type="submit"
+                    name="intent"
+                    value="social:${provider.id}"
+                  >
+                    Continue with ${provider.label}
+                  </button>
+                `,
+              )}
+            </form>
+            <div class="divider"><span>or</span></div>
+          `
+        : ""}
       <form method="post" action="/authorize${opts.search}">
         <input type="hidden" name="intent" value="login" />
         <label>
           <span>Email</span>
-          <input type="email" name="email" autocomplete="username" required autofocus />
+          <input type="email" name="email" autocomplete="username" required />
         </label>
         <label>
           <span>Password</span>
@@ -282,7 +391,7 @@ function consentPage(opts: {
     "Authorize",
     html`
       <h1>Authorize ${clientLabel(opts.client)}</h1>
-      <p class="sub">Signed in as ${opts.email}</p>
+      <p class="sub">Access your ${PRODUCT_NAME} account as ${opts.email}</p>
       <ul class="scopes">
         ${scopes.map((scope) => html`<li><code>${scope}</code></li>`)}
       </ul>

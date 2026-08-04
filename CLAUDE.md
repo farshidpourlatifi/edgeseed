@@ -153,6 +153,16 @@ pnpm check:docs-sync        # Fail if any root script is undocumented in READMEs
   Never suggest `--no-verify`.
 - CI runs gitleaks over full history on PRs and pushes to main (`.github/workflows/gitleaks.yml`).
 - Deploys go through `pnpm deploy:web`, which refuses to ship unless `pnpm verify` passes.
+- **Known gap — `pnpm verify` never boots the built Worker.** It runs `pnpm build`
+  (compilation only), then e2e against the _Vite dev server_, so the bundle
+  `deploy:web` ships has never been executed. A Worker that fails at module init
+  passes the whole gate. This is not hypothetical: `wrangler dev` currently dies on
+  a zod 3/4 conflict (`coerce.boolean(...).meta is not a function`) because vite
+  leaves `zod` an external import and wrangler resolves it to the app's zod 3,
+  while bundled better-auth code calls zod 4 APIs. Add a boot check (start the
+  built Worker, assert `/api/v1/health` 200) before trusting the gate.
+- **Sentry only initialises in the built Worker.** `withSentry()` is in `worker.ts`;
+  `pnpm dev` mounts `server/index.ts` directly, so `captureError` no-ops on :5173.
 - Secret-handling procedures are in `docs/secret-scanning.md`.
 
 ## TypeScript notes
@@ -202,7 +212,9 @@ Optional (for social login):
 - `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
 
-Optional (for error reporting) — absent means Sentry is fully disabled:
+Optional (for error reporting) — absent means Sentry is fully disabled.
+Step-by-step: `docs/sentry-setup.md`. One Sentry project per Worker; environments
+live inside a project, so do **not** create a project per environment.
 
 - `SENTRY_DSN` — from your Sentry project settings
 - `SENTRY_TRACES_SAMPLE_RATE` — `0`..`1`, defaults to `0` (errors only, no tracing)
