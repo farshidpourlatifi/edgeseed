@@ -8,20 +8,45 @@ export default defineConfig({
   retries: 1,
   reporter: "list",
   use: {
+    // Stays on `localhost` so the page origin keeps matching BETTER_AUTH_URL —
+    // Better Auth rejects requests whose Origin is not a trusted origin, and
+    // 127.0.0.1 is a different origin. The resolver rule below is what makes
+    // that name land on the address the dev server is actually bound to.
     baseURL: "http://localhost:5173",
     trace: "on-first-retry",
+    launchOptions: {
+      args: ["--host-resolver-rules=MAP localhost 127.0.0.1"],
+    },
   },
   globalSetup: "./tests/e2e/global-setup.ts",
   webServer: {
-    command: "pnpm --filter @starter/web dev",
+    // `--host 127.0.0.1` pins the bind address. Left to itself the dev server
+    // binds whichever family DNS returns for `localhost` first — sometimes
+    // 127.0.0.1, sometimes [::1] — while the browser races the same lookup
+    // independently. When the two disagree the suite dies on ERR_CONNECTION_
+    // REFUSED. This only affects test runs; `pnpm dev` is untouched.
+    command: "pnpm --filter @starter/web dev --host 127.0.0.1",
+    // Must stay `port`, not `url`: with `url` Playwright boots the server
+    // before globalSetup, and globalSetup's db:reset then drops the D1 file
+    // out from under it — every auth call fails with SQLITE_CANTOPEN.
     port: 5173,
     reuseExistingServer: !process.env.CI,
-    timeout: 30000,
+    timeout: 120000,
   },
   projects: [
+    // Compiles every route once so Vite's dep pre-bundling (and the page
+    // reload it triggers) happens before any test is asserting. See
+    // tests/e2e/warmup.setup.ts.
+    {
+      name: "warmup",
+      testMatch: /warmup\.setup\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
     {
       name: "chromium",
+      testIgnore: /warmup\.setup\.ts/,
       use: { ...devices["Desktop Chrome"] },
+      dependencies: ["warmup"],
     },
   ],
 });
