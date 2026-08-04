@@ -3,6 +3,9 @@ import { useInView } from "../../hooks/use-in-view";
 import { useReducedMotion } from "../../hooks/use-reduced-motion";
 import { buildTimeline, keyOf, stateAt, transcriptOf, type ScriptStep } from "./terminal-timeline";
 
+// Consumers import the script types from the component's own path.
+export type { ScriptStep, OutLine, Tone } from "./terminal-timeline";
+
 /**
  * <Terminal /> — an animated, scripted terminal for marketing/docs pages.
  *

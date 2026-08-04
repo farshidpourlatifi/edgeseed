@@ -18,7 +18,7 @@ test("terminal demo animates on the landing page", async ({ page }) => {
   // The animated one types the command, then reveals gate results over time
   const body = page.locator("#terminal-demo .tw-body");
   await expect(body).toContainText("pnpm verify", { timeout: 15000 });
-  await expect(body).toContainText("lint — no errors", { timeout: 10000 });
+  await expect(body).toContainText("lint — eslint . clean", { timeout: 10000 });
 });
 
 test("health endpoint returns ok", async ({ request }) => {

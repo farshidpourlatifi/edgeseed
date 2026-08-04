@@ -1,5 +1,4 @@
-import { Terminal } from "@starter/ui/components/ui/terminal";
-import type { ScriptStep } from "@starter/ui/components/ui/terminal-timeline";
+import { Terminal, type ScriptStep } from "@starter/ui/components/ui/terminal";
 import { QualityStats } from "./quality-stats";
 
 // Animated walkthrough of the real pipeline: verify gate, then mutation run.
@@ -11,23 +10,28 @@ const PIPELINE_SCRIPT: ScriptStep[] = [
     out: [{ text: "> cloudflare-starter@0.1.0 verify", tone: "dim" }, { text: "" }],
     lineMs: 110,
   },
-  { spinner: "eslint .", ms: 900, done: "lint — no errors" },
-  { spinner: "prettier --check .", ms: 700, done: "format — all files clean" },
-  { spinner: "vitest run", ms: 900, done: "unit — 60 tests passed" },
-  { spinner: "gitleaks git --redact", ms: 700, done: "secrets — no leaks found" },
-  { spinner: "turbo build + typecheck", ms: 1100, done: "build + types — ok" },
-  { spinner: "playwright test", ms: 1300, done: "e2e — 8 passed" },
+  { spinner: "eslint .", ms: 800, done: "lint — eslint . clean" },
+  { spinner: "prettier --check .", ms: 700, done: "format — all files use Prettier style" },
+  { spinner: "vitest run", ms: 1000, done: "unit — 9 files, 76 tests passed" },
+  { spinner: "gitleaks git --redact", ms: 700, done: "secrets — 27 commits scanned, no leaks" },
+  { spinner: "turbo build", ms: 800, done: "build — 2 tasks ok, FULL TURBO" },
+  { spinner: "turbo typecheck", ms: 800, done: "types — 8 packages clean" },
+  { spinner: "playwright test", ms: 1300, done: "e2e — 9 passed" },
   {
     out: [{ text: "" }, { text: "7 gates passed — deploy unlocked", tone: "accent" }],
     lineMs: 200,
     after: 2000,
   },
   { cmd: "pnpm test:mutation", cwd: "~/cloudflare-starter", enterPause: 500 },
-  { spinner: "stryker — mutating schema, helpers, api", ms: 1700, done: "169 mutants tested" },
+  {
+    spinner: "stryker — mutating 294 sites across packages",
+    ms: 1700,
+    done: "mutation run complete",
+  },
   {
     out: [
-      { text: "killed 78   survived 87   no-coverage 4" },
-      { text: "mutation score 46.2%", tone: "cyan" },
+      { text: "killed 159   survived 131   no-coverage 4" },
+      { text: "mutation score 54.1%", tone: "cyan" },
       { text: "report: reports/mutation/index.html", tone: "dim" },
     ],
     lineMs: 240,
@@ -44,11 +48,11 @@ const VERIFY_SUMMARY: ScriptStep[] = [
     out: [
       "› lint       eslint .                ok",
       "› format     prettier --check .      ok",
-      "› test       vitest run (60)         ok",
+      "› test       vitest run (76)         ok",
       "› secrets    gitleaks git --redact   ok",
       "› build      turbo build             ok",
       "› types      turbo typecheck         ok",
-      "› e2e        playwright test (8)     ok",
+      "› e2e        playwright test (9)     ok",
       { text: "7 gates passed — deploy unlocked", tone: "accent" },
     ],
   },
@@ -59,9 +63,9 @@ const MUTATION_SUMMARY: ScriptStep[] = [
     cmd: "pnpm test:mutation",
     cwd: "~/cloudflare-starter",
     out: [
-      "Stryker  mutating schema, helpers, api…",
-      "killed 78   survived 87   no-coverage 4",
-      "mutation score 46.2%",
+      "Stryker  mutating packages + app server…",
+      "killed 159   survived 131   no-coverage 4",
+      "mutation score 54.1%",
       { text: "report: reports/mutation/index.html", tone: "accent" },
     ],
   },

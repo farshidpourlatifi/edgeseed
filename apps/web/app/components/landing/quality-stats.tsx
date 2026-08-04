@@ -7,22 +7,22 @@ const stats = [
   {
     key: "unit",
     label: "Unit tests",
-    value: "60",
-    detail: "Vitest, 8 suites across packages",
+    value: "76",
+    detail: "Vitest, 9 suites across packages",
     icon: FlaskConical,
   },
   {
     key: "e2e",
     label: "E2E tests",
-    value: "8",
-    detail: "Playwright: auth flow + health",
+    value: "9",
+    detail: "Playwright: auth, health, landing",
     icon: MonitorPlay,
   },
   {
     key: "mutation",
     label: "Mutation score",
-    value: "46%",
-    detail: "Stryker, 169 mutants on core logic",
+    value: "54%",
+    detail: "Stryker, 294 mutants on core logic",
     icon: Sigma,
   },
   {
