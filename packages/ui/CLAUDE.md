@@ -9,8 +9,9 @@ copied into apps.
 ## Layout
 
 - `src/components/ui/` — shadcn primitives (vendor-ish; keep close to upstream, regenerate via V0/shadcn rather than hand-editing heavily)
+- `src/components/ui/terminal.tsx` — our own animated scripted-terminal player (marketing/docs pages). View layer only; the animation model is `terminal-timeline.ts` (pure functions: `buildTimeline`, `stateAt`, `keyOf`, `transcriptOf`) and is unit + mutation tested. Honors reduced-motion, pauses off-screen, themes via `--term-*` CSS vars with `color-scheme` bound to the `.dark` class
 - `src/components/layout/` — our own primitives (page-shell, empty-state, loading-state, stack)
-- `src/hooks/` — `use-theme` (light/dark/system via cookie), `use-mobile`, `use-toast`
+- `src/hooks/` — `use-theme` (light/dark/system via cookie), `use-mobile`, `use-toast`, `use-in-view` (IntersectionObserver, fails open), `use-reduced-motion`
 - `src/lib/utils.ts` — `cn()` (clsx + tailwind-merge)
 
 ## Rules
@@ -22,5 +23,5 @@ copied into apps.
 
 ## Testing
 
-- **Coverage target: `src/lib/` 100%; components and hooks have no unit target** — they're exercised by e2e and visual review
+- **Coverage target: `src/lib/` and `terminal-timeline.ts` 100%; React components and hooks have no unit target** — they're exercised by e2e and visual review. When adding animated/stateful components, follow the terminal pattern: extract the logic into a pure `.ts` module and test that
 - Don't write snapshot tests for shadcn components; they churn on every upstream regeneration

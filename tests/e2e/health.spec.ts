@@ -1,11 +1,21 @@
 import { test, expect } from "@playwright/test";
 
 test("landing page renders marketing content", async ({ page }) => {
-  await page.goto("/", { waitUntil: "networkidle" });
-  await expect(page.locator("h1")).toContainText("SaaS product");
+  await page.goto("/");
+  // Generous first-load timeout: Vite compiles the route on first hit
+  await expect(page.locator("h1")).toContainText("SaaS product", { timeout: 15000 });
   await expect(page.locator("text=Get Started").first()).toBeVisible();
   await expect(page.locator("text=Sign In").first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "Everything wired up on day one" })).toBeVisible();
+});
+
+test("terminal demo animates on the landing page", async ({ page }) => {
+  await page.goto("/");
+  const body = page.locator("#terminal-demo .tw-body");
+  await body.scrollIntoViewIfNeeded();
+  // The scripted typewriter should type the command, then reveal gate results
+  await expect(body).toContainText("pnpm verify", { timeout: 15000 });
+  await expect(body).toContainText("lint — no errors", { timeout: 10000 });
 });
 
 test("health endpoint returns ok", async ({ request }) => {

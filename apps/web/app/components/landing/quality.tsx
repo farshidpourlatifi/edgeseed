@@ -1,13 +1,39 @@
-import { Play } from "lucide-react";
-
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@starter/ui/components/ui/empty";
+import { Terminal } from "@starter/ui/components/ui/terminal";
+import type { ScriptStep } from "@starter/ui/components/ui/terminal-timeline";
 import { QualityStats } from "./quality-stats";
+
+// Animated walkthrough of the real pipeline: verify gate, then mutation run.
+// Content mirrors actual command output — keep in sync with the chain.
+const PIPELINE_SCRIPT: ScriptStep[] = [
+  {
+    cmd: "pnpm verify",
+    cwd: "~/cloudflare-starter",
+    out: [{ text: "> cloudflare-starter@0.1.0 verify", tone: "dim" }, { text: "" }],
+    lineMs: 110,
+  },
+  { spinner: "eslint .", ms: 900, done: "lint — no errors" },
+  { spinner: "prettier --check .", ms: 700, done: "format — all files clean" },
+  { spinner: "vitest run", ms: 900, done: "unit — 60 tests passed" },
+  { spinner: "gitleaks git --redact", ms: 700, done: "secrets — no leaks found" },
+  { spinner: "turbo build + typecheck", ms: 1100, done: "build + types — ok" },
+  { spinner: "playwright test", ms: 1300, done: "e2e — 8 passed" },
+  {
+    out: [{ text: "" }, { text: "7 gates passed — deploy unlocked", tone: "accent" }],
+    lineMs: 200,
+    after: 2000,
+  },
+  { cmd: "pnpm test:mutation", cwd: "~/cloudflare-starter", enterPause: 500 },
+  { spinner: "stryker — mutating schema, helpers, api", ms: 1700, done: "169 mutants tested" },
+  {
+    out: [
+      { text: "killed 78   survived 87   no-coverage 4" },
+      { text: "mutation score 46.2%", tone: "cyan" },
+      { text: "report: reports/mutation/index.html", tone: "dim" },
+    ],
+    lineMs: 240,
+    after: 3200,
+  },
+];
 
 // Mirrors the real `pnpm verify` chain and a real Stryker run — keep in sync.
 const terminals = [
@@ -91,21 +117,13 @@ export function Quality() {
             ))}
           </div>
 
-          <div
-            id="terminal-demo"
-            className="flex min-h-72 w-full items-center justify-center rounded-xl border border-dashed bg-card lg:min-h-[26rem]"
-          >
-            <Empty className="border-0">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <Play aria-hidden="true" />
-                </EmptyMedia>
-                <EmptyTitle>No recording yet</EmptyTitle>
-                <EmptyDescription>
-                  A full pipeline walkthrough will play in this container.
-                </EmptyDescription>
-              </EmptyHeader>
-            </Empty>
+          <div id="terminal-demo" className="w-full">
+            <Terminal
+              script={PIPELINE_SCRIPT}
+              label="pipeline walkthrough"
+              height="24rem"
+              className="w-full"
+            />
           </div>
         </div>
       </div>

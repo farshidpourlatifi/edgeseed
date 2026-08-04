@@ -8,6 +8,7 @@
     "packages/config/src/**/*.ts",
     "packages/auth/src/helpers/**/*.ts",
     "packages/ui/src/lib/**/*.ts",
+    "packages/ui/src/components/ui/terminal-timeline.ts",
     "apps/web/server/api.ts",
     "apps/mcp/src/tools/**/*.ts",
     "!**/__tests__/**"
