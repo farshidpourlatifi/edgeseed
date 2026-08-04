@@ -99,11 +99,15 @@ docs/
 `/api/v1` accepts either an interactive session cookie or a bearer token, resolved
 into a single `principal` by `principalMiddleware`.
 
+Mint a token in **Dashboard → Settings → API tokens**; it is shown once. Then:
+
 ```bash
-# Mint one from an interactive session (dashboard → settings, or the API)
-STARTER_API_TOKEN=sk_... pnpm api:call GET /me
-STARTER_API_TOKEN=sk_... pnpm api:call POST /tokens '{"name":"ci"}'
+STARTER_API_TOKEN='sk_...' pnpm api:call GET /me
 ```
+
+Note the token _cannot_ mint further tokens — `pnpm api:call POST /tokens` always
+authenticates as a token principal and is rejected with 403 by design. Creating and
+revoking tokens is a session-only operation, so it happens in the dashboard.
 
 - **Only the SHA-256 hash is stored.** The plaintext is returned exactly once at
   creation and is unrecoverable afterwards.

@@ -20,6 +20,22 @@ function loggerFor(context: AppLoadContext | undefined): Logger {
   return context?.logger ?? fallbackLogger;
 }
 
+/**
+ * Report the path, never the full URL.
+ *
+ * `request.url` carries an attacker-controlled query string, and `redact()`
+ * matches on field *names* only — so a `?token=` or `?code=` would reach Workers
+ * Logs and Sentry verbatim. The path is what identifies the failing route; the
+ * correlation id is how you get back to the rest.
+ */
+function safePath(request: Request): string {
+  try {
+    return new URL(request.url).pathname;
+  } catch {
+    return "(unparseable url)";
+  }
+}
+
 export default async function handleRequest(
   request: Request,
   responseStatusCode: number,
@@ -35,8 +51,9 @@ export default async function handleRequest(
     {
       signal: request.signal,
       onError(error: unknown) {
-        loggerFor(loadContext).error("ssr.render_failed", { error, url: request.url });
-        captureError(error, { requestId, url: request.url });
+        const path = safePath(request);
+        loggerFor(loadContext).error("ssr.render_failed", { error, path });
+        captureError(error, { requestId, path });
         responseStatusCode = 500;
       },
     },
@@ -68,6 +85,7 @@ export function handleError(
   // The client went away mid-flight — nothing is broken, don't page anyone.
   if (request.signal.aborted) return;
 
-  loggerFor(context).error("loader.failed", { error, url: request.url });
-  captureError(error, { requestId: context?.requestId, url: request.url });
+  const path = safePath(request);
+  loggerFor(context).error("loader.failed", { error, path });
+  captureError(error, { requestId: context?.requestId, path });
 }

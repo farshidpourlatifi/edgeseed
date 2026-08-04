@@ -11,8 +11,50 @@ import type { Env } from "./env";
 
 type AuthEnv = { Bindings: Env };
 
+/** The only scopes this server issues. Must match `scopesSupported` in index.ts. */
+const SUPPORTED_SCOPES = ["mcp"] as const;
+
 /** Scope granted when a client asks for none. */
-const DEFAULT_SCOPE = ["mcp"];
+const DEFAULT_SCOPE = [...SUPPORTED_SCOPES];
+
+/**
+ * Scopes the client asked for that this server does not issue.
+ *
+ * `scopesSupported` on `OAuthProvider` only populates discovery metadata — it is
+ * not enforced during authorization. Without this check every requested scope is
+ * granted verbatim, including ones that do not exist, so a token would carry
+ * authority the server never meant to define.
+ */
+function unsupportedScopes(requested: readonly string[]): string[] {
+  return requested.filter((scope) => !SUPPORTED_SCOPES.includes(scope as "mcp"));
+}
+
+/**
+ * Terminal OAuth error: hand the client a spec-shaped redirect rather than a
+ * dead end.
+ *
+ * `iss` is required because the provider advertises
+ * `authorization_response_iss_parameter_supported` (RFC 9207) — a conforming
+ * client that sees it in discovery may reject a response that omits it, and
+ * mixed-up-authorization-server defences depend on it being present on errors
+ * too, not just on success.
+ */
+function oauthErrorRedirect(
+  c: Context<AuthEnv>,
+  oauthReq: AuthRequest,
+  error: "access_denied" | "invalid_scope",
+  description?: string,
+): Response {
+  const target = new URL(oauthReq.redirectUri);
+  target.searchParams.set("error", error);
+  if (description) target.searchParams.set("error_description", description);
+  if (oauthReq.state) target.searchParams.set("state", oauthReq.state);
+
+  const issuer = oauthReq.issuer ?? new URL(c.req.url).origin;
+  if (issuer) target.searchParams.set("iss", issuer);
+
+  return c.redirect(target.toString(), 302);
+}
 
 /**
  * Better Auth bound to *this* Worker's origin.
@@ -69,6 +111,13 @@ authApp.get("/authorize", async (c) => {
   if ("error" in parsed) return parsed.error;
   const { oauthReq, client } = parsed;
 
+  // Reject before showing consent — never ask a user to approve a scope this
+  // server would not honour.
+  const bad = unsupportedScopes(oauthReq.scope);
+  if (bad.length > 0) {
+    return oauthErrorRedirect(c, oauthReq, "invalid_scope", `Unsupported scope: ${bad.join(" ")}`);
+  }
+
   const session = await authFor(c).api.getSession({ headers: c.req.raw.headers });
   const search = new URL(c.req.url).search;
 
@@ -83,6 +132,13 @@ authApp.post("/authorize", async (c) => {
   const parsed = await parseRequest(c);
   if ("error" in parsed) return parsed.error;
   const { oauthReq, client } = parsed;
+
+  // Re-checked on POST: the query string is caller-supplied on every request,
+  // so passing the GET check is no guarantee this one is clean.
+  const bad = unsupportedScopes(oauthReq.scope);
+  if (bad.length > 0) {
+    return oauthErrorRedirect(c, oauthReq, "invalid_scope", `Unsupported scope: ${bad.join(" ")}`);
+  }
 
   const form = await c.req.formData();
   const intent = String(form.get("intent") ?? "");
@@ -148,17 +204,14 @@ authApp.post("/authorize", async (c) => {
   }
 
   if (intent !== "approve") {
-    // Denied — hand the client the spec's error rather than a dead end.
-    const denied = new URL(oauthReq.redirectUri);
-    denied.searchParams.set("error", "access_denied");
-    if (oauthReq.state) denied.searchParams.set("state", oauthReq.state);
-    return c.redirect(denied.toString(), 302);
+    return oauthErrorRedirect(c, oauthReq, "access_denied");
   }
 
   const { redirectTo } = await c.env.OAUTH_PROVIDER.completeAuthorization({
     request: oauthReq,
     userId: session.user.id,
     metadata: { email: session.user.email },
+    // Already validated above; grant only what this server actually defines.
     scope: oauthReq.scope.length ? oauthReq.scope : DEFAULT_SCOPE,
     // Handed to the Agent as `this.props` — the only identity a tool ever sees.
     props: { userId: session.user.id, email: session.user.email },
