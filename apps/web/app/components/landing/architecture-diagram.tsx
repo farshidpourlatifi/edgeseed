@@ -1,7 +1,8 @@
 // Request-flow diagram, hand-drawn to match the actual code path:
 // worker.ts → server/index.ts (authMiddleware) → Better Auth / api.ts / loaders → Drizzle/D1.
 // Themed via Tailwind fill/stroke utilities so it adapts to light and dark mode.
-// Handler branches are color-coded: violet = auth, emerald = public API, amber = SSR loaders.
+// Handler branches are color-coded: violet = auth, emerald = public API,
+// React blue (react.dev's #087EA4 light / #61DAFB dark) = SSR loaders.
 export function ArchitectureDiagram() {
   return (
     <svg
@@ -133,14 +134,14 @@ export function ArchitectureDiagram() {
       />
       <path
         d="M232 198 L232 208 Q232 216 240 216 L360 216 Q368 216 368 224 L368 231"
-        className="stroke-amber-500"
+        className="stroke-cyan-500"
         strokeWidth="1.5"
         strokeLinecap="round"
         fill="none"
       />
       <path
         d="M363.5 227 L368 234 L372.5 227"
-        className="stroke-amber-500"
+        className="stroke-cyan-500"
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -198,7 +199,7 @@ export function ArchitectureDiagram() {
         width="120"
         height="58"
         rx="8"
-        className="fill-card stroke-amber-500/40"
+        className="fill-card stroke-cyan-500/40"
         strokeWidth="2"
       />
       <text x="368" y="261" textAnchor="middle" className="fill-foreground text-[12px] font-medium">
@@ -208,7 +209,7 @@ export function ArchitectureDiagram() {
         x="368"
         y="278"
         textAnchor="middle"
-        className="fill-amber-700 dark:fill-amber-400 text-[9px] font-mono"
+        className="fill-[#087EA4] dark:fill-[#61DAFB] text-[9px] font-mono"
       >
         SSR pages
       </text>
@@ -246,14 +247,14 @@ export function ArchitectureDiagram() {
       />
       <path
         d="M368 300 L368 310 Q368 318 360 318 L240 318 Q232 318 232 326 L232 333"
-        className="stroke-amber-500"
+        className="stroke-cyan-500"
         strokeWidth="1.5"
         strokeLinecap="round"
         fill="none"
       />
       <path
         d="M227.5 329 L232 336 L236.5 329"
-        className="stroke-amber-500"
+        className="stroke-cyan-500"
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"

@@ -1,7 +1,7 @@
 import { ArchitectureDiagram } from "./architecture-diagram";
 
 // badgeClass mirrors the branch colors in ArchitectureDiagram:
-// violet = auth, emerald = public API, amber = SSR loaders.
+// violet = auth, emerald = public API, cyan (React blue) = SSR loaders.
 const steps = [
   {
     title: "Worker entry",
@@ -29,7 +29,7 @@ const steps = [
   },
   {
     title: "React Router loaders",
-    badgeClass: "bg-amber-600 text-white",
+    badgeClass: "bg-cyan-600 text-white",
     description:
       "Loaders receive the same request-scoped db and auth through AppLoadContext, so pages and the public API can never disagree about your data.",
   },
