@@ -26,3 +26,4 @@ The product: React Router v7 app + Hono API on a single Cloudflare Worker.
 - `server/__tests__/` — Hono routes tested directly via `apiApp.request()`, no Worker runtime needed
 - **Coverage target: `server/` 90%+** — every API route gets a unit test asserting status, shape, and the version/spec contract
 - Routes/loaders/UI have no unit target — they're covered by `tests/e2e/` (auth flow, health, spec); keep e2e locators role-based (`getByRole`), not `text=` (strict-mode ambiguity burned us before)
+- **Stop any running dev server before `pnpm test:e2e`.** Playwright reuses a server on 5173, but e2e global-setup runs `db:reset` — a pre-existing server keeps a handle to the dropped D1 file and all auth calls fail with `SQLITE_CANTOPEN`
