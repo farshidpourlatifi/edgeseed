@@ -93,8 +93,11 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.21 0.006 285.885);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.443 0.11 240.79);
-  --primary-foreground: oklch(0.977 0.013 236.62);
+  /* Overrides the shadcn preset, whose dark --primary (oklch(0.443 0.11 240.79)) is
+     darker than light mode's. Mirrors the dark --sidebar-primary pair below.
+     See docs/design-workflow.md → "Dark-mode primary override". */
+  --primary: oklch(0.685 0.169 237.323);
+  --primary-foreground: oklch(0.293 0.066 243.157);
   --secondary: oklch(0.274 0.006 286.033);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.274 0.006 286.033);

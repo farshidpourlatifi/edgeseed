@@ -56,6 +56,41 @@ defined in `apps/web/app/app.css` (product zone). To restyle the entire app,
 generate a new preset at https://ui.shadcn.com/create, paste its variables into
 `app.css`, and update the preset URL in this file — no `@starter/*` edits needed.
 
+## Dark-mode primary override
+
+The current preset (`b5KbFbLGd`) ships a dark `--primary` of `oklch(0.443 0.11 240.79)`,
+which is _darker_ than the light-mode primary — buttons, the logo, icons and numbered
+badges go muddy against the dark background. `app.css` overrides the `.dark` block with
+the lighter pair (mirroring the preset's own dark `--sidebar-primary`, which gets this
+right):
+
+```css
+--primary: oklch(0.685 0.169 237.323);
+--primary-foreground: oklch(0.293 0.066 243.157);
+```
+
+The V0 project applied the same fix on 2026-08-04 ("Fixed dark primary", v7), so V0
+downloads generated from v7 onward carry the corrected values. The **preset URL is
+frozen with the old value** — re-apply this override whenever theme variables are
+re-imported from the preset, and if the V0 theme ever resets, paste this prompt there:
+
+```
+In this project's theme, dark mode's --primary is wrong: it is
+oklch(0.443 0.11 240.79), which is DARKER than the light-mode primary
+oklch(0.5 0.134 242.749), so primary buttons, the logo, icons and
+numbered badges look muddy against the dark background.
+
+Update ONLY these two tokens in the .dark block:
+
+  --primary: oklch(0.685 0.169 237.323);
+  --primary-foreground: oklch(0.293 0.066 243.157);
+
+This mirrors the dark --sidebar-primary / --sidebar-primary-foreground
+pair already in the theme (the preset gets this right for the sidebar).
+Do not change the light theme, chart colors, or any other tokens.
+Use this corrected theme for all future generations in this project.
+```
+
 ## What to ignore from V0 output
 
 - `next.config.mjs`, `package.json`, `tsconfig.json` — the repo has its own
