@@ -8,6 +8,13 @@
       "when": 1774993151572,
       "tag": "0000_living_pet_avengers",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1785854283670,
+      "tag": "0001_sloppy_photon",
+      "breakpoints": true
     }
   ]
 }

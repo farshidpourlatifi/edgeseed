@@ -9,6 +9,7 @@ import {
   organization,
   member,
   invitation,
+  apiToken,
 } from "../schema/index";
 
 const tables: Array<{
@@ -67,6 +68,12 @@ const tables: Array<{
     notNullColumns: ["id", "organizationId", "email", "role", "status", "inviterId", "createdAt"],
     nullableColumns: ["expiresAt"],
   },
+  {
+    table: apiToken,
+    name: "apiToken",
+    notNullColumns: ["id", "userId", "name", "tokenHash", "prefix", "createdAt", "updatedAt"],
+    nullableColumns: ["organizationId", "lastUsedAt", "expiresAt", "revokedAt"],
+  },
 ];
 
 describe.each(tables)("$name table", ({ table, name, notNullColumns, nullableColumns }) => {
@@ -123,10 +130,29 @@ describe("relational integrity", () => {
     expect(referenced).toEqual(["organization", "user"]);
   });
 
+  it("apiToken cascade-deletes with both its user and its organization", () => {
+    const fks = getTableConfig(apiToken).foreignKeys;
+    expect(fks).toHaveLength(2);
+    for (const fk of fks) {
+      expect(fk.onDelete, `${getTableName(fk.reference().foreignTable)} FK`).toBe("cascade");
+    }
+    expect(fks.map((fk) => getTableName(fk.reference().foreignTable)).sort()).toEqual([
+      "organization",
+      "user",
+    ]);
+  });
+
   it("unique constraints exist on user.email, session.token, organization.slug", () => {
     expect(getTableColumns(user).email.isUnique).toBe(true);
     expect(getTableColumns(session).token.isUnique).toBe(true);
     expect(getTableColumns(organization).slug.isUnique).toBe(true);
+  });
+
+  // Lookups match on the hash, so it must be unique — and the plaintext must
+  // never get a column of its own (docs/security-audit.md #12).
+  it("apiToken.tokenHash is unique and no plaintext column exists", () => {
+    expect(getTableColumns(apiToken).tokenHash.isUnique).toBe(true);
+    expect(Object.keys(getTableColumns(apiToken))).not.toContain("token");
   });
 
   it("defaults: member.role is member, invitation.status is pending", () => {

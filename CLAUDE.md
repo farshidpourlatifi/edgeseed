@@ -132,6 +132,7 @@ pnpm db:migrate             # Apply migrations (local)
 pnpm db:seed                # Seed dev data
 pnpm db:reset               # Drop and re-apply all migrations
 pnpm api:spec               # Generate OpenAPI spec
+pnpm api:call GET /me       # Call /api/v1 with STARTER_API_TOKEN (bearer)
 pnpm version:bump [type]    # Bump version (patch/minor/major)
 pnpm test                   # Run Vitest
 pnpm test:e2e               # Run Playwright

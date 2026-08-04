@@ -11,18 +11,24 @@ import { Button } from "@starter/ui/components/ui/button";
 import { Input } from "@starter/ui/components/ui/input";
 import { Label } from "@starter/ui/components/ui/label";
 import { Spinner } from "@starter/ui/components/ui/spinner";
+import { listApiTokens } from "@starter/auth";
 import { toast } from "sonner";
+import { ApiTokens } from "~/components/settings/api-tokens";
 
 export async function loader({ context, request }: Route.LoaderArgs) {
   const session = await context.auth.api.getSession({
     headers: request.headers,
   });
-  if (!session) return { user: null };
-  return { user: session.user };
+  if (!session) return { user: null, tokens: [] };
+
+  return {
+    user: session.user,
+    tokens: await listApiTokens(context.db, session.user.id),
+  };
 }
 
 export default function SettingsPage({ loaderData }: Route.ComponentProps) {
-  const { user } = loaderData;
+  const { user, tokens } = loaderData;
   const [name, setName] = useState(user?.name ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
   const [isSaving, setIsSaving] = useState(false);
@@ -89,6 +95,8 @@ export default function SettingsPage({ loaderData }: Route.ComponentProps) {
           </form>
         </CardContent>
       </Card>
+
+      <ApiTokens tokens={tokens} />
     </div>
   );
 }

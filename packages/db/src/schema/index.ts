@@ -5,3 +5,4 @@ export { verification } from "./verifications";
 export { organization } from "./organizations";
 export { member } from "./members";
 export { invitation } from "./invitations";
+export { apiToken } from "./api-tokens";

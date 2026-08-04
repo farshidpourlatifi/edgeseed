@@ -12,9 +12,16 @@
     "packages/ui/src/components/ui/terminal-timeline.ts",
     "apps/web/server/api.ts",
     "apps/mcp/src/tools/**/*.ts",
+    "packages/cli/src/lib/**/*.ts",
     "!**/__tests__/**"
   ],
   "reporters": ["clear-text", "progress", "html"],
-  "htmlReporter": { "fileName": "reports/mutation/index.html" },
-  "thresholds": { "high": 80, "low": 60, "break": null }
+  "htmlReporter": {
+    "fileName": "reports/mutation/index.html"
+  },
+  "thresholds": {
+    "high": 80,
+    "low": 60,
+    "break": null
+  }
 }

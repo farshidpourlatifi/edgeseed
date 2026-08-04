@@ -65,6 +65,7 @@ docs/
 | `pnpm db:seed`                            | Seed development data                                                            |
 | `pnpm db:reset`                           | Drop and re-apply all migrations locally                                         |
 | `pnpm api:spec`                           | Regenerate OpenAPI spec to `docs/api/openapi.json`                               |
+| `pnpm api:call <METHOD> <path> [body]`    | Call `/api/v1` with `STARTER_API_TOKEN` (see [API tokens](#api-tokens))          |
 | `pnpm version:bump [major\|minor\|patch]` | Bump version and create git tag                                                  |
 | `pnpm init:product <name>`                | Stamp product identity on a fresh clone ([guide](./docs/starter-as-upstream.md)) |
 | `pnpm check:docs-sync`                    | Fail if any script is undocumented in the READMEs                                |
@@ -91,6 +92,28 @@ docs/
   a full-history gitleaks scan, and drift checks (OpenAPI spec, docs-vs-scripts); a weekly
   cron rerun catches rot between commits
 - **Deploys are gated** — `pnpm deploy:web` refuses to ship unless `pnpm verify` passes
+
+## API tokens
+
+`/api/v1` accepts either an interactive session cookie or a bearer token, resolved
+into a single `principal` by `principalMiddleware`.
+
+```bash
+# Mint one from an interactive session (dashboard → settings, or the API)
+STARTER_API_TOKEN=sk_... pnpm api:call GET /me
+STARTER_API_TOKEN=sk_... pnpm api:call POST /tokens '{"name":"ci"}'
+```
+
+- **Only the SHA-256 hash is stored.** The plaintext is returned exactly once at
+  creation and is unrecoverable afterwards.
+- **Token management is session-only.** You cannot mint or revoke tokens _using_ a
+  token — otherwise one leaked CI credential becomes permanent self-renewing access
+  that revoking the original would not stop.
+- **A present-but-invalid bearer token is rejected, never downgraded** to whatever
+  cookie happens to be attached.
+- Revocation is a `revokedAt` stamp, not a delete, so the audit trail survives.
+
+`STARTER_API_URL` overrides the target host (default `http://localhost:5173`).
 
 ## Observability
 

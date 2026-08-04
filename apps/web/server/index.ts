@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { authMiddleware } from "@starter/auth/middleware";
+import { principalMiddleware, type ApiPrincipal } from "@starter/auth";
 import {
   observabilityErrorHandler,
   observabilityMiddleware,
@@ -21,6 +22,7 @@ export interface ServerEnv {
   Variables: ObservabilityEnv["Variables"] & {
     db: import("@starter/db").Database;
     auth: import("@starter/auth").Auth;
+    principal: ApiPrincipal | null;
   };
 }
 
@@ -37,6 +39,10 @@ app.use(authMiddleware);
 app.on(["GET", "POST"], "/api/auth/**", (c) => {
   return c.get("auth").handler(c.req.raw);
 });
+
+// Resolve a bearer token or session into a principal for the versioned API.
+// Scoped to /api/v1 so Better Auth's own routes keep owning their credentials.
+app.use("/api/v1/*", principalMiddleware);
 
 // Mount versioned API routes
 app.route("/api/v1", apiApp);

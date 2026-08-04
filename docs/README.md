@@ -55,6 +55,7 @@ docs/api          — Generated OpenAPI specs
 | `pnpm db:seed`                   | Insert seed data                       |
 | `pnpm db:reset`                  | Drop and re-apply all migrations       |
 | `pnpm api:spec`                  | Regenerate `docs/api/openapi.json`     |
+| `pnpm api:call <METHOD> <path>`  | Call `/api/v1` with an API token       |
 | `pnpm test`                      | Run Vitest                             |
 | `pnpm test:e2e`                  | Run Playwright e2e tests               |
 | `pnpm test:coverage`             | Vitest with coverage (`coverage/`)     |

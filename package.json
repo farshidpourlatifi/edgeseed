@@ -21,6 +21,7 @@
     "db:seed": "tsx packages/cli/src/db-seed.ts",
     "db:reset": "tsx packages/cli/src/db-reset.ts",
     "api:spec": "tsx packages/cli/src/api-spec.ts",
+    "api:call": "tsx packages/cli/src/api-call.ts",
     "init:product": "tsx packages/cli/src/init-product.ts",
     "check:docs-sync": "tsx packages/cli/src/check-docs-sync.ts",
     "version:bump": "tsx packages/cli/src/version-bump.ts",
