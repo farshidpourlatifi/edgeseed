@@ -57,6 +57,14 @@ organization plugin:
 - Plus GHSA-9h47-pqcx-hjr4, GHSA-7w99-5wm4-3g79, GHSA-392p-2q2v-4372,
   GHSA-wxw3-q3m9-c3jr (OAuth state mismatch), GHSA-2vg6-77g8-24mp.
 
+It also pulls vulnerable transitives `kysely@0.28.15` (GHSA-pv5w-4p9q-p3v2) and
+`defu@6.1.4` (GHSA-737v-mqg7-c878).
+
+**Fix:** upgrade to `better-auth >= 1.6.22`. This is the single highest-impact
+change available. Note that finding 2 must be fixed alongside it — the upgrade
+closes the library's half of the pre-hijacking problem, but not the
+configuration's half.
+
 **Resolved 2026-08-05** — upgraded to `better-auth@1.6.26`, past the 1.6.22 needed
 for the last of the listed advisories.
 
@@ -69,13 +77,13 @@ Verified by `pnpm check:boot`, added immediately beforehand for this purpose: th
 built Worker now starts and serves, where the zod 3/4 split had it dying at module
 init. No OpenAPI spec drift and no schema drift resulted.
 
-It also pulls vulnerable transitives `kysely@0.28.15` (GHSA-pv5w-4p9q-p3v2) and
-`defu@6.1.4` (GHSA-737v-mqg7-c878).
+**Transitives:** `kysely` is now `0.29.4` and no longer flagged. **`defu@6.1.4`
+remains vulnerable** (needs ≥6.1.5) and is still reached through better-auth —
+finding 2's remediation should carry it, or pin it with a pnpm override.
 
-**Fix:** upgrade to `better-auth >= 1.6.22`. This is the single highest-impact
-change available. Note that finding 2 must be fixed alongside it — the upgrade
-closes the library's half of the pre-hijacking problem, but not the
-configuration's half.
+**Finding 2 is still open.** This upgrade closed the library's half of the
+pre-hijacking problem; the configuration half (`requireEmailVerification`,
+explicit `account.accountLinking`) is untouched.
 
 ---
 
