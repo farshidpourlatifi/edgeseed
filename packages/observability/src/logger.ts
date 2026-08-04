@@ -74,18 +74,21 @@ export function createLogger(options: CreateLoggerOptions = {}): Logger {
   const log = (entryLevel: LogLevel, msg: string, fields?: LogFields): void => {
     if (LEVEL_RANK[entryLevel] < threshold) return;
 
-    const merged = fields ? { ...base, ...fields } : base;
-    const entry: LogEntry = {
-      ...(redact(merged) as LogFields),
-      level: entryLevel,
-      msg,
-      time: now(),
-    };
-
+    // Everything — including redact() — is inside the try. redact walks
+    // property getters, so a logged object with a throwing getter would
+    // otherwise escape this function. That is worst inside an error handler:
+    // logging { error } for such an error would make the handler itself throw
+    // and lose the original failure.
     try {
-      write(entry);
+      const merged = fields ? { ...base, ...fields } : base;
+      write({
+        ...(redact(merged) as LogFields),
+        level: entryLevel,
+        msg,
+        time: now(),
+      });
     } catch {
-      // A failing log sink must never take down the request it is describing.
+      // Logging must never take down the request it is describing.
     }
   };
 

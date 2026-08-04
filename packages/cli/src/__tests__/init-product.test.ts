@@ -1,5 +1,4 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
 import {
   deriveDisplayName,
   isValidProductSlug,
@@ -32,9 +31,15 @@ describe("deriveDisplayName", () => {
 });
 
 describe("stampProductIdentity", () => {
-  const source = readFileSync(new URL("../../../config/src/product.ts", import.meta.url), "utf8");
+  // Synthetic, for the same reason as the wrangler fixtures below: a clone that
+  // has run `init:product` no longer has "Starter" in this file.
+  const source = [
+    'export const PRODUCT_NAME = "Starter";',
+    'export const PRODUCT_SLUG = "starter";',
+    "export const MCP_SERVER_NAME = `${PRODUCT_NAME} MCP`;",
+  ].join("\n");
 
-  it("rewrites both constants in the real product.ts", () => {
+  it("rewrites both constants", () => {
     const out = stampProductIdentity(source, { slug: "acme", displayName: "Acme Cloud" });
 
     expect(out).toContain('export const PRODUCT_NAME = "Acme Cloud"');
@@ -82,8 +87,24 @@ describe("stampProductIdentity", () => {
 });
 
 describe("stampWranglerConfig", () => {
-  const web = readFileSync(new URL("../../../../apps/web/wrangler.jsonc", import.meta.url), "utf8");
-  const mcp = readFileSync(new URL("../../../../apps/mcp/wrangler.jsonc", import.meta.url), "utf8");
+  // Synthetic fixtures, NOT the live wrangler files. `init:product` is run by
+  // downstream clones as their first step, which rewrites those files — reading
+  // them here would make these tests fail permanently in exactly the repos this
+  // tool exists to serve, taking `pnpm verify` and `pnpm deploy:web` with them.
+  const fixture = (workerName: string) => `{
+  "name": "${workerName}",
+  "main": "worker.ts",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "starter-db",
+      "database_id": "510ae3cb-6a46-4409-a1db-b07b59cd504b",
+    },
+  ],
+}`;
+
+  const web = fixture("starter-web");
+  const mcp = fixture("starter-mcp");
 
   it("renames the web Worker and localises its database", () => {
     const out = stampWranglerConfig(web, { from: "starter-web", to: "acme-web" });

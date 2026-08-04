@@ -28,13 +28,71 @@ export { StarterMcpAgent };
  * Grants and tokens live in OAUTH_KV; the user records they point at live in
  * the same D1 as apps/web.
  */
+/** How long a session id stays bound to its principal. */
+const SESSION_OWNER_TTL_SECONDS = 60 * 60 * 24;
+
+/**
+ * Bind an MCP session id to the principal that created it, and reject any later
+ * request that presents the same id as a different user.
+ *
+ * The Durable Object is named `streamable-http:${sessionId}` from the
+ * client-supplied `mcp-session-id` header, and the Agent's `props` are written
+ * to DO storage during `onStart` — set once, then restored on every restart, so
+ * they are never refreshed per request. Without this check, anyone who learns a
+ * session id (the MCP spec treats it as non-secret) could present their *own*
+ * valid bearer token with a victim's session id and have every tool resolve to
+ * the victim's `userId`.
+ *
+ * Neither obvious fix works here: reading `this.props` per call still reads the
+ * stored value, and the id cannot be namespaced by user because the SDK
+ * generates it during `initialize` — the request that creates the DO. So the
+ * binding is enforced at the edge, which is the last point we control.
+ *
+ * Costs one KV read per MCP request. `expirationTtl` keeps the namespace from
+ * growing without bound; a returning client past the TTL simply rebinds.
+ */
+async function enforceSessionOwner(
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<Response | null> {
+  const sessionId = request.headers.get("mcp-session-id");
+  const userId = (ctx as ExecutionContext & { props?: { userId?: string } }).props?.userId;
+
+  // No session yet (initialize) or no principal — OAuthProvider has already
+  // rejected unauthenticated callers before this handler runs.
+  if (!sessionId || !userId) return null;
+
+  const key = `mcp-session-owner:${sessionId}`;
+  const owner = await env.OAUTH_KV.get(key);
+
+  if (owner === null) {
+    await env.OAUTH_KV.put(key, userId, { expirationTtl: SESSION_OWNER_TTL_SECONDS });
+    return null;
+  }
+
+  if (owner !== userId) {
+    return new Response(JSON.stringify({ error: "session_principal_mismatch" }), {
+      status: 403,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
+  return null;
+}
+
 const oauthProvider = new OAuthProvider<Env>({
-  apiRoute: ["/mcp", "/sse"],
+  // Streamable HTTP only. `serve()` defaults to `transport: "streamable-http"`,
+  // so the previous `/sse` special-case never actually served SSE — GET /sse
+  // 400'd asking for a session header and POST /sse/message 404'd. Rather than
+  // ship a second transport nothing exercises, the route is gone; add it back
+  // with `serve(path, { transport: "sse" })` if a client needs it.
+  apiRoute: ["/mcp"],
   apiHandler: {
-    fetch(request: Request, env: Env, ctx: ExecutionContext) {
-      const url = new URL(request.url);
-      const path = url.pathname === "/sse" || url.pathname === "/sse/message" ? "/sse" : "/mcp";
-      return StarterMcpAgent.serve(path).fetch(request, env, ctx);
+    async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+      const denied = await enforceSessionOwner(request, env, ctx);
+      if (denied) return denied;
+      return StarterMcpAgent.serve("/mcp").fetch(request, env, ctx);
     },
   },
   defaultHandler: authApp,

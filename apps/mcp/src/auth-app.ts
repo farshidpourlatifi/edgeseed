@@ -80,6 +80,19 @@ function authFor(c: Context<AuthEnv>) {
   });
 }
 
+/**
+ * A header-only copy of the request, for better-auth's CSRF middleware.
+ *
+ * Passing something for `request` is what arms `formCsrfMiddleware` at all — it
+ * opens with `if (!ctx.request) return;`. But `c.req.raw` cannot be reused here:
+ * its body has already been consumed by `c.req.formData()`. The middleware only
+ * reads headers (Cookie, Origin, Referer, Sec-Fetch-*) to decide whether this is
+ * a cross-site form post, so a bodyless copy carries everything it needs.
+ */
+function csrfRequest(c: Context<AuthEnv>): Request {
+  return new Request(c.req.url, { method: c.req.method, headers: c.req.raw.headers });
+}
+
 const SOCIAL_INTENT = "social:";
 
 type SocialProvider = "github" | "google";
@@ -154,11 +167,25 @@ authApp.post("/authorize", async (c) => {
 
     // Hand control to the provider, telling Better Auth to land the user back on
     // /authorize with the original request intact so consent can resume.
-    const result = await auth.api
-      .signInSocial({ body: { provider, callbackURL: `${url.origin}/authorize${search}` } })
+    //
+    // `asResponse` matters: better-auth sets a signed OAuth *state* cookie
+    // alongside the redirect URL. Redirecting without forwarding that cookie
+    // makes the provider callback fail with a state mismatch, which left social
+    // sign-in completely non-functional — the only route in for an account that
+    // has no password.
+    const res = await auth.api
+      .signInSocial({
+        body: { provider, callbackURL: `${url.origin}/authorize${search}` },
+        asResponse: true,
+        request: csrfRequest(c),
+      })
       .catch(() => null);
 
-    if (!result?.url) {
+    const target = res?.ok
+      ? ((await res.json().catch(() => null)) as { url?: string } | null)?.url
+      : undefined;
+
+    if (!res || !target) {
       return c.html(
         loginPage({
           client,
@@ -169,15 +196,26 @@ authApp.post("/authorize", async (c) => {
         502,
       );
     }
-    return c.redirect(result.url, 302);
+
+    const headers = new Headers({ location: target });
+    for (const cookie of setCookiesOf(res)) headers.append("set-cookie", cookie);
+    return new Response(null, { status: 302, headers });
   }
 
   if (intent === "login") {
     const email = String(form.get("email") ?? "");
     const password = String(form.get("password") ?? "");
 
+    // `request` is REQUIRED, not optional plumbing. better-auth's
+    // formCsrfMiddleware opens with `if (!ctx.request) return;`, so calling
+    // through auth.api.* without it silently disarms the very check that blocks
+    // cross-site form logins. Without this an attacker page can auto-submit a
+    // top-level POST here with their own credentials and plant their session in
+    // the victim's browser — SameSite governs sending a cookie, not setting one
+    // — after which the victim's Approve binds their MCP client to the
+    // attacker's account.
     const res = await auth.api
-      .signInEmail({ body: { email, password }, asResponse: true })
+      .signInEmail({ body: { email, password }, asResponse: true, request: csrfRequest(c) })
       .catch(() => null);
 
     if (!res || !res.ok) {

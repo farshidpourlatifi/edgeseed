@@ -131,6 +131,39 @@ describe("createLogger", () => {
     expect(() => logger.info("hi")).not.toThrow();
   });
 
+  // redact() walks property getters, so serialization can throw too — not just
+  // the sink. This is worst inside an error handler: logging { error } for such
+  // an error would make the handler throw and lose the original failure.
+  it("swallows a throwing getter on a logged object", () => {
+    const { entries, write } = collect();
+    const hostile = {
+      safe: "kept",
+      get boom(): string {
+        throw new Error("getter exploded");
+      },
+    };
+
+    const logger = createLogger({ write, now });
+
+    expect(() => logger.info("hi", { hostile })).not.toThrow();
+    // The entry is dropped rather than half-written.
+    expect(entries).toHaveLength(0);
+  });
+
+  it("still logs normally after a throwing-getter entry", () => {
+    const { entries, write } = collect();
+    const logger = createLogger({ write, now });
+
+    logger.info("bad", {
+      get boom(): string {
+        throw new Error("nope");
+      },
+    });
+    logger.info("good");
+
+    expect(entries.map((e) => e.msg)).toEqual(["good"]);
+  });
+
   it("routes each level to the matching console method by default", () => {
     const spies = {
       debug: vi.spyOn(console, "debug").mockImplementation(() => {}),

@@ -322,11 +322,34 @@ Verified end to end: unauthenticated `/mcp` → `401` with
 → login → consent → PKCE code exchange → authenticated `tools/call`; bogus token
 → `401`.
 
-**\* One part of this finding remains open:** `Origin` validation is still not
-performed. Requiring a bearer token blocks the practical DNS-rebinding attack (a
-malicious page cannot obtain a token), but the MCP spec asks for the header check
-on HTTP transports regardless, and the Agents SDK still answers
-`Access-Control-Allow-Origin: *`. Track separately.
+**\* The resolution is narrower than "authentication added".** Review of the
+original fix (2026-08-05) found two auth defects in it, both since fixed and
+verified against a running Worker, plus one item still open:
+
+- **Login CSRF (fixed).** The consent flow called `auth.api.signInEmail` without
+  `request`, and better-auth's `formCsrfMiddleware` opens with
+  `if (!ctx.request) return;` — so the check that blocks cross-site form logins
+  was silently disarmed. An attacker page could plant its own session in the
+  victim's browser, and the victim's "Approve" would then bind their MCP client
+  to the attacker's account. Verified: a cross-site POST with valid credentials
+  now returns 401 and sets no cookie, while the same-origin POST still succeeds.
+- **Session id not bound to the principal (fixed).** The Durable Object is named
+  from the client-supplied `mcp-session-id`, and the Agent's `props` are written
+  to DO storage at `onStart` — never refreshed per request. Anyone who learned a
+  session id could present their _own_ valid token with it and have every tool
+  resolve to the victim's `userId`. Now rejected with
+  `403 session_principal_mismatch`; verified with two real users holding
+  legitimate tokens.
+- **PKCE is not actually required (open).** The `OAuth 2.1` label overstates it:
+  the library mandates PKCE only when `tokenEndpointAuthMethod === "none"`, and
+  dynamic registrations default to `client_secret_basic`. A missing
+  `code_challenge` should be rejected alongside the scope check.
+- **`Origin` validation (open).** Requiring a bearer token blocks the practical
+  DNS-rebinding attack, but the MCP spec asks for the header check on HTTP
+  transports regardless, and the Agents SDK answers
+  `Access-Control-Allow-Origin: *`.
+
+Treat this entry as "authenticated, with two known gaps" rather than closed.
 
 ### 9. `BETTER_AUTH_SECRET` committed in the MCP worker config
 

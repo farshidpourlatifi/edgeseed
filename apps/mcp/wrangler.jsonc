@@ -44,8 +44,14 @@
     "enabled": true,
     "head_sampling_rate": 1,
   },
+  // BETTER_AUTH_SECRET deliberately does NOT live here (security-audit #9). A
+  // `var` shadows a same-named secret at deploy time, so `wrangler secret put
+  // BETTER_AUTH_SECRET` would appear to succeed while the committed value kept
+  // winning. Since this Worker shares both the secret and the D1 database with
+  // apps/web, that made a forged session cookie a web account takeover *and* a
+  // valid MCP grant. Put it in apps/mcp/.dev.vars locally, `wrangler secret put`
+  // in production.
   "vars": {
-    "BETTER_AUTH_SECRET": "dev-secret-must-be-at-least-32-characters-long",
     "BETTER_AUTH_URL": "http://localhost:5173",
     "ENVIRONMENT": "development",
   },
