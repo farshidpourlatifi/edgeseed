@@ -24,8 +24,9 @@
     "api:call": "tsx packages/cli/src/api-call.ts",
     "init:product": "tsx packages/cli/src/init-product.ts",
     "check:docs-sync": "tsx packages/cli/src/check-docs-sync.ts",
+    "check:boot": "tsx packages/cli/src/check-boot.ts",
     "version:bump": "tsx packages/cli/src/version-bump.ts",
-    "verify": "pnpm lint && pnpm format:check && pnpm test && gitleaks git --redact && pnpm build && pnpm typecheck && pnpm test:e2e",
+    "verify": "pnpm lint && pnpm format:check && pnpm test && gitleaks git --redact && pnpm build && pnpm typecheck && pnpm check:boot && pnpm test:e2e",
     "deploy:web": "pnpm verify && pnpm --filter @starter/web exec wrangler deploy"
   },
   "lint-staged": {

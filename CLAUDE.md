@@ -144,6 +144,7 @@ pnpm verify                 # Full gate: lint, format, test, gitleaks, build, ty
 pnpm deploy:web             # verify + wrangler deploy (the gated deploy path)
 pnpm init:product <name>    # Stamp product identity on a fresh clone (docs/starter-as-upstream.md)
 pnpm check:docs-sync        # Fail if any root script is undocumented in READMEs
+pnpm check:boot             # Boot each built Worker and prove it serves (after build)
 ```
 
 ## Quality gates
@@ -153,14 +154,16 @@ pnpm check:docs-sync        # Fail if any root script is undocumented in READMEs
   Never suggest `--no-verify`.
 - CI runs gitleaks over full history on PRs and pushes to main (`.github/workflows/gitleaks.yml`).
 - Deploys go through `pnpm deploy:web`, which refuses to ship unless `pnpm verify` passes.
-- **Known gap — `pnpm verify` never boots the built Worker.** It runs `pnpm build`
-  (compilation only), then e2e against the _Vite dev server_, so the bundle
-  `deploy:web` ships has never been executed. A Worker that fails at module init
-  passes the whole gate. This is not hypothetical: `wrangler dev` currently dies on
+- **`pnpm check:boot` runs inside `verify`** (after `build`/`typecheck`, before e2e).
+  It starts each built Worker and asserts it serves one unauthenticated request.
+  `build` proves compilation; only this proves the bundle _runs_. Without it a
+  Worker that throws at module init passed the entire gate — which is not
+  hypothetical: `wrangler dev` currently dies on
   a zod 3/4 conflict (`coerce.boolean(...).meta is not a function`) because vite
   leaves `zod` an external import and wrangler resolves it to the app's zod 3,
-  while bundled better-auth code calls zod 4 APIs. Add a boot check (start the
-  built Worker, assert `/api/v1/health` 200) before trusting the gate.
+  while bundled better-auth code calls zod 4 APIs. **`verify` therefore fails today
+  at `check:boot`, by design** — it is reporting a real defect, not flaking. Fixing
+  it means the zod 4 migration (see `docs/security-audit.md` #1 and #6).
 - **Sentry only initialises in the built Worker.** `withSentry()` is in `worker.ts`;
   `pnpm dev` mounts `server/index.ts` directly, so `captureError` no-ops on :5173.
 - Secret-handling procedures are in `docs/secret-scanning.md`.

@@ -69,6 +69,7 @@ docs/
 | `pnpm version:bump [major\|minor\|patch]` | Bump version and create git tag                                                  |
 | `pnpm init:product <name>`                | Stamp product identity on a fresh clone ([guide](./docs/starter-as-upstream.md)) |
 | `pnpm check:docs-sync`                    | Fail if any script is undocumented in the READMEs                                |
+| `pnpm check:boot`                         | Start each **built** Worker and prove it serves a request (run after `build`)    |
 
 ## Key Conventions
 
