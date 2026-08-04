@@ -18,7 +18,7 @@
     "@starter/db": "workspace:*",
     "@starter/observability": "workspace:*",
     "@starter/ui": "workspace:*",
-    "hono": "^4",
+    "hono": "^4.13.0",
     "hono-react-router-adapter": "^0.6",
     "isbot": "^5",
     "lucide-react": "^0.473",

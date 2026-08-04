@@ -10,11 +10,11 @@
     "./middleware": "./src/middleware.ts"
   },
   "dependencies": {
+    "@starter/config": "workspace:*",
+    "@starter/db": "workspace:*",
     "better-auth": "^1.6.26",
     "drizzle-orm": "^0.45.2",
-    "hono": "^4",
-    "@starter/db": "workspace:*",
-    "@starter/config": "workspace:*"
+    "hono": "^4.13.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4"

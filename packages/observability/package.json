@@ -14,7 +14,7 @@
   "dependencies": {
     "@sentry/cloudflare": "^10.69.0",
     "@starter/config": "workspace:*",
-    "hono": "^4"
+    "hono": "^4.13.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4",
