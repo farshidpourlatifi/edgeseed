@@ -12,9 +12,11 @@
   "dependencies": {
     "@hono/zod-openapi": "^0.18",
     "@react-router/node": "^7",
+    "@sentry/cloudflare": "^10.69.0",
     "@starter/auth": "workspace:*",
     "@starter/config": "workspace:*",
     "@starter/db": "workspace:*",
+    "@starter/observability": "workspace:*",
     "@starter/ui": "workspace:*",
     "hono": "^4",
     "hono-react-router-adapter": "^0.6",

@@ -1,4 +1,5 @@
 import {
+  Activity,
   Bot,
   Cloud,
   Database,
@@ -60,6 +61,12 @@ const features = [
     title: "Auto-generated OpenAPI",
     description:
       "Route schemas emit an OpenAPI document that is checked into git — CI fails the build when it drifts.",
+  },
+  {
+    icon: Activity,
+    title: "Observability built in",
+    description:
+      "Structured logs and a correlation id on every request, streamed to Workers Logs, with opt-in Sentry error reporting.",
   },
   {
     icon: ShieldCheck,

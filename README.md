@@ -36,6 +36,7 @@ packages/
   cli/          Dev workflow scripts (db, api:spec, version:bump)
   config/       Zod-validated env and runtime config
   db/           Drizzle ORM + D1 schema and migrations
+  observability/ Structured logging, correlation ids, Sentry wiring
   testing/      Shared test helpers (factories, fake env) — dependency-free
   ui/           shadcn/ui + Tailwind v4 design system
 docs/
@@ -76,6 +77,8 @@ docs/
 - **DB migrations**: sequential Drizzle Kit migrations in `packages/db/migrations/`
 - **Testing**: TDD for domain logic, e2e for critical paths (Vitest + Playwright)
 - **OpenAPI**: auto-generated from zod schemas, checked into git
+- **Observability**: structured logs and an `x-request-id` on every request; never
+  `console.log` in a request path — use `c.get("logger")` / `context.logger`
 
 ## Code quality
 
@@ -87,6 +90,51 @@ docs/
   a full-history gitleaks scan, and drift checks (OpenAPI spec, docs-vs-scripts); a weekly
   cron rerun catches rot between commits
 - **Deploys are gated** — `pnpm deploy:web` refuses to ship unless `pnpm verify` passes
+
+## Observability
+
+Structured logging and error reporting live in `@starter/observability` and are wired
+into both Workers. See [ADR 002](./docs/adr/002-observability.md) for the design.
+
+Every request emits JSON that Cloudflare Workers Logs indexes as queryable fields:
+
+```json
+{
+  "requestId": "trace-me-123",
+  "env": "production",
+  "version": "0.1.0",
+  "method": "GET",
+  "path": "/api/v1/health",
+  "status": 200,
+  "durationMs": 3,
+  "level": "info",
+  "msg": "request.complete"
+}
+```
+
+- **Correlation ids** — reuses an inbound `x-request-id`, else `cf-ray`, else mints one.
+  Returned on every response (API and HTML), so a user can quote it in a bug report.
+- **Redaction is automatic** — passwords, tokens, cookies, API keys and DSNs are blanked
+  before anything is written. Errors are expanded, cycles broken, depth capped.
+- **Error responses** carry `{ error, requestId }` — the internal message is never leaked.
+
+Logging works with no configuration. Sentry is **opt-in**: leave `SENTRY_DSN` unset and
+`withSentry()` is a pass-through, so a fresh clone needs no Sentry account.
+
+| Variable                    | Default                             | Purpose                                |
+| --------------------------- | ----------------------------------- | -------------------------------------- |
+| `LOG_LEVEL`                 | `debug` in development, else `info` | `debug` \| `info` \| `warn` \| `error` |
+| `SENTRY_DSN`                | unset — Sentry disabled             | Enables error reporting                |
+| `SENTRY_TRACES_SAMPLE_RATE` | `0` (errors only)                   | `0`..`1` fraction of requests traced   |
+| `SENTRY_ENVIRONMENT`        | falls back to `ENVIRONMENT`         | Sentry `environment` tag               |
+| `SENTRY_RELEASE`            | falls back to `APP_VERSION`         | Sentry `release` tag                   |
+
+`SENTRY_DSN` is set with `wrangler secret put`, never in `wrangler.jsonc`.
+
+**Cloudflare vs Sentry** — they are complementary. Workers Logs retains 3 days (free) or
+7 days (paid); Sentry adds error grouping, alerting, and release tracking beyond that
+window. Retention only works with `observability.enabled` set in each `wrangler.jsonc` —
+without it, logs appear in `wrangler tail` but are never stored.
 
 ## Cost planning
 

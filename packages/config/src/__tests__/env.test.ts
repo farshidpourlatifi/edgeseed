@@ -45,3 +45,67 @@ describe("env schemas", () => {
     expect(() => parseEnv(mcpEnvSchema, createFakeEnv())).not.toThrow();
   });
 });
+
+describe("observability env", () => {
+  it("treats every observability var as optional — Sentry is opt-in", () => {
+    const env = parseEnv(webEnvSchema, createFakeEnv());
+    expect(env.SENTRY_DSN).toBeUndefined();
+    expect(env.SENTRY_TRACES_SAMPLE_RATE).toBeUndefined();
+    expect(env.LOG_LEVEL).toBeUndefined();
+  });
+
+  it("accepts a DSN and the tag overrides", () => {
+    const env = parseEnv(
+      webEnvSchema,
+      createFakeEnv({
+        SENTRY_DSN: "https://key@o0.ingest.sentry.io/0",
+        SENTRY_ENVIRONMENT: "canary",
+        SENTRY_RELEASE: "web@9.9.9",
+      }),
+    );
+    expect(env.SENTRY_DSN).toBe("https://key@o0.ingest.sentry.io/0");
+    expect(env.SENTRY_ENVIRONMENT).toBe("canary");
+    expect(env.SENTRY_RELEASE).toBe("web@9.9.9");
+  });
+
+  // Worker bindings arrive as strings, so the rate must coerce.
+  it("coerces SENTRY_TRACES_SAMPLE_RATE from a string", () => {
+    const env = parseEnv(webEnvSchema, createFakeEnv({ SENTRY_TRACES_SAMPLE_RATE: "0.25" }));
+    expect(env.SENTRY_TRACES_SAMPLE_RATE).toBe(0.25);
+  });
+
+  it("accepts the inclusive sample-rate bounds", () => {
+    expect(
+      parseEnv(webEnvSchema, createFakeEnv({ SENTRY_TRACES_SAMPLE_RATE: "0" }))
+        .SENTRY_TRACES_SAMPLE_RATE,
+    ).toBe(0);
+    expect(
+      parseEnv(webEnvSchema, createFakeEnv({ SENTRY_TRACES_SAMPLE_RATE: "1" }))
+        .SENTRY_TRACES_SAMPLE_RATE,
+    ).toBe(1);
+  });
+
+  it.each(["-0.1", "1.5", "abc"])(
+    "rejects an out-of-range or unparseable sample rate (%s)",
+    (value) => {
+      expect(() =>
+        parseEnv(webEnvSchema, createFakeEnv({ SENTRY_TRACES_SAMPLE_RATE: value })),
+      ).toThrow();
+    },
+  );
+
+  it("accepts each valid LOG_LEVEL", () => {
+    for (const level of ["debug", "info", "warn", "error"] as const) {
+      expect(parseEnv(webEnvSchema, createFakeEnv({ LOG_LEVEL: level })).LOG_LEVEL).toBe(level);
+    }
+  });
+
+  it("rejects an unknown LOG_LEVEL", () => {
+    expect(() => parseEnv(webEnvSchema, createFakeEnv({ LOG_LEVEL: "trace" }))).toThrow();
+  });
+
+  it("mcp schema carries the observability vars too", () => {
+    const env = parseEnv(mcpEnvSchema, createFakeEnv({ LOG_LEVEL: "warn" }));
+    expect(env.LOG_LEVEL).toBe("warn");
+  });
+});

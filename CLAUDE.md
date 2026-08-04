@@ -23,6 +23,7 @@ apps/mcp          — MCP server (Cloudflare Workers)
 packages/auth     — Better Auth config, middleware, session/role helpers
 packages/config   — Zod-validated env schemas, version
 packages/db       — Drizzle schema, migrations, D1 client
+packages/observability — structured logging, correlation IDs, Sentry
 packages/testing  — shared test helpers (dependency-free by rule)
 packages/ui       — shadcn/ui components, hooks, theme
 packages/cli      — Dev workflow scripts (db:*, api:spec, version:bump)
@@ -40,6 +41,25 @@ tests/e2e         — Playwright e2e tests
 - Mounts Better Auth at `/api/auth/**`
 - Mounts versioned API at `/api/v1`
 - Passes `db` and `auth` to React Router loaders via `load-context.ts`
+
+### Observability
+
+`packages/observability` (see its CLAUDE.md and `docs/adr/002-observability.md`):
+
+- `observabilityMiddleware` runs **first** in the Hono chain — request-scoped
+  logger + correlation id on `c.get("logger")` / `c.get("requestId")`, also
+  reachable in loaders via `context.logger` / `context.requestId`
+- `app.onError(observabilityErrorHandler)` reports failures and answers with
+  `{ error, requestId }` — never the internal message
+- `withSentry()` wraps the Worker entry in `worker.ts` / `apps/mcp/src/index.ts`;
+  no `SENTRY_DSN` means it is a pass-through
+- Every log field goes through `redact()` — never `console.log` directly in
+  request paths
+- **Workers Logs needs `observability.enabled` in each `wrangler.jsonc`** — without
+  it, logs show in `wrangler tail` but are never retained or queryable
+- Cloudflare (retention 3d free / 7d paid) and Sentry (grouping, alerting,
+  releases) are complementary; leaving `SENTRY_DSN` unset gives a working
+  Cloudflare-only setup
 
 ### Routes
 
@@ -168,6 +188,13 @@ Optional (for social login):
 
 - `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+
+Optional (for error reporting) — absent means Sentry is fully disabled:
+
+- `SENTRY_DSN` — from your Sentry project settings
+- `SENTRY_TRACES_SAMPLE_RATE` — `0`..`1`, defaults to `0` (errors only, no tracing)
+- `SENTRY_ENVIRONMENT` / `SENTRY_RELEASE` — override `ENVIRONMENT` / `APP_VERSION`
+- `LOG_LEVEL` — `debug`|`info`|`warn`|`error`; defaults to `debug` in development, `info` elsewhere
 
 ### Local dev
 

@@ -4,6 +4,22 @@
   "compatibility_date": "2026-03-31",
   "compatibility_flags": ["nodejs_compat"],
   "main": "src/index.ts",
+  // McpAgent is a Durable Object. The Agents SDK resolves it by the fixed
+  // binding name MCP_OBJECT — without this, /mcp and /sse 500 at runtime.
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MCP_OBJECT",
+        "class_name": "StarterMcpAgent",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["StarterMcpAgent"],
+    },
+  ],
   "d1_databases": [
     {
       "binding": "DB",
@@ -12,6 +28,11 @@
       "migrations_dir": "../../packages/db/migrations",
     },
   ],
+  // See apps/web/wrangler.jsonc — without this, logs are never retained.
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+  },
   "vars": {
     "BETTER_AUTH_SECRET": "dev-secret-must-be-at-least-32-characters-long",
     "BETTER_AUTH_URL": "http://localhost:5173",

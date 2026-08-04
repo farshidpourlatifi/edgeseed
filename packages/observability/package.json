@@ -1,0 +1,24 @@
+{
+  "name": "@starter/observability",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./logger": "./src/logger.ts",
+    "./middleware": "./src/middleware.ts",
+    "./redact": "./src/redact.ts",
+    "./request-id": "./src/request-id.ts",
+    "./sentry": "./src/sentry.ts"
+  },
+  "dependencies": {
+    "@sentry/cloudflare": "^10.69.0",
+    "@starter/config": "workspace:*",
+    "hono": "^4"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4",
+    "@starter/testing": "workspace:*",
+    "wrangler": "^4"
+  }
+}

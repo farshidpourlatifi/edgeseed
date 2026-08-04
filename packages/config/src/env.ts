@@ -10,6 +10,18 @@ const sharedEnvSchema = z.object({
   GITHUB_CLIENT_SECRET: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
+
+  // --- Observability (all optional: logging works standalone, Sentry is opt-in) ---
+  /** Absent/empty disables Sentry entirely — `withSentry` becomes a pass-through. */
+  SENTRY_DSN: z.string().optional(),
+  /** Overrides ENVIRONMENT for the Sentry `environment` tag. */
+  SENTRY_ENVIRONMENT: z.string().optional(),
+  /** Overrides APP_VERSION for the Sentry `release` tag. */
+  SENTRY_RELEASE: z.string().optional(),
+  /** Fraction of requests traced, 0..1. Bindings arrive as strings. */
+  SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).optional(),
+  /** Overrides the level derived from ENVIRONMENT. */
+  LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).optional(),
 });
 
 /** Web app Worker bindings */

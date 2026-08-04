@@ -15,6 +15,14 @@
       "migrations_dir": "../../packages/db/migrations",
     },
   ],
+  // Required for Workers Logs to RETAIN anything — without this, console output
+  // is visible in `wrangler tail` but is never stored or queryable.
+  // Free: 200k events/day, 3-day retention. Paid: 20M/mo then $0.60/M, 7 days.
+  // Drop head_sampling_rate below 1 if request volume outgrows the free tier.
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+  },
   "vars": {
     "ENVIRONMENT": "development",
   },
