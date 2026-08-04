@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@hono/zod-openapi": "^1.5.1",
-    "@react-router/node": "^7",
+    "@react-router/node": "^7.18.2",
     "@sentry/cloudflare": "^10.69.0",
     "@starter/auth": "workspace:*",
     "@starter/config": "workspace:*",
@@ -24,7 +24,7 @@
     "lucide-react": "^0.473",
     "react": "^19",
     "react-dom": "^19",
-    "react-router": "^7",
+    "react-router": "^7.18.2",
     "sonner": "^2.0.7",
     "zod": "^4.4.3"
   },
@@ -32,7 +32,7 @@
     "@cloudflare/vite-plugin": "^1",
     "@cloudflare/workers-types": "^4",
     "@hono/vite-dev-server": "^0.19",
-    "@react-router/dev": "^7",
+    "@react-router/dev": "^7.18.2",
     "@tailwindcss/vite": "^4",
     "@types/react": "^19",
     "@types/react-dom": "^19",
