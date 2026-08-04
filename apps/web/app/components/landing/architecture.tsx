@@ -1,28 +1,35 @@
 import { ArchitectureDiagram } from "./architecture-diagram";
 
+// badgeClass mirrors the branch colors in ArchitectureDiagram:
+// violet = auth, emerald = public API, amber = SSR loaders.
 const steps = [
   {
     title: "Worker entry",
+    badgeClass: "bg-primary text-primary-foreground",
     description:
       "Every request lands on a single Cloudflare Worker that binds D1 and environment secrets before anything else runs.",
   },
   {
     title: "Hono middleware",
+    badgeClass: "bg-primary text-primary-foreground",
     description:
       "Middleware builds a per-request context: a Drizzle database client and a configured auth instance, never shared between requests.",
   },
   {
     title: "Better Auth",
+    badgeClass: "bg-violet-600 text-white",
     description:
       "Auth routes handle sessions, OAuth callbacks and organization membership, then hand the active user to downstream handlers.",
   },
   {
     title: "Versioned API",
+    badgeClass: "bg-emerald-600 text-white",
     description:
       "Validated /api/v1 routes emit OpenAPI schemas, so breaking changes require a new version rather than a silent edit.",
   },
   {
     title: "React Router loaders",
+    badgeClass: "bg-amber-600 text-white",
     description:
       "Loaders receive the same request-scoped db and auth through AppLoadContext, so pages and the public API can never disagree about your data.",
   },
@@ -55,7 +62,7 @@ export function Architecture() {
               <li key={step.title} className="flex items-start gap-4">
                 <span
                   aria-hidden="true"
-                  className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-primary font-mono text-xs font-medium text-primary-foreground"
+                  className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full font-mono text-xs font-medium ${step.badgeClass}`}
                 >
                   {index + 1}
                 </span>
