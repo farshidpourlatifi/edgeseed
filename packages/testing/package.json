@@ -1,0 +1,13 @@
+{
+  "name": "@starter/testing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./factory": "./factory.ts",
+    "./fake-env": "./fake-env.ts"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4"
+  }
+}

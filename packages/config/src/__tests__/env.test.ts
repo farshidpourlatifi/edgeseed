@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createFakeEnv } from "@starter/cli/test-helpers/fake-env";
+import { createFakeEnv } from "@starter/testing/fake-env";
 import { parseEnv, webEnvSchema, mcpEnvSchema } from "../env";
 
 describe("env schemas", () => {

@@ -19,6 +19,6 @@ missing/malformed binding fails loudly at startup, not silently at request time.
 
 ## Testing
 
-- Tests in `src/__tests__/`, using `createFakeEnv` from `@starter/cli/test-helpers/fake-env`
+- Tests in `src/__tests__/`, using `createFakeEnv` from `@starter/testing/fake-env`
 - **Coverage target: 100%** — this package is tiny and pure; there is no excuse
 - Every schema rule (min length, url, enum, default, optionality) gets a rejecting AND an accepting case

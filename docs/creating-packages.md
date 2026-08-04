@@ -56,8 +56,8 @@ DOM types (UI code), it must be consumed by `apps/web` to be checked, like
 
 - Unit tests in `src/__tests__/*.test.ts` — the root vitest config picks up
   `packages/**/*.test.ts` automatically, nothing to register.
-- Use the shared helpers: `@starter/cli/test-helpers/fake-env` and
-  `.../factory`.
+- Use the shared helpers from `@starter/testing` (`/fake-env`, `/factory`) —
+  devDependency only; that package must stay dependency-free (see its CLAUDE.md).
 - Add the package's source globs to `mutate` in `stryker.config.json` if it
   contains logic (not just config/types).
 

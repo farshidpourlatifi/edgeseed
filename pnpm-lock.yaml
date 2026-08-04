@@ -232,14 +232,7 @@ importers:
         specifier: ^4
         version: 4.20260331.1
 
-  packages/cli:
-    dependencies:
-      '@starter/config':
-        specifier: workspace:*
-        version: link:../config
-      '@starter/db':
-        specifier: workspace:*
-        version: link:../db
+  packages/cli: {}
 
   packages/config:
     dependencies:
@@ -250,9 +243,9 @@ importers:
       '@cloudflare/workers-types':
         specifier: ^4
         version: 4.20260331.1
-      '@starter/cli':
+      '@starter/testing':
         specifier: workspace:*
-        version: link:../cli
+        version: link:../testing
 
   packages/db:
     dependencies:
@@ -269,6 +262,12 @@ importers:
       drizzle-kit:
         specifier: ^0.30
         version: 0.30.6
+
+  packages/testing:
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: ^4
+        version: 4.20260331.1
 
   packages/ui:
     dependencies:
