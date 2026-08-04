@@ -9,11 +9,11 @@
     "./client": "./src/client.ts"
   },
   "dependencies": {
-    "drizzle-orm": "^0.41",
+    "drizzle-orm": "^0.45.2",
     "@starter/config": "workspace:*"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.30",
+    "drizzle-kit": "^0.31.10",
     "@cloudflare/workers-types": "^4"
   }
 }

@@ -18,7 +18,7 @@
     "@starter/observability": "workspace:*",
     "agents": "^0.20.1",
     "hono": "^4",
-    "zod": "^3.24"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4",

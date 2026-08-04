@@ -14,12 +14,12 @@ them.
 
 | #   | Severity | Issue                                                                 | Status         |
 | --- | -------- | --------------------------------------------------------------------- | -------------- |
-| 1   | Critical | `better-auth@1.5.6` account-takeover advisories                       | Live           |
+| 1   | Critical | `better-auth@1.5.6` account-takeover advisories                       | Resolved       |
 | 2   | High     | Account pre-hijacking via unverified signup + implicit OAuth linking  | Live           |
 | 3   | High     | `BETTER_AUTH_SECRET` unvalidated; silent fallback to a public default | Live footgun   |
 | 4   | High     | No rate limiting on any auth endpoint                                 | Live           |
 | 5   | High     | No security response headers anywhere                                 | Live           |
-| 6   | High     | Vulnerable `hono`, `drizzle-orm`, `react-router` versions             | Live           |
+| 6   | High     | Vulnerable `hono`, `drizzle-orm`, `react-router` versions             | Partial        |
 | 7   | High     | Global `~/.npmrc` uses plaintext HTTP registry with TLS off           | Live (machine) |
 | 8   | Medium   | MCP server has no authentication                                      | Resolved\*     |
 | 9   | Medium   | `BETTER_AUTH_SECRET` committed in `apps/mcp/wrangler.jsonc`           | Live           |
@@ -56,6 +56,18 @@ organization plugin:
   Fixed in 1.6.13.
 - Plus GHSA-9h47-pqcx-hjr4, GHSA-7w99-5wm4-3g79, GHSA-392p-2q2v-4372,
   GHSA-wxw3-q3m9-c3jr (OAuth state mismatch), GHSA-2vg6-77g8-24mp.
+
+**Resolved 2026-08-05** — upgraded to `better-auth@1.6.26`, past the 1.6.22 needed
+for the last of the listed advisories.
+
+This forced a coupled upgrade rather than a version bump: better-auth ≥1.6 requires
+zod 4 and peers on `drizzle-orm@^0.45.2`, so `zod@4.4.3`, `@hono/zod-openapi@1.5.1`
+and `drizzle-orm@0.45.2` moved in the same change. Staying on zod 3 would have made
+this advisory unpatchable — which is why the split was never really a choice.
+
+Verified by `pnpm check:boot`, added immediately beforehand for this purpose: the
+built Worker now starts and serves, where the zod 3/4 split had it dying at module
+init. No OpenAPI spec drift and no schema drift resulted.
 
 It also pulls vulnerable transitives `kysely@0.28.15` (GHSA-pv5w-4p9q-p3v2) and
 `defu@6.1.4` (GHSA-737v-mqg7-c878).
@@ -214,6 +226,19 @@ will need a CSP nonce or hash.
   arbitrary constructor invocation in vendored turbo-stream, fixed 7.14.2; three
   unauthenticated DoS advisories fixed by 7.18.0; two open-redirect and one CSRF
   advisory. **Upgrade to >= 7.18.0**, then run `npx react-router typegen`.
+
+**Partially resolved 2026-08-05.** `drizzle-orm` is done — now `0.45.2`, which
+closes GHSA-gpj5-g38j-94v9 and fixes the declared range (`^0.41` could never reach
+the fix under semver). It came along with finding #1 because better-auth ≥1.6 peers
+on `drizzle-orm@^0.45.2`.
+
+Still outstanding:
+
+- `hono@4.12.9` → needs **≥ 4.12.34**
+- `react-router@7.13.2` → needs **≥ 7.18.0**, then `npx react-router typegen`
+
+Both are now covered by `pnpm check:boot`, so a bad upgrade fails the gate instead
+of shipping.
 
 ### 7. Global `~/.npmrc` fetches packages over plaintext HTTP with TLS verification disabled
 

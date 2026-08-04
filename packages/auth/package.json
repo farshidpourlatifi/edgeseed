@@ -10,8 +10,8 @@
     "./middleware": "./src/middleware.ts"
   },
   "dependencies": {
-    "better-auth": "^1",
-    "drizzle-orm": "^0.41",
+    "better-auth": "^1.6.26",
+    "drizzle-orm": "^0.45.2",
     "hono": "^4",
     "@starter/db": "workspace:*",
     "@starter/config": "workspace:*"

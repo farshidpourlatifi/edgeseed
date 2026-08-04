@@ -10,7 +10,7 @@
     "./version": "./src/version.ts"
   },
   "dependencies": {
-    "zod": "^3.24"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4",

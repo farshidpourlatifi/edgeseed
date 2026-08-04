@@ -157,13 +157,14 @@ pnpm check:boot             # Boot each built Worker and prove it serves (after 
 - **`pnpm check:boot` runs inside `verify`** (after `build`/`typecheck`, before e2e).
   It starts each built Worker and asserts it serves one unauthenticated request.
   `build` proves compilation; only this proves the bundle _runs_. Without it a
-  Worker that throws at module init passed the entire gate — which is not
-  hypothetical: `wrangler dev` currently dies on
-  a zod 3/4 conflict (`coerce.boolean(...).meta is not a function`) because vite
-  leaves `zod` an external import and wrangler resolves it to the app's zod 3,
-  while bundled better-auth code calls zod 4 APIs. **`verify` therefore fails today
-  at `check:boot`, by design** — it is reporting a real defect, not flaking. Fixing
-  it means the zod 4 migration (see `docs/security-audit.md` #1 and #6).
+  Worker that throws at module init passes the entire gate. That is not
+  hypothetical — it caught exactly that on its first run: vite leaves `zod` an
+  external import, wrangler resolved it to the app's zod 3, and bundled
+  better-auth code called zod 4 APIs (`coerce.boolean(...).meta is not a
+function`). Fixed by the zod 4 migration (`docs/security-audit.md` #1).
+- **Keep zod on one major.** better-auth ≥1.6 requires zod 4 and peers on
+  `drizzle-orm@^0.45.2`; `@hono/zod-openapi` must be v1.x to match. These four move
+  together — pinning any one back reintroduces the boot failure above.
 - **Sentry only initialises in the built Worker.** `withSentry()` is in `worker.ts`;
   `pnpm dev` mounts `server/index.ts` directly, so `captureError` no-ops on :5173.
 - Secret-handling procedures are in `docs/secret-scanning.md`.
