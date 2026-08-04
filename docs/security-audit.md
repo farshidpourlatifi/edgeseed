@@ -19,7 +19,7 @@ them.
 | 3   | High     | `BETTER_AUTH_SECRET` unvalidated; silent fallback to a public default | Live footgun   |
 | 4   | High     | No rate limiting on any auth endpoint                                 | Live           |
 | 5   | High     | No security response headers anywhere                                 | Live           |
-| 6   | High     | Vulnerable `hono`, `drizzle-orm`, `react-router` versions             | Partial        |
+| 6   | High     | Vulnerable `hono`, `drizzle-orm`, `react-router` versions             | Resolved       |
 | 7   | High     | Global `~/.npmrc` uses plaintext HTTP registry with TLS off           | Live (machine) |
 | 8   | Medium   | MCP server has no authentication                                      | Resolved\*     |
 | 9   | Medium   | `BETTER_AUTH_SECRET` committed in `apps/mcp/wrangler.jsonc`           | Live           |
@@ -227,18 +227,29 @@ will need a CSP nonce or hash.
   unauthenticated DoS advisories fixed by 7.18.0; two open-redirect and one CSRF
   advisory. **Upgrade to >= 7.18.0**, then run `npx react-router typegen`.
 
-**Partially resolved 2026-08-05.** `drizzle-orm` is done — now `0.45.2`, which
-closes GHSA-gpj5-g38j-94v9 and fixes the declared range (`^0.41` could never reach
-the fix under semver). It came along with finding #1 because better-auth ≥1.6 peers
-on `drizzle-orm@^0.45.2`.
+**Resolved 2026-08-05.**
 
-Still outstanding:
+| Package        | Was      | Now          | Target       |
+| -------------- | -------- | ------------ | ------------ |
+| `drizzle-orm`  | `0.41.0` | **`0.45.2`** | `^0.45.2`    |
+| `hono`         | `4.12.9` | **`4.13.0`** | `>= 4.12.34` |
+| `react-router` | `7.13.2` | **`7.18.2`** | `>= 7.18.0`  |
 
-- `hono@4.12.9` → needs **≥ 4.12.34**
-- `react-router@7.13.2` → needs **≥ 7.18.0**, then `npx react-router typegen`
+`drizzle-orm` came along with finding #1 (better-auth ≥1.6 peers on `^0.45.2`) and
+also fixed the declared range — `^0.41` could never reach the patch under semver.
 
-Both are now covered by `pnpm check:boot`, so a bad upgrade fails the gate instead
-of shipping.
+For `hono` and `react-router` the **ranges were already correct**: both declared
+`^4` / `^7`, which permitted the fixed versions all along. Only the lockfile was
+stale. Worth carrying into the next audit — checking declared ranges is not the
+same as checking resolved versions, and this review reported the resolved ones as
+if the ranges were at fault.
+
+`react-router` deliberately stays on 7.x. Latest is 8.x, but a major migration is
+not a security fix.
+
+All three are now covered by `pnpm check:boot`, so a bad upgrade fails the gate
+rather than shipping. `react-router` additionally got two full e2e suites at
+`--retries=0` (9/9 both), since it is the one with real behavioural risk.
 
 ### 7. Global `~/.npmrc` fetches packages over plaintext HTTP with TLS verification disabled
 
