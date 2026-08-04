@@ -21,7 +21,7 @@ them.
 | 5   | High     | No security response headers anywhere                                 | Live           |
 | 6   | High     | Vulnerable `hono`, `drizzle-orm`, `react-router` versions             | Live           |
 | 7   | High     | Global `~/.npmrc` uses plaintext HTTP registry with TLS off           | Live (machine) |
-| 8   | Medium   | MCP server has no authentication                                      | Latent         |
+| 8   | Medium   | MCP server has no authentication                                      | Resolved\*     |
 | 9   | Medium   | `BETTER_AUTH_SECRET` committed in `apps/mcp/wrangler.jsonc`           | Live           |
 | 10  | Medium   | Dashboard child loaders do not enforce auth themselves                | Pattern risk   |
 | 11  | Medium   | IP-derived controls trust spoofable `x-forwarded-for`                 | Live           |
@@ -263,6 +263,26 @@ to add one tool per public API route, so DB-touching tools will accumulate.
 `workers-oauth-provider`, a bearer-token check in `fetch`, or Cloudflare Access —
 and thread the authenticated principal into `ToolContext` so tools can scope
 queries.
+
+**Resolved 2026-08-04** — and the worker is buildable, so the accidental control
+is gone and a deliberate one replaces it. `apps/mcp/src/index.ts` now wraps
+everything in `OAuthProvider` with `/mcp` and `/sse` as `apiRoute`s, so they
+require a bearer token; `agents` is declared; the `MCP_OBJECT` Durable Object
+binding and migration exist; and `database_id` matches `apps/web`. The
+authenticated principal reaches tools as `ToolContext.user`, sourced from the
+OAuth grant rather than tool arguments (`src/__tests__/whoami.test.ts` asserts
+caller-supplied identity is ignored).
+
+Verified end to end: unauthenticated `/mcp` → `401` with
+`WWW-Authenticate: Bearer …resource_metadata=…`; discovery → dynamic registration
+→ login → consent → PKCE code exchange → authenticated `tools/call`; bogus token
+→ `401`.
+
+**\* One part of this finding remains open:** `Origin` validation is still not
+performed. Requiring a bearer token blocks the practical DNS-rebinding attack (a
+malicious page cannot obtain a token), but the MCP spec asks for the header check
+on HTTP transports regardless, and the Agents SDK still answers
+`Access-Control-Allow-Origin: *`. Track separately.
 
 ### 9. `BETTER_AUTH_SECRET` committed in the MCP worker config
 

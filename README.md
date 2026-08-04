@@ -73,7 +73,8 @@ docs/
 
 - **Auth flow**: authenticate → resolve org context → check permission → scope data by org
 - **API versioning**: public routes at `/api/v1/...`, bump only on breaking changes
-- **MCP parity**: every public API route gets a matching MCP tool
+- **MCP parity**: every public API route gets a matching MCP tool, behind OAuth 2.1;
+  tools read identity from the grant (`ctx.user`), never from tool arguments
 - **DB migrations**: sequential Drizzle Kit migrations in `packages/db/migrations/`
 - **Testing**: TDD for domain logic, e2e for critical paths (Vitest + Playwright)
 - **OpenAPI**: auto-generated from zod schemas, checked into git

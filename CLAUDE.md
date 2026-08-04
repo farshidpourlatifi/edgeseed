@@ -13,7 +13,7 @@ Cloudflare-native monorepo starter for shipping SaaS products fast. See `docs/st
 - **UI:** shadcn/ui components (unified `radix-ui` package, not individual `@radix-ui/*`)
 - **Theme:** Single oklch preset from shadcn (light/dark/system), no multi-color switcher
 - **Toasts:** Sonner (mounted at root layout)
-- **MCP:** MCP server scaffold in `apps/mcp`
+- **MCP:** MCP server in `apps/mcp`, gated by OAuth 2.1 (`@cloudflare/workers-oauth-provider`)
 
 ## Monorepo layout
 
@@ -60,6 +60,18 @@ tests/e2e         — Playwright e2e tests
 - Cloudflare (retention 3d free / 7d paid) and Sentry (grouping, alerting,
   releases) are complementary; leaving `SENTRY_DSN` unset gives a working
   Cloudflare-only setup
+
+### MCP authentication
+
+`apps/mcp` is gated by OAuth 2.1 — see its CLAUDE.md and `docs/security-audit.md` #8:
+
+- `/mcp` and `/sse` are `apiRoute`s on `OAuthProvider`; without a bearer token they
+  return 401 with the `WWW-Authenticate` challenge clients follow to discovery
+- It runs its **own** Better Auth instance (separate Worker, so it cannot read the
+  web app's cookie) against the **same** D1 — so `database_id` must match `apps/web`
+- Locally, `pnpm dev` for the MCP app uses `--persist-to ../web/.wrangler/state` so
+  both Workers share one local database
+- Tools read identity from `ctx.user` (the OAuth grant), **never** from tool arguments
 
 ### Routes
 

@@ -96,6 +96,9 @@ importers:
 
   apps/mcp:
     dependencies:
+      '@cloudflare/workers-oauth-provider':
+        specifier: ^0.9.1
+        version: 0.9.1
       '@modelcontextprotocol/sdk':
         specifier: ^1.26
         version: 1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76)
@@ -117,6 +120,9 @@ importers:
       agents:
         specifier: ^0.20.1
         version: 0.20.1(@babel/core@7.29.0)(@babel/runtime@7.29.7)(@cloudflare/workers-types@4.20260331.1)(@modelcontextprotocol/client@2.0.0)(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76))(@modelcontextprotocol/server@2.0.0)(react@19.2.4)(rolldown@1.2.2)(vite@6.4.1(@types/node@22.19.15)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.9.0))(zod@3.25.76)
+      hono:
+        specifier: ^4
+        version: 4.12.9
       zod:
         specifier: ^3.24
         version: 3.25.76
@@ -829,6 +835,9 @@ packages:
     engines: {node: '>=16'}
     cpu: [x64]
     os: [win32]
+
+  '@cloudflare/workers-oauth-provider@0.9.1':
+    resolution: {integrity: sha512-ELfEDzACNRvgvHij6f9m2rLPj7S6M1dJ1iLNXcQA15TD35wBYoQjmxUJqyZsyf19mbAqUav9B+hgOPqYpG3CHw==}
 
   '@cloudflare/workers-types@4.20260331.1':
     resolution: {integrity: sha512-fsf+MWPQdQ8XPV0y3tQvqf035ETgEXfJgNTYqmiLcOHB32eH/5Kb75fyZIXS9nnBMq3x6c4+HJRTRxbovNLWiA==}
@@ -6214,6 +6223,8 @@ snapshots:
 
   '@cloudflare/workerd-windows-64@1.20260329.1':
     optional: true
+
+  '@cloudflare/workers-oauth-provider@0.9.1': {}
 
   '@cloudflare/workers-types@4.20260331.1': {}
 
