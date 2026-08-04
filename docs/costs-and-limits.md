@@ -48,24 +48,28 @@ third-party APIs are also outside this repository and are not included in the es
 
 ### Important deployment findings
 
-1. `apps/web/wrangler.jsonc` contains a specific D1 database ID. Every project copied from this
-   starter must create and bind its own database. Reusing the checked-in ID would mix project data,
-   security boundaries, and usage.
-2. `apps/mcp/wrangler.jsonc` uses `database_id: "local"`, so it does not yet point to a production D1
-   database.
-3. The MCP app does not currently typecheck because it imports `agents/mcp` without declaring or
-   locking the `agents` package.
-4. `StarterMcpAgent` is the deprecated stateful MCP API. A successfully configured `McpAgent` is
-   backed by a Durable Object, but the Wrangler file has no Durable Object binding or migration.
-   The current health tool has no session-state requirement, so the newer stateless
-   `createMcpHandler` is the lower-cost and simpler design. If the MCP Worker remains stateful,
-   include Durable Object usage in its cost model.
-5. `/mcp` and `/sse` currently have no request authentication. The only tool is a health check, but
-   future database tools would create an abuse and cost risk unless the endpoint is protected.
+1. **Both** `apps/web/wrangler.jsonc` and `apps/mcp/wrangler.jsonc` contain a specific D1 database
+   ID, and they must stay identical — `apps/mcp` runs its own Better Auth instance against
+   `apps/web`'s users. Every project copied from this starter must create its own database and set
+   the new id in both files. Reusing the checked-in ID would mix project data, security boundaries,
+   and usage. `pnpm init:product` resets both to `"local"`.
+2. `StarterMcpAgent` is backed by a Durable Object. The binding (`MCP_OBJECT`) and its
+   `new_sqlite_classes` migration now exist, so the Worker is deployable — but Durable Object usage
+   must be included in the MCP cost model. A stateless `createMcpHandler` would be cheaper if
+   session state is never needed.
+3. `apps/mcp` still ships `OAUTH_KV` with `id: "local"`. Run `wrangler kv namespace create OAUTH_KV`
+   and set the real id before deploying, or the OAuth grant store has nowhere to live.
 
-The repository-wide `pnpm typecheck` currently fails at item 3. These findings mean the base cost
-table below represents the deployable web Worker and D1. Conditional MCP costs are listed
-separately.
+**Resolved since this document was written (2026-08-05):**
+
+- The MCP app now typecheck**s** — `agents` is declared and locked, and repository-wide
+  `pnpm typecheck` passes. `pnpm check:boot` additionally proves both built Workers start.
+- `/mcp` and `/sse` are no longer unauthenticated: they sit behind OAuth 2.1 and reject requests
+  without a bearer token (security-audit #8). The abuse and cost risk from future database tools is
+  correspondingly reduced, though an authenticated caller can still drive usage.
+
+These findings mean the base cost table below represents the web Worker and D1. Conditional MCP
+costs are listed separately.
 
 ## Current Cloudflare price sheet
 
@@ -251,11 +255,16 @@ fee.
 
 Leave `starter-mcp` undeployed until it provides a needed tool. Before deployment:
 
-- migrate it to the stateless handler unless durable session state is a requirement;
-- add authentication/authorization before any D1-backed tools;
-- replace the `local` D1 ID with the intended environment-specific database;
-- if statefulness is required, configure the Durable Object binding/migration and monitor its
-  duration, request, and storage metrics.
+- consider the stateless handler unless durable session state is a requirement — the Durable Object
+  is configured and working, but it is the more expensive shape;
+- create the real `OAUTH_KV` namespace (`wrangler kv namespace create OAUTH_KV`) and replace the
+  `"local"` placeholder id — the OAuth grant store has nowhere to live otherwise;
+- set `database_id` to the same production database as `apps/web`, never a separate one;
+- monitor Durable Object duration, request, and storage metrics, which the OAuth session state now
+  contributes to.
+
+Authentication is no longer a prerequisite to add — `/mcp` and `/sse` are behind OAuth 2.1 and
+reject unauthenticated requests.
 
 Also delete old Worker deployments, D1 databases, and environments when a project is retired. D1
 scales to zero, but old data still consumes storage and free-plan database slots.

@@ -55,8 +55,16 @@ console.log(`
 Done. Next steps:
   1. Create the product D1 database:
        cd apps/web && npx wrangler d1 create ${name}-db
-     then put its id in apps/web/wrangler.jsonc (database_id) and update
-     database_name in both wrangler.jsonc files if you used a new name.
+
+     Then put the returned id in database_id in BOTH wrangler files, and set
+     database_name to ${name}-db in both:
+       apps/web/wrangler.jsonc
+       apps/mcp/wrangler.jsonc
+
+     Both must match. apps/mcp runs its own Better Auth instance against
+     apps/web's users, so a different id there is a different set of users —
+     sign-in on the MCP consent screen would silently fail to find the account.
+     They are stamped to "local" for you; only production needs the real id.
   2. Set production secrets (docs/README.md#production-secrets):
        BETTER_AUTH_SECRET, BETTER_AUTH_URL, optional OAuth credentials
   3. Create apps/web/.dev.vars for local dev.
