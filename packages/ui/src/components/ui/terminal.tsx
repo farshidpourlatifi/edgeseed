@@ -142,6 +142,8 @@ export function Terminal({
           border-radius: 12px;
           overflow: hidden;
           position: relative;
+          display: flex;
+          flex-direction: column;
           box-shadow: 0 1px 2px light-dark(rgba(16,24,40,.05), rgba(0,0,0,.4)),
                       0 12px 32px -18px light-dark(rgba(16,24,40,.22), rgba(0,0,0,.8));
         }
@@ -159,7 +161,9 @@ export function Terminal({
         }
         .tw-dot { width:9px; height:9px; border-radius:50%; background:var(--border); }
         .tw-label { margin-left:4px; }
-        .tw-body { padding:16px 18px; overflow:auto; scrollbar-width:thin; }
+        /* The height prop is the flex basis; when the root is stretched
+           (e.g. className="h-full" in a grid), the body grows to fill. */
+        .tw-body { padding:16px 18px; overflow:auto; scrollbar-width:thin; flex:1 1 auto; min-height:0; }
         .tw-row { white-space:pre-wrap; word-break:break-word; }
         .tw-cwd { color: var(--cyan); }
         .tw-sigil { color: var(--accent); padding:0 7px 0 5px; }

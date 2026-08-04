@@ -119,7 +119,7 @@ export function Quality() {
 
         <QualityStats />
 
-        <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-2 lg:gap-12">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:gap-12">
           <div className="flex flex-col gap-4">
             <Terminal
               script={VERIFY_SUMMARY}
@@ -142,7 +142,7 @@ export function Quality() {
               script={PIPELINE_SCRIPT}
               label="pipeline walkthrough"
               height="24rem"
-              className="w-full"
+              className="h-full w-full"
             />
           </div>
         </div>
