@@ -113,7 +113,7 @@ export function Terminal({
   return (
     <div
       ref={rootRef}
-      className={`tw ${className}`}
+      className={`tw ${animate ? "" : "tw-static"} ${className}`}
       style={theme === "auto" ? undefined : { colorScheme: theme }}
     >
       <style>{`
@@ -172,6 +172,8 @@ export function Terminal({
           animation: tw-blink 1.06s steps(1) infinite;
         }
         @keyframes tw-blink { 0%,50%{opacity:1} 50.01%,100%{opacity:0} }
+        /* Static panels (animate={false}) show a steady cursor, no blink */
+        .tw-static .tw-cursor { animation: none; }
         .tw-replay {
           position:absolute; right:10px; bottom:10px;
           background: var(--panel); color: var(--dim);
