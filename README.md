@@ -36,6 +36,7 @@ packages/
   cli/          Dev workflow scripts (db, api:spec, version:bump)
   config/       Zod-validated env and runtime config
   db/           Drizzle ORM + D1 schema and migrations
+  testing/      Shared test helpers (factories, fake env) — dependency-free
   ui/           shadcn/ui + Tailwind v4 design system
 docs/
   adr/          Architecture decision records

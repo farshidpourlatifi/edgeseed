@@ -23,6 +23,7 @@ apps/mcp          — MCP server (Cloudflare Workers)
 packages/auth     — Better Auth config, middleware, session/role helpers
 packages/config   — Zod-validated env schemas, version
 packages/db       — Drizzle schema, migrations, D1 client
+packages/testing  — shared test helpers (dependency-free by rule)
 packages/ui       — shadcn/ui components, hooks, theme
 packages/cli      — Dev workflow scripts (db:*, api:spec, version:bump)
 docs/             — ADRs, API specs
