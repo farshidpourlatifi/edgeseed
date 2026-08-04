@@ -5,7 +5,7 @@ test("landing page renders marketing content", async ({ page }) => {
   await expect(page.locator("h1")).toContainText("SaaS product");
   await expect(page.locator("text=Get Started").first()).toBeVisible();
   await expect(page.locator("text=Sign In").first()).toBeVisible();
-  await expect(page.locator("text=Everything you need to ship faster")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Everything wired up on day one" })).toBeVisible();
 });
 
 test("health endpoint returns ok", async ({ request }) => {
