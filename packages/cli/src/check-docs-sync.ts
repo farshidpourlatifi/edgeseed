@@ -5,7 +5,11 @@
 import { readFileSync } from "node:fs";
 
 const IGNORED = new Set(["prepare"]);
-const DOC_FILES = ["README.md", "docs/README.md", "CLAUDE.md"];
+
+// AGENTS.md, not CLAUDE.md: AGENTS.md is the canonical instruction file and
+// CLAUDE.md is a thin `@AGENTS.md` import, so checking CLAUDE.md would only ever
+// assert against a pointer.
+const DOC_FILES = ["README.md", "docs/README.md", "AGENTS.md"];
 
 const scripts = Object.keys(
   (JSON.parse(readFileSync("package.json", "utf8")) as { scripts: Record<string, string> }).scripts,

@@ -1,0 +1,58 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(**/.dev.vars)",
+      "Read(**/.env)",
+      "Read(**/*.pem)",
+      "Read(**/*.key)",
+      "Read(**/id_rsa*)",
+      "Read(**/id_ed25519*)",
+      "Read(**/.ssh/**)",
+      "Read(**/.aws/**)",
+      "Read(**/.gnupg/**)",
+      "Read(**/secrets/**)",
+      "Read(**/credentials*)",
+      "Edit(**/.dev.vars)",
+      "Edit(**/.env)",
+      "Edit(**/*.pem)",
+      "Edit(**/*.key)",
+      "Edit(**/secrets/**)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *\".example\") ;; */.dev.vars|*/.dev.vars.*|*/.env|*/.env.*) echo \"BLOCKED: $f is a secret env file — never read or edit these (AGENTS.md: Secret files are never read). Use the .example template instead.\" >&2; exit 2;; esac",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in */pnpm-lock.yaml|*/package-lock.json|*/yarn.lock|*/bun.lockb|*/bun.lock) echo \"BLOCKED: lockfiles change only via the package manager (pnpm install / pnpm add)\" >&2; exit 2;; esac",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_response.filePath // .tool_input.file_path // empty'); case \"$f\" in *.ts|*.tsx|*.js|*.jsx|*.mjs) pnpm exec eslint --fix \"$f\" 2>/dev/null || true;; esac",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}
