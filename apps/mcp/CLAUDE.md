@@ -7,7 +7,7 @@ the "MCP parity" convention: every `/api/v1` route gets a matching tool here.
 
 ## Architecture
 
-- `src/index.ts` — `OAuthProvider` wrapping everything: `/mcp` + `/sse` are `apiRoute`s (bearer token required), everything else falls through to `authApp`
+- `src/index.ts` — `OAuthProvider` wrapping everything: `/mcp` is the only `apiRoute` (bearer token required; the `/sse` special-case never actually served SSE and was removed — see the comment in `index.ts`), everything else falls through to `authApp`
 - `src/agent.ts` — `StarterMcpAgentBase` (extends `McpAgent`), exported as `StarterMcpAgent` wrapped in `instrumentAgentWithSentry`; bound as the `MCP_OBJECT` Durable Object
 - `src/auth-app.ts` — Hono app: Better Auth on this origin, plus the `/authorize` login + consent screens
 - `src/env.ts` — `Env` bindings, including the `OAUTH_PROVIDER` helpers that the provider injects at runtime (not a wrangler binding)

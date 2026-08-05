@@ -64,9 +64,10 @@ third-party APIs are also outside this repository and are not included in the es
 
 - The MCP app now typecheck**s** — `agents` is declared and locked, and repository-wide
   `pnpm typecheck` passes. `pnpm check:boot` additionally proves both built Workers start.
-- `/mcp` and `/sse` are no longer unauthenticated: they sit behind OAuth 2.1 and reject requests
-  without a bearer token (security-audit #8). The abuse and cost risk from future database tools is
-  correspondingly reduced, though an authenticated caller can still drive usage.
+- `/mcp` is no longer unauthenticated: it sits behind OAuth 2.1 and rejects requests
+  without a bearer token (security-audit #8). The `/sse` route was removed — it never actually
+  served SSE (see the comment in `apps/mcp/src/index.ts`). The abuse and cost risk from future
+  database tools is correspondingly reduced, though an authenticated caller can still drive usage.
 
 These findings mean the base cost table below represents the web Worker and D1. Conditional MCP
 costs are listed separately.
@@ -263,8 +264,8 @@ Leave `starter-mcp` undeployed until it provides a needed tool. Before deploymen
 - monitor Durable Object duration, request, and storage metrics, which the OAuth session state now
   contributes to.
 
-Authentication is no longer a prerequisite to add — `/mcp` and `/sse` are behind OAuth 2.1 and
-reject unauthenticated requests.
+Authentication is no longer a prerequisite to add — `/mcp` is behind OAuth 2.1 and
+rejects unauthenticated requests.
 
 Also delete old Worker deployments, D1 databases, and environments when a project is retired. D1
 scales to zero, but old data still consumes storage and free-plan database slots.
@@ -305,7 +306,7 @@ Source: [Wrangler runtime limits](https://developers.cloudflare.com/workers/wran
 
 ### 5. Stop abuse before expensive application work
 
-- Protect `/api/auth/*`, `/mcp`, and `/sse` with appropriate rate limits. Cloudflare's Free zone plan
+- Protect `/api/auth/*` and `/mcp` with appropriate rate limits. Cloudflare's Free zone plan
   includes one IP-based rate-limiting rule with restricted fields and 10-second windows; tune it
   from observed legitimate traffic.
 - Add free Cloudflare Turnstile verification to registration and other account-creation endpoints.
