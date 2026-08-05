@@ -17,6 +17,11 @@ copied into apps.
 ## Rules
 
 - Components use the unified `radix-ui` package, NOT individual `@radix-ui/react-*` packages
+- `data-testid` goes on a component only when an e2e test must target an element
+  no role locator can reach (the terminal root and its `aria-hidden` body carry
+  `terminal` / `terminal-body` for exactly this). Never add testids
+  preemptively — role and label locators are the primary hook, and replacing
+  them with a testid hides a11y regressions (`tests/e2e/CLAUDE.md`)
 - New components come from V0/shadcn generation (see root CLAUDE.md), then get import fixes — don't write shadcn-style components from scratch
 - This package is typechecked through the web app (it needs DOM types), not standalone
 - ESLint: `react-hooks/set-state-in-effect` is disabled for `src/hooks/` only — the SSR-safe init pattern there is intentional; don't copy that pattern into app code
