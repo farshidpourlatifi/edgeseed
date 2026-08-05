@@ -68,7 +68,7 @@ docs/
 | `pnpm api:call <METHOD> <path> [body]`    | Call `/api/v1` with `STARTER_API_TOKEN` (see [API tokens](#api-tokens))          |
 | `pnpm version:bump [major\|minor\|patch]` | Bump version and create git tag                                                  |
 | `pnpm init:product <name>`                | Stamp product identity on a fresh clone ([guide](./docs/starter-as-upstream.md)) |
-| `pnpm check:docs-sync`                    | Fail if any script is undocumented in the READMEs                                |
+| `pnpm check:docs-sync`                    | Fail on drift: undocumented scripts, stale `.dev.vars.example`                   |
 | `pnpm check:boot`                         | Start each **built** Worker and prove it serves a request (run after `build`)    |
 
 ## Key Conventions

@@ -47,27 +47,29 @@ docs/api          — Generated OpenAPI specs
 
 ## Dev workflow
 
-| Command                          | What it does                             |
-| -------------------------------- | ---------------------------------------- |
-| `pnpm dev --filter @starter/web` | Start web dev server on :5173            |
-| `pnpm db:generate`               | Generate migration from schema changes   |
-| `pnpm db:migrate`                | Apply migrations to local D1             |
-| `pnpm db:seed`                   | Insert seed data                         |
-| `pnpm db:reset`                  | Drop and re-apply all migrations         |
-| `pnpm api:spec`                  | Regenerate `docs/api/openapi.json`       |
-| `pnpm api:call <METHOD> <path>`  | Call `/api/v1` with an API token         |
-| `pnpm check:boot`                | Boot each built Worker, assert it serves |
-| `pnpm test`                      | Run Vitest                               |
-| `pnpm test:e2e`                  | Run Playwright e2e tests                 |
-| `pnpm test:coverage`             | Vitest with coverage (`coverage/`)       |
-| `pnpm test:mutation`             | Stryker mutation tests                   |
-| `pnpm lint` / `pnpm lint:fix`    | ESLint check / autofix                   |
-| `pnpm format` / `format:check`   | Prettier write / check                   |
-| `pnpm verify`                    | Full pre-deploy gate                     |
-| `pnpm deploy:web`                | `verify` + deploy web app                |
-| `pnpm version:bump [type]`       | Bump version + git tag                   |
-| `pnpm init:product <name>`       | Stamp product identity (new repo)        |
-| `pnpm check:docs-sync`           | Scripts-vs-README drift check            |
+| Command                             | What it does                             |
+| ----------------------------------- | ---------------------------------------- |
+| `pnpm dev --filter @starter/web`    | Start web dev server on :5173            |
+| `pnpm db:generate`                  | Generate migration from schema changes   |
+| `pnpm db:migrate`                   | Apply migrations to local D1             |
+| `pnpm db:seed`                      | Insert seed data                         |
+| `pnpm db:reset`                     | Drop and re-apply all migrations         |
+| `pnpm api:spec`                     | Regenerate `docs/api/openapi.json`       |
+| `pnpm api:call <METHOD> <path>`     | Call `/api/v1` with an API token         |
+| `pnpm check:boot`                   | Boot each built Worker, assert it serves |
+| `pnpm test`                         | Run Vitest                               |
+| `pnpm test:e2e`                     | Run Playwright e2e tests                 |
+| `pnpm test:coverage`                | Vitest with coverage (`coverage/`)       |
+| `pnpm test:mutation`                | Stryker mutation tests                   |
+| `pnpm lint` / `pnpm lint:fix`       | ESLint check / autofix                   |
+| `pnpm format` / `pnpm format:check` | Prettier write / check                   |
+| `pnpm build`                        | Build every Worker bundle                |
+| `pnpm typecheck`                    | TypeScript check across apps             |
+| `pnpm verify`                       | Full pre-deploy gate                     |
+| `pnpm deploy:web`                   | `verify` + deploy web app                |
+| `pnpm version:bump [type]`          | Bump version + git tag                   |
+| `pnpm init:product <name>`          | Stamp product identity (new repo)        |
+| `pnpm check:docs-sync`              | Docs + .dev.vars.example drift check     |
 
 ## Adding a new page
 
