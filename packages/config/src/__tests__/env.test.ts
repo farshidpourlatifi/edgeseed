@@ -26,6 +26,16 @@ describe("env schemas", () => {
     expect(() => parseEnv(webEnvSchema, createFakeEnv({ BETTER_AUTH_URL: "not-a-url" }))).toThrow();
   });
 
+  it("web schema rejects a missing BETTER_AUTH_URL", () => {
+    expect(() => parseEnv(webEnvSchema, createFakeEnv({ BETTER_AUTH_URL: undefined }))).toThrow();
+  });
+
+  it("mcp schema does not require BETTER_AUTH_URL — origin derives per request", () => {
+    expect(() =>
+      parseEnv(mcpEnvSchema, createFakeEnv({ BETTER_AUTH_URL: undefined })),
+    ).not.toThrow();
+  });
+
   it("rejects a missing DB binding", () => {
     expect(() => parseEnv(webEnvSchema, createFakeEnv({ DB: null }))).toThrow(/D1 binding/);
   });

@@ -1,0 +1,34 @@
+# Local dev vars for the MCP Worker. Copy to .dev.vars (gitignored) and fill
+# in; wrangler merges it during `pnpm dev`. The MCP app is a separate Worker,
+# so it needs its own copy — the web app's .dev.vars does not cover it.
+# Production values go through `wrangler secret put`, never here.
+# Agents never read the real .dev.vars — compare key names against this file
+# instead (AGENTS.md "Secret files are never read").
+# Validated by mcpEnvSchema in packages/config/src/env.ts.
+
+# Required — session signing key, 32+ chars: `openssl rand -hex 32`
+BETTER_AUTH_SECRET=replace-with-a-random-string-of-32-plus-characters
+
+# Optional — GitHub social login; auto-enables when both are set. Each origin
+# needs its own registered callback — the web app's registration does not
+# cover this Worker. This Worker has no BETTER_AUTH_URL: auth-app.ts derives
+# the origin per request, so register the origin you actually serve on
+# (locally http://localhost:8788). Callback: {origin}/api/auth/callback/github
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+
+# Optional — Google social login; auto-enables when both are set.
+# Redirect URI: {origin}/api/auth/callback/google
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# Optional — Sentry error reporting; empty disables Sentry entirely
+# (docs/sentry-setup.md — use the <product>-mcp project's DSN here)
+SENTRY_DSN=
+SENTRY_TRACES_SAMPLE_RATE=
+SENTRY_ENVIRONMENT=
+SENTRY_RELEASE=
+
+# Optional — debug|info|warn|error (defaults: debug in development, else info).
+# Kept commented: the schema rejects an empty string for this enum key.
+# LOG_LEVEL=debug

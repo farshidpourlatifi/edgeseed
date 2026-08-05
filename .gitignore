@@ -7,12 +7,12 @@ build/
 
 # cloudflare
 .wrangler/
-.dev.vars
+.dev.vars*
+!.dev.vars.example
 
 # environment
-.env
-.env.local
-.env.*.local
+.env*
+!.env.example
 
 # editor
 .vscode/

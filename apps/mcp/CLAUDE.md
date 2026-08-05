@@ -38,7 +38,9 @@ unauthenticated `/mcp` → 401 + `WWW-Authenticate`; discovery → dynamic regis
 
 - `OAUTH_KV` is `id: "local"` — run `wrangler kv namespace create OAUTH_KV` and paste
   the real id before deploying
-- `wrangler.jsonc` still carries the dev placeholder secret in `vars` — real deployment needs `wrangler secret put`, mirroring the web app
+- `BETTER_AUTH_SECRET` is no longer in `wrangler.jsonc` `vars` (audit #9 resolved) —
+  set it locally in `.dev.vars` (start from `.dev.vars.example`) and in production
+  via `wrangler secret put`, mirroring the web app
 - The consent POST relies on Better Auth's `SameSite=Lax` session cookie rather than
   an explicit CSRF token; add one if the consent screen ever grants more than `mcp`
 - Tool surface is `health_check` + `whoami`, which is parity with `/api/v1` today

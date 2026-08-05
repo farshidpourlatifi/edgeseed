@@ -5,7 +5,7 @@
   "compatibility_flags": ["nodejs_compat"],
   "main": "src/index.ts",
   // McpAgent is a Durable Object. The Agents SDK resolves it by the fixed
-  // binding name MCP_OBJECT — without this, /mcp and /sse 500 at runtime.
+  // binding name MCP_OBJECT — without this, /mcp 500s at runtime.
   "durable_objects": {
     "bindings": [
       {
@@ -51,8 +51,11 @@
   // apps/web, that made a forged session cookie a web account takeover *and* a
   // valid MCP grant. Put it in apps/mcp/.dev.vars locally, `wrangler secret put`
   // in production.
+  //
+  // BETTER_AUTH_URL is not here for the same shadowing reason — and this Worker
+  // never reads it anyway: auth-app.ts derives `baseURL` from the request
+  // origin, so dev and production both work without a binding.
   "vars": {
-    "BETTER_AUTH_URL": "http://localhost:5173",
     "ENVIRONMENT": "development",
   },
 }

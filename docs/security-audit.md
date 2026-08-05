@@ -22,7 +22,7 @@ them.
 | 6   | High     | Vulnerable `hono`, `drizzle-orm`, `react-router` versions             | Resolved       |
 | 7   | High     | Global `~/.npmrc` uses plaintext HTTP registry with TLS off           | Live (machine) |
 | 8   | Medium   | MCP server has no authentication                                      | Resolved\*     |
-| 9   | Medium   | `BETTER_AUTH_SECRET` committed in `apps/mcp/wrangler.jsonc`           | Live           |
+| 9   | Medium   | `BETTER_AUTH_SECRET` committed in `apps/mcp/wrangler.jsonc`           | Resolved       |
 | 10  | Medium   | Dashboard child loaders do not enforce auth themselves                | Pattern risk   |
 | 11  | Medium   | IP-derived controls trust spoofable `x-forwarded-for`                 | Live           |
 | 12  | Medium   | OAuth and verification tokens stored in plaintext, never purged       | Live           |
@@ -369,6 +369,12 @@ with the web app.
 **Fix:** remove from `vars`; use `apps/mcp/.dev.vars` locally and
 `wrangler secret put` for production, mirroring the web app.
 
+**Resolved 2026-08-06** — `BETTER_AUTH_SECRET` is gone from `vars` (the file now
+carries a comment explaining the shadowing trap), and the committed
+`BETTER_AUTH_URL` var was removed in the same pass — same shadowing risk, and
+the Worker never reads it (`auth-app.ts` derives `baseURL` from the request
+origin). Committed `.dev.vars.example` templates document the local setup.
+
 ### 10. Dashboard child-route loaders do not enforce authentication themselves
 
 The layout loader at `apps/web/app/routes/dashboard.tsx:41-74` correctly throws
@@ -508,7 +514,9 @@ with explicit allowlisting for `/health` and `/doc`.
 - **`.gitignore` misses env-file variants.** Lines 10 and 14-16 use exact names,
   so Wrangler's `.dev.vars.<environment>` files and bare `.env.staging` /
   `.env.production` are trackable. Fix: `.dev.vars*` and `.env*`, re-including
-  `.env.example`.
+  `.env.example`. **Resolved 2026-08-06** — patterns broadened exactly as
+  suggested, with `!.dev.vars.example` also re-included; committed
+  `.dev.vars.example` templates now exist in both apps.
 - **Password policy is the framework default.** No `minPasswordLength` is set, so
   the default 8 applies; `register.tsx:149` adds only a browser-side
   `minLength={8}`. Weak in combination with the absent rate limiting.

@@ -12,7 +12,6 @@ export interface Env extends SentryEnv {
    */
   OAUTH_PROVIDER: OAuthHelpers;
   BETTER_AUTH_SECRET: string;
-  BETTER_AUTH_URL: string;
   ENVIRONMENT: string;
   LOG_LEVEL?: string;
   /**
