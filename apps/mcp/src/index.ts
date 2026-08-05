@@ -20,6 +20,10 @@ export { StarterMcpAgent };
 /**
  * OAuth 2.1 in front of the MCP surface.
  *
+ * PKCE is enforced in `auth-app.ts`, not here: this library only mandates a code
+ * challenge for `tokenEndpointAuthMethod === "none"`, and dynamic registration
+ * defaults to `client_secret_basic`.
+ *
  * `apiRoute` paths require a valid bearer token — an unauthenticated request
  * gets a 401 carrying the `WWW-Authenticate` challenge that MCP clients follow
  * to discovery, dynamic registration (`/register`), and the consent screen.

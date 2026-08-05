@@ -30,6 +30,32 @@ function unsupportedScopes(requested: readonly string[]): string[] {
 }
 
 /**
+ * Why PKCE is enforced here rather than left to the library.
+ *
+ * `OAuthProvider` only *mandates* a code challenge when
+ * `tokenEndpointAuthMethod === "none"`, and dynamic registration defaults to
+ * `client_secret_basic` — so a client that registers without asking for the
+ * public-client method can skip PKCE entirely, which OAuth 2.1 does not permit.
+ * The missing-challenge branch is what closes that gap.
+ *
+ * The method check is defence in depth, not load-bearing today: verified that
+ * `parseAuthRequest` already 400s both an explicit `plain` and an omitted
+ * method, so only a missing challenge reaches here. Kept so a library change
+ * cannot silently reintroduce a downgrade to `plain`.
+ *
+ * Returns a description of the problem, or null when the request is acceptable.
+ */
+function pkceProblem(oauthReq: AuthRequest): string | null {
+  if (!oauthReq.codeChallenge) {
+    return "code_challenge is required; this server requires PKCE for every client";
+  }
+  if (oauthReq.codeChallengeMethod !== "S256") {
+    return `code_challenge_method must be S256, got ${oauthReq.codeChallengeMethod ?? "none"}`;
+  }
+  return null;
+}
+
+/**
  * Terminal OAuth error: hand the client a spec-shaped redirect rather than a
  * dead end.
  *
@@ -42,7 +68,7 @@ function unsupportedScopes(requested: readonly string[]): string[] {
 function oauthErrorRedirect(
   c: Context<AuthEnv>,
   oauthReq: AuthRequest,
-  error: "access_denied" | "invalid_scope",
+  error: "access_denied" | "invalid_scope" | "invalid_request",
   description?: string,
 ): Response {
   const target = new URL(oauthReq.redirectUri);
@@ -54,6 +80,22 @@ function oauthErrorRedirect(
   if (issuer) target.searchParams.set("iss", issuer);
 
   return c.redirect(target.toString(), 302);
+}
+
+/**
+ * Reject anything this server will not honour, before a user is asked to
+ * approve it. One helper so the GET and POST paths cannot drift apart.
+ */
+function rejectUnacceptable(c: Context<AuthEnv>, oauthReq: AuthRequest): Response | null {
+  const pkce = pkceProblem(oauthReq);
+  if (pkce) return oauthErrorRedirect(c, oauthReq, "invalid_request", pkce);
+
+  const bad = unsupportedScopes(oauthReq.scope);
+  if (bad.length > 0) {
+    return oauthErrorRedirect(c, oauthReq, "invalid_scope", `Unsupported scope: ${bad.join(" ")}`);
+  }
+
+  return null;
 }
 
 /**
@@ -124,12 +166,10 @@ authApp.get("/authorize", async (c) => {
   if ("error" in parsed) return parsed.error;
   const { oauthReq, client } = parsed;
 
-  // Reject before showing consent — never ask a user to approve a scope this
+  // Reject before showing consent — never ask a user to approve a request this
   // server would not honour.
-  const bad = unsupportedScopes(oauthReq.scope);
-  if (bad.length > 0) {
-    return oauthErrorRedirect(c, oauthReq, "invalid_scope", `Unsupported scope: ${bad.join(" ")}`);
-  }
+  const rejected = rejectUnacceptable(c, oauthReq);
+  if (rejected) return rejected;
 
   const session = await authFor(c).api.getSession({ headers: c.req.raw.headers });
   const search = new URL(c.req.url).search;
@@ -148,10 +188,8 @@ authApp.post("/authorize", async (c) => {
 
   // Re-checked on POST: the query string is caller-supplied on every request,
   // so passing the GET check is no guarantee this one is clean.
-  const bad = unsupportedScopes(oauthReq.scope);
-  if (bad.length > 0) {
-    return oauthErrorRedirect(c, oauthReq, "invalid_scope", `Unsupported scope: ${bad.join(" ")}`);
-  }
+  const rejected = rejectUnacceptable(c, oauthReq);
+  if (rejected) return rejected;
 
   const form = await c.req.formData();
   const intent = String(form.get("intent") ?? "");
