@@ -1,0 +1,33 @@
+# Local dev vars for the web Worker. Copy to .dev.vars (gitignored) and fill
+# in; wrangler merges it during `pnpm dev`. Production values go through
+# `wrangler secret put`, never here (docs/README.md#production-secrets).
+# Agents never read the real .dev.vars — compare key names against this file
+# instead (AGENTS.md "Secret files are never read").
+# Validated by webEnvSchema in packages/config/src/env.ts.
+
+# Required — session signing key, 32+ chars: `openssl rand -hex 32`
+BETTER_AUTH_SECRET=replace-with-a-random-string-of-32-plus-characters
+
+# Required — public origin of this app during local dev
+BETTER_AUTH_URL=http://localhost:5173
+
+# Optional — GitHub social login; auto-enables when both are set.
+# Callback URL: {BETTER_AUTH_URL}/api/auth/callback/github
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+
+# Optional — Google social login; auto-enables when both are set.
+# Redirect URI: {BETTER_AUTH_URL}/api/auth/callback/google
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# Optional — Sentry error reporting; empty disables Sentry entirely
+# (docs/sentry-setup.md — use the <product>-web project's DSN here)
+SENTRY_DSN=
+SENTRY_TRACES_SAMPLE_RATE=
+SENTRY_ENVIRONMENT=
+SENTRY_RELEASE=
+
+# Optional — debug|info|warn|error (defaults: debug in development, else info).
+# Kept commented: the schema rejects an empty string for this enum key.
+# LOG_LEVEL=debug

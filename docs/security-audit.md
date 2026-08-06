@@ -14,15 +14,15 @@ them.
 
 | #   | Severity | Issue                                                                 | Status         |
 | --- | -------- | --------------------------------------------------------------------- | -------------- |
-| 1   | Critical | `better-auth@1.5.6` account-takeover advisories                       | Live           |
+| 1   | Critical | `better-auth@1.5.6` account-takeover advisories                       | Resolved       |
 | 2   | High     | Account pre-hijacking via unverified signup + implicit OAuth linking  | Live           |
 | 3   | High     | `BETTER_AUTH_SECRET` unvalidated; silent fallback to a public default | Live footgun   |
 | 4   | High     | No rate limiting on any auth endpoint                                 | Live           |
 | 5   | High     | No security response headers anywhere                                 | Live           |
-| 6   | High     | Vulnerable `hono`, `drizzle-orm`, `react-router` versions             | Live           |
+| 6   | High     | Vulnerable `hono`, `drizzle-orm`, `react-router` versions             | Resolved       |
 | 7   | High     | Global `~/.npmrc` uses plaintext HTTP registry with TLS off           | Live (machine) |
-| 8   | Medium   | MCP server has no authentication                                      | Latent         |
-| 9   | Medium   | `BETTER_AUTH_SECRET` committed in `apps/mcp/wrangler.jsonc`           | Live           |
+| 8   | Medium   | MCP server has no authentication                                      | Resolved\*     |
+| 9   | Medium   | `BETTER_AUTH_SECRET` committed in `apps/mcp/wrangler.jsonc`           | Resolved       |
 | 10  | Medium   | Dashboard child loaders do not enforce auth themselves                | Pattern risk   |
 | 11  | Medium   | IP-derived controls trust spoofable `x-forwarded-for`                 | Live           |
 | 12  | Medium   | OAuth and verification tokens stored in plaintext, never purged       | Live           |
@@ -64,6 +64,26 @@ It also pulls vulnerable transitives `kysely@0.28.15` (GHSA-pv5w-4p9q-p3v2) and
 change available. Note that finding 2 must be fixed alongside it — the upgrade
 closes the library's half of the pre-hijacking problem, but not the
 configuration's half.
+
+**Resolved 2026-08-05** — upgraded to `better-auth@1.6.26`, past the 1.6.22 needed
+for the last of the listed advisories.
+
+This forced a coupled upgrade rather than a version bump: better-auth ≥1.6 requires
+zod 4 and peers on `drizzle-orm@^0.45.2`, so `zod@4.4.3`, `@hono/zod-openapi@1.5.1`
+and `drizzle-orm@0.45.2` moved in the same change. Staying on zod 3 would have made
+this advisory unpatchable — which is why the split was never really a choice.
+
+Verified by `pnpm check:boot`, added immediately beforehand for this purpose: the
+built Worker now starts and serves, where the zod 3/4 split had it dying at module
+init. No OpenAPI spec drift and no schema drift resulted.
+
+**Transitives:** `kysely` is now `0.29.4` and no longer flagged. **`defu@6.1.4`
+remains vulnerable** (needs ≥6.1.5) and is still reached through better-auth —
+finding 2's remediation should carry it, or pin it with a pnpm override.
+
+**Finding 2 is still open.** This upgrade closed the library's half of the
+pre-hijacking problem; the configuration half (`requireEmailVerification`,
+explicit `account.accountLinking`) is untouched.
 
 ---
 
@@ -215,6 +235,30 @@ will need a CSP nonce or hash.
   unauthenticated DoS advisories fixed by 7.18.0; two open-redirect and one CSRF
   advisory. **Upgrade to >= 7.18.0**, then run `npx react-router typegen`.
 
+**Resolved 2026-08-05.**
+
+| Package        | Was      | Now          | Target       |
+| -------------- | -------- | ------------ | ------------ |
+| `drizzle-orm`  | `0.41.0` | **`0.45.2`** | `^0.45.2`    |
+| `hono`         | `4.12.9` | **`4.13.0`** | `>= 4.12.34` |
+| `react-router` | `7.13.2` | **`7.18.2`** | `>= 7.18.0`  |
+
+`drizzle-orm` came along with finding #1 (better-auth ≥1.6 peers on `^0.45.2`) and
+also fixed the declared range — `^0.41` could never reach the patch under semver.
+
+For `hono` and `react-router` the **ranges were already correct**: both declared
+`^4` / `^7`, which permitted the fixed versions all along. Only the lockfile was
+stale. Worth carrying into the next audit — checking declared ranges is not the
+same as checking resolved versions, and this review reported the resolved ones as
+if the ranges were at fault.
+
+`react-router` deliberately stays on 7.x. Latest is 8.x, but a major migration is
+not a security fix.
+
+All three are now covered by `pnpm check:boot`, so a bad upgrade fails the gate
+rather than shipping. `react-router` additionally got two full e2e suites at
+`--retries=0` (9/9 both), since it is the one with real behavioural risk.
+
 ### 7. Global `~/.npmrc` fetches packages over plaintext HTTP with TLS verification disabled
 
 _Machine-level, outside the repo, but it governs every install into this repo._
@@ -264,6 +308,49 @@ to add one tool per public API route, so DB-touching tools will accumulate.
 and thread the authenticated principal into `ToolContext` so tools can scope
 queries.
 
+**Resolved 2026-08-04** — and the worker is buildable, so the accidental control
+is gone and a deliberate one replaces it. `apps/mcp/src/index.ts` now wraps
+everything in `OAuthProvider` with `/mcp` and `/sse` as `apiRoute`s, so they
+require a bearer token; `agents` is declared; the `MCP_OBJECT` Durable Object
+binding and migration exist; and `database_id` matches `apps/web`. The
+authenticated principal reaches tools as `ToolContext.user`, sourced from the
+OAuth grant rather than tool arguments (`src/__tests__/whoami.test.ts` asserts
+caller-supplied identity is ignored).
+
+Verified end to end: unauthenticated `/mcp` → `401` with
+`WWW-Authenticate: Bearer …resource_metadata=…`; discovery → dynamic registration
+→ login → consent → PKCE code exchange → authenticated `tools/call`; bogus token
+→ `401`.
+
+**\* The resolution is narrower than "authentication added".** Review of the
+original fix (2026-08-05) found two auth defects in it, both since fixed and
+verified against a running Worker, plus one item still open:
+
+- **Login CSRF (fixed).** The consent flow called `auth.api.signInEmail` without
+  `request`, and better-auth's `formCsrfMiddleware` opens with
+  `if (!ctx.request) return;` — so the check that blocks cross-site form logins
+  was silently disarmed. An attacker page could plant its own session in the
+  victim's browser, and the victim's "Approve" would then bind their MCP client
+  to the attacker's account. Verified: a cross-site POST with valid credentials
+  now returns 401 and sets no cookie, while the same-origin POST still succeeds.
+- **Session id not bound to the principal (fixed).** The Durable Object is named
+  from the client-supplied `mcp-session-id`, and the Agent's `props` are written
+  to DO storage at `onStart` — never refreshed per request. Anyone who learned a
+  session id could present their _own_ valid token with it and have every tool
+  resolve to the victim's `userId`. Now rejected with
+  `403 session_principal_mismatch`; verified with two real users holding
+  legitimate tokens.
+- **PKCE is not actually required (open).** The `OAuth 2.1` label overstates it:
+  the library mandates PKCE only when `tokenEndpointAuthMethod === "none"`, and
+  dynamic registrations default to `client_secret_basic`. A missing
+  `code_challenge` should be rejected alongside the scope check.
+- **`Origin` validation (open).** Requiring a bearer token blocks the practical
+  DNS-rebinding attack, but the MCP spec asks for the header check on HTTP
+  transports regardless, and the Agents SDK answers
+  `Access-Control-Allow-Origin: *`.
+
+Treat this entry as "authenticated, with two known gaps" rather than closed.
+
 ### 9. `BETTER_AUTH_SECRET` committed in the MCP worker config
 
 `apps/mcp/wrangler.jsonc:16`:
@@ -281,6 +368,12 @@ with the web app.
 
 **Fix:** remove from `vars`; use `apps/mcp/.dev.vars` locally and
 `wrangler secret put` for production, mirroring the web app.
+
+**Resolved 2026-08-06** — `BETTER_AUTH_SECRET` is gone from `vars` (the file now
+carries a comment explaining the shadowing trap), and the committed
+`BETTER_AUTH_URL` var was removed in the same pass — same shadowing risk, and
+the Worker never reads it (`auth-app.ts` derives `baseURL` from the request
+origin). Committed `.dev.vars.example` templates document the local setup.
 
 ### 10. Dashboard child-route loaders do not enforce authentication themselves
 
@@ -421,7 +514,9 @@ with explicit allowlisting for `/health` and `/doc`.
 - **`.gitignore` misses env-file variants.** Lines 10 and 14-16 use exact names,
   so Wrangler's `.dev.vars.<environment>` files and bare `.env.staging` /
   `.env.production` are trackable. Fix: `.dev.vars*` and `.env*`, re-including
-  `.env.example`.
+  `.env.example`. **Resolved 2026-08-06** — patterns broadened exactly as
+  suggested, with `!.dev.vars.example` also re-included; committed
+  `.dev.vars.example` templates now exist in both apps.
 - **Password policy is the framework default.** No `minPasswordLength` is set, so
   the default 8 applies; `register.tsx:149` adds only a browser-side
   `minLength={8}`. Weak in combination with the absent rate limiting.

@@ -1,21 +1,59 @@
-import type { EntryContext } from "react-router";
-import { ServerRouter } from "react-router";
+import type { AppLoadContext, EntryContext } from "react-router";
+import { isRouteErrorResponse, ServerRouter } from "react-router";
 import { isbot } from "isbot";
 import { renderToReadableStream } from "react-dom/server";
+import { captureError } from "@starter/observability/sentry";
+import { createLogger, REQUEST_ID_HEADER, type Logger } from "@starter/observability";
+
+/**
+ * `observabilityMiddleware` populates `logger`/`requestId` on the load context,
+ * but React Router reaches these entry points through paths that bypass the Hono
+ * app — notably the Vite dev server, which serves some documents through
+ * `@react-router/dev`'s own node handler.
+ *
+ * An error reporter that throws masks the very error it was called about, so
+ * never assume the context is populated.
+ */
+const fallbackLogger = createLogger();
+
+function loggerFor(context: AppLoadContext | undefined): Logger {
+  return context?.logger ?? fallbackLogger;
+}
+
+/**
+ * Report the path, never the full URL.
+ *
+ * `request.url` carries an attacker-controlled query string, and `redact()`
+ * matches on field *names* only — so a `?token=` or `?code=` would reach Workers
+ * Logs and Sentry verbatim. The path is what identifies the failing route; the
+ * correlation id is how you get back to the rest.
+ */
+function safePath(request: Request): string {
+  try {
+    return new URL(request.url).pathname;
+  } catch {
+    return "(unparseable url)";
+  }
+}
 
 export default async function handleRequest(
   request: Request,
   responseStatusCode: number,
   responseHeaders: Headers,
   routerContext: EntryContext,
+  loadContext: AppLoadContext,
 ) {
   const userAgent = request.headers.get("user-agent");
+  const requestId: string | undefined = loadContext?.requestId;
+
   const body = await renderToReadableStream(
     <ServerRouter context={routerContext} url={request.url} />,
     {
       signal: request.signal,
       onError(error: unknown) {
-        console.error(error);
+        const path = safePath(request);
+        loggerFor(loadContext).error("ssr.render_failed", { error, path });
+        captureError(error, { requestId, path });
         responseStatusCode = 500;
       },
     },
@@ -26,9 +64,39 @@ export default async function handleRequest(
   }
 
   responseHeaders.set("Content-Type", "text/html");
+  // Surface the correlation id on HTML responses too, so a user reporting a
+  // broken page can quote the same id that appears in the logs.
+  if (requestId) responseHeaders.set(REQUEST_ID_HEADER, requestId);
 
   return new Response(body, {
     headers: responseHeaders,
     status: responseStatusCode,
   });
+}
+
+/**
+ * React Router's hook for every server-side loader/action error.
+ * Sentry's dedupe integration collapses anything also seen by `onError` above.
+ */
+export function handleError(
+  error: unknown,
+  { request, context }: { request: Request; context: AppLoadContext },
+) {
+  // The client went away mid-flight — nothing is broken, don't page anyone.
+  if (request.signal.aborted) return;
+
+  const path = safePath(request);
+
+  // Expected 4xx — the router's own 404 for an unmatched URL (every browser
+  // asking for /favicon.ico, every crawler probing /wp-admin), or a loader
+  // throwing data() with a 4xx. Same contract as observabilityErrorHandler:
+  // logged at warn, never sent to Sentry. A 5xx ErrorResponse falls through —
+  // that one is a genuine failure.
+  if (isRouteErrorResponse(error) && error.status < 500) {
+    loggerFor(context).warn("loader.rejected", { status: error.status, error, path });
+    return;
+  }
+
+  loggerFor(context).error("loader.failed", { error, path });
+  captureError(error, { requestId: context?.requestId, path });
 }

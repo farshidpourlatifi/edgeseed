@@ -337,7 +337,6 @@ What to skip in v1:
 Only add these when a real product creates pressure:
 
 - `apps/jobs` (queues, workflows, scheduled tasks)
-- `packages/observability` (Sentry, structured logging, correlation IDs)
 - `packages/contracts` (shared zod DTOs across boundaries)
 - `packages/domain` (shared pure business logic)
 - `packages/modules` (feature-module convention and starter modules)

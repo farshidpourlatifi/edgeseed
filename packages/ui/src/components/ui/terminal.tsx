@@ -116,6 +116,7 @@ export function Terminal({
   return (
     <div
       ref={rootRef}
+      data-testid="terminal"
       className={`tw ${animate ? "" : "tw-static"} ${className}`}
       style={theme === "auto" ? undefined : { colorScheme: theme }}
     >
@@ -219,7 +220,14 @@ export function Terminal({
 
       <pre className="tw-sr">{transcript}</pre>
 
-      <div className="tw-body" ref={bodyRef} style={{ height }} aria-hidden="true">
+      {/* aria-hidden: no role locator can reach this — e2e targets the testid */}
+      <div
+        className="tw-body"
+        data-testid="terminal-body"
+        ref={bodyRef}
+        style={{ height }}
+        aria-hidden="true"
+      >
         {visible.map((b) => {
           if (b.kind === "cmd")
             return (

@@ -8,6 +8,11 @@ on:
 
 permissions:
   contents: read
+  # gitleaks-action lists a PR's commits via the API to scan them. Without this
+  # the call 403s ("Resource not accessible by integration") and the action
+  # crashes *before scanning anything* — the job fails, which reads like a
+  # finding but actually means the PR was never scanned at all.
+  pull-requests: read
 
 jobs:
   scan:

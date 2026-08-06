@@ -4,17 +4,21 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --persist-to ../web/.wrangler/state",
     "build": "wrangler deploy --dry-run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@cloudflare/workers-oauth-provider": "^0.9.1",
     "@modelcontextprotocol/sdk": "^1.26",
+    "@sentry/cloudflare": "^10.69.0",
     "@starter/auth": "workspace:*",
     "@starter/config": "workspace:*",
     "@starter/db": "workspace:*",
+    "@starter/observability": "workspace:*",
     "agents": "^0.20.1",
-    "zod": "^3.24"
+    "hono": "^4.13.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4",

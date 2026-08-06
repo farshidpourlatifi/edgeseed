@@ -34,6 +34,12 @@ const packages = [
     description: "Drizzle schema, migrations and the request-scoped D1 client factory.",
   },
   {
+    name: "observability",
+    label: "lib",
+    description:
+      "Structured logging, correlation ids and opt-in Sentry reporting, shared by both Workers.",
+  },
+  {
     name: "ui",
     label: "lib",
     description: "shadcn/ui component library with the shared theme and design tokens.",
@@ -54,7 +60,7 @@ export function Packages() {
             A monorepo you can navigate
           </h2>
           <p className="text-base leading-relaxed text-muted-foreground text-pretty">
-            Seven focused packages with clear boundaries, so a change to auth never means editing
+            Eight focused packages with clear boundaries, so a change to auth never means editing
             your UI library.
           </p>
         </div>

@@ -1,13 +1,23 @@
 /**
  * Stamp product identity onto a fresh clone of the starter.
- * Usage: pnpm init:product <product-name>   (kebab-case, e.g. "acme")
+ * Usage: pnpm init:product <product-name> [display name]
+ *   e.g. pnpm init:product acme            -> slug "acme",  display "Acme"
+ *        pnpm init:product acme "Acme Cloud"                display "Acme Cloud"
  * See docs/starter-as-upstream.md for the full workflow.
  */
 import { readFileSync, writeFileSync } from "node:fs";
+import {
+  deriveDisplayName,
+  isValidProductSlug,
+  stampProductIdentity,
+  stampWranglerConfig,
+} from "./lib/init-product";
 
 const name = process.argv[2];
-if (!name || !/^[a-z][a-z0-9-]*$/.test(name)) {
-  console.error("Usage: pnpm init:product <product-name>  (kebab-case, e.g. acme)");
+if (!name || !isValidProductSlug(name)) {
+  console.error(
+    'Usage: pnpm init:product <product-name> [display name]  (kebab-case, e.g. acme "Acme Cloud")',
+  );
   process.exit(1);
 }
 
@@ -20,26 +30,41 @@ function rewrite(path: string, edit: (content: string) => string) {
   }
 }
 
-console.log(`Stamping product identity: ${name}`);
+/** Overridable with a second argument, else derived from the slug. */
+const displayName = process.argv[3] ?? deriveDisplayName(name);
 
-rewrite("package.json", (c) => c.replace(/"name": "cloudflare-starter"/, `"name": "${name}"`));
+console.log(`Stamping product identity: ${name} ("${displayName}")`);
+
+rewrite("package.json", (c) =>
+  c.replace(/"name": "cloudflare-starter"/, () => `"name": "${name}"`),
+);
+
+rewrite("packages/config/src/product.ts", (c) =>
+  stampProductIdentity(c, { slug: name, displayName }),
+);
 
 rewrite("apps/web/wrangler.jsonc", (c) =>
-  c
-    .replace(/"name": "starter-web"/, `"name": "${name}-web"`)
-    .replace(/"database_id": "[^"]*"/, '"database_id": "local"'),
+  stampWranglerConfig(c, { from: "starter-web", to: `${name}-web` }),
 );
 
 rewrite("apps/mcp/wrangler.jsonc", (c) =>
-  c.replace(/"name": "starter-mcp"/, `"name": "${name}-mcp"`),
+  stampWranglerConfig(c, { from: "starter-mcp", to: `${name}-mcp` }),
 );
 
 console.log(`
 Done. Next steps:
   1. Create the product D1 database:
        cd apps/web && npx wrangler d1 create ${name}-db
-     then put its id in apps/web/wrangler.jsonc (database_id) and update
-     database_name in both wrangler.jsonc files if you used a new name.
+
+     Then put the returned id in database_id in BOTH wrangler files, and set
+     database_name to ${name}-db in both:
+       apps/web/wrangler.jsonc
+       apps/mcp/wrangler.jsonc
+
+     Both must match. apps/mcp runs its own Better Auth instance against
+     apps/web's users, so a different id there is a different set of users —
+     sign-in on the MCP consent screen would silently fail to find the account.
+     They are stamped to "local" for you; only production needs the real id.
   2. Set production secrets (docs/README.md#production-secrets):
        BETTER_AUTH_SECRET, BETTER_AUTH_URL, optional OAuth credentials
   3. Create apps/web/.dev.vars for local dev.

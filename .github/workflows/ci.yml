@@ -28,6 +28,12 @@ jobs:
       - run: pnpm test
       - run: pnpm build
       - run: pnpm typecheck
+      # Must run after build — it starts the *built* Worker. `build` proves the
+      # bundle compiles; only this proves it runs. Without it CI happily passes a
+      # Worker that throws at module init, which is exactly what happened with
+      # the zod 3/4 split. `e2e` below does not cover this: it boots the Vite dev
+      # server, never the bundle that `deploy:web` ships.
+      - run: pnpm check:boot
 
   drift:
     runs-on: ubuntu-latest

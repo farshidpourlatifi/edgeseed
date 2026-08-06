@@ -98,7 +98,7 @@ export function ArchitectureDiagram() {
         textAnchor="middle"
         className="fill-muted-foreground text-[10px] font-mono"
       >
-        db + auth created per request
+        logger + db + auth per request
       </text>
 
       {/* fan-out: rounded elbow connectors, one color per handler branch */}

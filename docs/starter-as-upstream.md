@@ -23,8 +23,14 @@ git push -u origin main
 ```
 
 Then follow the init script's printed next steps: create the product's D1
-database, put its id in `apps/web/wrangler.jsonc`, set production secrets
-(see `docs/README.md#production-secrets`), and set up OAuth apps.
+database, put its `database_id` and `database_name` in **both**
+`apps/web/wrangler.jsonc` **and** `apps/mcp/wrangler.jsonc`, set production
+secrets (see `docs/README.md#production-secrets`), and set up OAuth apps.
+
+Both Wrangler files must name the same database. `apps/mcp` runs its own Better
+Auth instance against `apps/web`'s users, so a different id there is a different
+set of users — the MCP consent screen would not find the account you signed up
+with. `init:product` resets both to `"local"`; only production needs the real id.
 
 ## Rules that keep merges clean
 

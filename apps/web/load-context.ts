@@ -1,6 +1,7 @@
 import type { Context } from "hono";
 import type { Database } from "@starter/db";
 import type { Auth } from "@starter/auth";
+import type { Logger } from "@starter/observability/logger";
 import type { ServerEnv } from "./server";
 
 declare module "react-router" {
@@ -13,6 +14,10 @@ declare module "react-router" {
     };
     db: Database;
     auth: Auth;
+    /** Request-scoped logger — already stamped with requestId, method and path. */
+    logger: Logger;
+    /** Correlation id, also returned to the client as `x-request-id`. */
+    requestId: string;
   }
 }
 
@@ -32,5 +37,7 @@ export function getLoadContext(args: {
     ...args.context,
     db: c.get("db"),
     auth: c.get("auth"),
+    logger: c.get("logger"),
+    requestId: c.get("requestId"),
   };
 }
