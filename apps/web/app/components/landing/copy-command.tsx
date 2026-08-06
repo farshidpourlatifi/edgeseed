@@ -1,23 +1,11 @@
-import * as React from "react";
 import { Check, Copy } from "lucide-react";
-import { toast } from "sonner";
 
 import { Button } from "@starter/ui/components/ui/button";
 import { cn } from "@starter/ui/lib/utils";
+import { useCopy } from "./use-copy";
 
 export function CopyCommand({ command, className }: { command: string; className?: string }) {
-  const [copied, setCopied] = React.useState(false);
-
-  async function onCopy() {
-    try {
-      await navigator.clipboard.writeText(command);
-      setCopied(true);
-      toast.success("Copied to clipboard");
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast.error("Could not copy. Select the command and copy manually.");
-    }
-  }
+  const { copied, copy } = useCopy(command);
 
   return (
     <div
@@ -34,7 +22,7 @@ export function CopyCommand({ command, className }: { command: string; className
         type="button"
         variant="ghost"
         size="icon"
-        onClick={onCopy}
+        onClick={copy}
         aria-label={`Copy command: ${command}`}
         className="size-11 shrink-0"
       >

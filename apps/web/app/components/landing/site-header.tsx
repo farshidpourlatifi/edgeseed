@@ -18,6 +18,7 @@ import { GITHUB_URL } from "./site";
 
 const links = [
   { name: "Features", href: "#features" },
+  { name: "Surfaces", href: "#surfaces" },
   { name: "Architecture", href: "#architecture" },
   { name: "Packages", href: "#packages" },
   { name: "Quality", href: "#quality" },

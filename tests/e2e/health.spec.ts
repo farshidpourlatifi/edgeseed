@@ -26,6 +26,29 @@ test("terminal demo animates on the landing page", async ({ page }) => {
   await expect(body).toContainText("lint — eslint . clean", { timeout: 10000 });
 });
 
+test("surfaces section switches between the four surfaces", async ({ page }) => {
+  await page.goto("/");
+
+  // Tabs carry real ARIA roles, so no testid is warranted here — and the role
+  // locator doubles as the assertion that they stay accessible.
+  const tabs = page.getByRole("tablist", { name: "Choose a surface" });
+  await tabs.scrollIntoViewIfNeeded();
+  await expect(tabs).toBeVisible({ timeout: 15000 });
+
+  // Web is the default panel.
+  await expect(page.getByRole("tabpanel")).toContainText("dashboard/settings");
+
+  // Each surface answers the same question, so the panel content is what proves
+  // the tab actually switched rather than just styling.
+  await page.getByRole("tab", { name: "API" }).click();
+  await expect(page.getByRole("tabpanel")).toContainText("/api/v1/me");
+
+  await page.getByRole("tab", { name: "MCP" }).click();
+  const mcpPanel = page.getByRole("tabpanel");
+  await expect(mcpPanel).toContainText("claude mcp add");
+  await expect(page.getByRole("button", { name: "Copy MCP example" })).toBeVisible();
+});
+
 test("health endpoint returns ok", async ({ request }) => {
   const response = await request.get("/api/v1/health");
   expect(response.ok()).toBeTruthy();
