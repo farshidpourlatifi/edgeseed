@@ -8,11 +8,12 @@
 
 ## Current design sources
 
-| What                                            | Where                                                      |
-| ----------------------------------------------- | ---------------------------------------------------------- |
-| V0 project (generate new pages/components here) | https://v0.app/chat/cf-starter-TfaLZ8bWtZH                 |
-| shadcn theme preset                             | https://ui.shadcn.com/create?preset=b5KbFbLGd              |
-| Component gallery (visual reference)            | https://ui.shadcn.com/create?preset=b5KbFbLGd&item=preview |
+| What                                             | Where                                                      |
+| ------------------------------------------------ | ---------------------------------------------------------- |
+| V0 project (generate new pages/components here)  | https://v0.app/chat/cf-starter-TfaLZ8bWtZH                 |
+| V0 project instructions (paste into the project) | [v0-project-instructions.md](./v0-project-instructions.md) |
+| shadcn theme preset                              | https://ui.shadcn.com/create?preset=b5KbFbLGd              |
+| Component gallery (visual reference)             | https://ui.shadcn.com/create?preset=b5KbFbLGd&item=preview |
 
 ## Prompt template
 
@@ -27,6 +28,11 @@ All touch targets must be at least 44px on mobile.
 Include loading states, error states, and empty states.
 Make it fully responsive (mobile 320px, tablet 768px, desktop 1280px).
 ```
+
+**Drop the loading/error/empty line for static marketing sections.** It is aimed
+at data-driven UI; on a landing section V0 satisfies it by building a control
+that switches between the states — a design-system demo shipped as a product
+feature. Keep the line for dashboards, forms, and anything that fetches.
 
 ## Integration workflow
 
@@ -96,3 +102,32 @@ Use this corrected theme for all future generations in this project.
 - `next.config.mjs`, `package.json`, `tsconfig.json` — the repo has its own
 - `components/theme-provider.tsx` / `theme-toggle.tsx` — already exist in `@starter/ui`
 - `app/globals.css` — take theme variables only, into `app.css`
+- **Invented product content.** V0 fills tabs and cards with plausible fiction
+  (`projects.create`, `starter projects create …`) that reads as real and gets
+  shipped by mistake. Replace every command, route and tool name with one that
+  exists, or the section documents a product you do not have.
+- **Loading/error/empty variants on static sections.** The prompt template's
+  "include loading states, error states, and empty states" line is aimed at
+  data-driven UI; on a marketing section V0 answers it with a literal state
+  switcher. Drop the line for static sections, and delete the control if it
+  appears anyway.
+- **Hardcoded palette colors** (`bg-zinc-950`, `border-white/10`). They survive
+  a dark-mode screenshot and break in light mode. Swap for semantic tokens.
+- **Components the repo does not have.** V0 assumes the full shadcn set;
+  `@starter/ui` ships a subset. Check before adapting — the generated code may
+  import a primitive that has to be added deliberately, or designed around.
+- **Edits to files you supplied.** When real source files are provided so
+  imports resolve, V0 treats them as its own and rewrites them. Observed on
+  2026-08-06: it flipped `useInView`'s fail-open `useState(true)` back to
+  `false` and dropped `useReducedMotion`'s `matchMedia` guard — both defensive
+  choices whose comments explain why. **Diff every supplied file before taking
+  a download**, and take none of those edits:
+
+  ```bash
+  diff -q packages/ui/src/components/ui/terminal.tsx "$DL/components/ui/terminal.tsx"
+  ```
+
+- **Minified rewrites of existing components.** The same download renamed
+  `architecture-diagram.tsx` to `request-flow-diagram.tsx` and flattened 287
+  readable lines into one 5,005-character line — identical `viewBox` and
+  `aria-label`, no new content. Keep the original.
