@@ -11,7 +11,7 @@ The product: React Router v7 app + Hono API on a single Cloudflare Worker.
 - `server/api.ts` — `OpenAPIHono` routes; every route declares a zod schema (that's where the OpenAPI spec comes from). `/health` is public; `/me` needs a principal; `/tokens*` needs an interactive session
 - `principalMiddleware` is mounted on `/api/v1/*` only, so Better Auth's own routes keep owning their credentials
 - `load-context.ts` — passes `db`, `auth`, `logger` and `requestId` into React Router loaders (`context.db` / `context.auth` / `context.logger` / `context.requestId`)
-- `app/entry.server.tsx` — `handleError` reports loader/action failures; the stream `onError` reports SSR render failures (Sentry dedupes the overlap)
+- `app/entry.server.tsx` — `handleError` reports loader/action failures; the stream `onError` reports SSR render failures (Sentry dedupes the overlap). Expected 4xx `ErrorResponse`s — the router's own 404s for unmatched URLs, `data()` throws below 500 — are logged at `warn` and never reach Sentry, mirroring `observabilityErrorHandler`; deny-path tests in `app/__tests__/entry-server.test.ts`
 - `app/routes.ts` — explicit route config (NOT file-based routing)
 - `app/routes/_examples/` — reference pages, not registered as routes
 

@@ -1,5 +1,5 @@
 import type { AppLoadContext, EntryContext } from "react-router";
-import { ServerRouter } from "react-router";
+import { isRouteErrorResponse, ServerRouter } from "react-router";
 import { isbot } from "isbot";
 import { renderToReadableStream } from "react-dom/server";
 import { captureError } from "@starter/observability/sentry";
@@ -86,6 +86,17 @@ export function handleError(
   if (request.signal.aborted) return;
 
   const path = safePath(request);
+
+  // Expected 4xx — the router's own 404 for an unmatched URL (every browser
+  // asking for /favicon.ico, every crawler probing /wp-admin), or a loader
+  // throwing data() with a 4xx. Same contract as observabilityErrorHandler:
+  // logged at warn, never sent to Sentry. A 5xx ErrorResponse falls through —
+  // that one is a genuine failure.
+  if (isRouteErrorResponse(error) && error.status < 500) {
+    loggerFor(context).warn("loader.rejected", { status: error.status, error, path });
+    return;
+  }
+
   loggerFor(context).error("loader.failed", { error, path });
   captureError(error, { requestId: context?.requestId, path });
 }
