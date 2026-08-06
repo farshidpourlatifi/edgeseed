@@ -80,15 +80,21 @@ npx wrangler secret put SENTRY_DSN
 Each prompts for the value and stores it encrypted. Repeat for any of the
 optional vars below you want to override in production.
 
-Non-secret tuning can go in `wrangler.jsonc` under `vars` instead — a sample
-rate is not sensitive:
+Non-secret tuning can go in `wrangler.jsonc` under `vars` — a sample rate is not
+sensitive:
 
 ```jsonc
 "vars": {
-  "ENVIRONMENT": "production",
   "SENTRY_TRACES_SAMPLE_RATE": "0.1",
 },
 ```
+
+**Do not put `ENVIRONMENT` there.** That block is shared with local development,
+so setting it to `production` would make `pnpm dev` report itself as production —
+tagging local events `production` and dropping `LOG_LEVEL` from `debug` to
+`info`. It stays `development` in the file, and `pnpm deploy:web` overrides it
+with `--var ENVIRONMENT:production` at deploy time. If you deploy by any other
+route, pass that flag yourself or production will report as `development`.
 
 List what is already set with `npx wrangler secret list` in each app directory.
 

@@ -445,7 +445,11 @@ pnpm deploy:web
 cd apps/web && npx wrangler d1 migrations apply starter-db --remote
 ```
 
-Never deploy with a raw `wrangler deploy` — that skips the verify gate.
+Never deploy with a raw `wrangler deploy` — that skips the verify gate **and**
+ships `ENVIRONMENT: "development"` from `wrangler.jsonc`, which tags every
+production Sentry event `development` and leaves `LOG_LEVEL` at `debug`.
+`deploy:web` overrides it with `--var ENVIRONMENT:production`; the var stays
+`development` in the file because that block is shared with local dev.
 
 ### Secrets
 

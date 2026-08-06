@@ -23,6 +23,16 @@
     "enabled": true,
     "head_sampling_rate": 1,
   },
+  // The *local* default. `wrangler deploy` with no override would ship this
+  // value verbatim, which tagged every production Sentry event `development`
+  // and left LOG_LEVEL defaulting to `debug` in production. `pnpm deploy:web`
+  // passes `--var ENVIRONMENT:production` to correct it at deploy time.
+  //
+  // Done with --var rather than a named `env.production` block on purpose: a
+  // named environment renames the Worker to `starter-web-production` unless
+  // every binding and the name are redeclared, and a renamed Worker is a
+  // different secret store — `wrangler secret put` values would silently not
+  // apply.
   "vars": {
     "ENVIRONMENT": "development",
   },
