@@ -150,6 +150,7 @@ Don't use `wrangler secret put` for local development. Put the same variables in
 
 ## Further reading
 
+- [MCP Server](./mcp.md) — connecting a client, the OAuth flow, tools, deploy checklist
 - [Creating a New Package](./creating-packages.md) — scaffold checklist, wiring, per-package CLAUDE.md
 - [Design Workflow](./design-workflow.md) — V0/shadcn generation and integration (product-owned; swap in your own)
 - [Starter as Upstream](./starter-as-upstream.md) — ownership layers, init:product, pulling updates

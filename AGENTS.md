@@ -292,7 +292,8 @@ and a coverage target. Read it before working in that directory.
 
 ### MCP authentication
 
-`apps/mcp` is gated by OAuth 2.1 — see its CLAUDE.md and `docs/security-audit.md` #8:
+`apps/mcp` is gated by OAuth 2.1 — user-facing setup is `docs/mcp.md`; see also its
+CLAUDE.md and `docs/security-audit.md` #8:
 
 - `/mcp` is an `apiRoute` on `OAuthProvider`; without a bearer token it returns
   401 with the `WWW-Authenticate` challenge clients follow to discovery

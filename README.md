@@ -120,6 +120,31 @@ revoking tokens is a session-only operation, so it happens in the dashboard.
 
 `STARTER_API_URL` overrides the target host (default `http://localhost:5173`).
 
+## MCP server
+
+`apps/mcp` exposes the same surface to LLM clients over the Model Context
+Protocol, behind OAuth 2.1 with dynamic client registration — so you point a
+client at the URL and it discovers, registers and authorizes itself:
+
+```bash
+claude mcp add --transport http starter https://<your-mcp-worker>.workers.dev/mcp
+```
+
+For clients without native remote-MCP support, bridge with `mcp-remote`. Tools
+today are `health_check` and `whoami`, mirroring `/api/v1/health` and
+`/api/v1/me`; identity always comes from the OAuth grant, never a tool argument.
+
+It is a separate Worker sharing the **same** D1 as the web app, so accounts carry
+over — which means both `wrangler.jsonc` files must name the same `database_id`.
+It ships undeployed on purpose (the Agent is a Durable Object, billed by
+duration). Client config, the full OAuth flow, the deploy checklist and
+troubleshooting: **[docs/mcp.md](./docs/mcp.md)**.
+
+```bash
+pnpm dev --filter @starter/mcp   # :8788, shares apps/web's local D1
+curl -i http://localhost:8788/mcp # expect 401 + WWW-Authenticate — that's the entry point
+```
+
 ## Observability
 
 Structured logging and error reporting live in `@starter/observability` and are wired
