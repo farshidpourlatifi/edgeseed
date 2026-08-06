@@ -66,7 +66,7 @@ const features = [
     icon: Activity,
     title: "Observability built in",
     description:
-      "Structured logs and a correlation id on every request, streamed to Workers Logs, with opt-in Sentry error reporting.",
+      "One correlation id per request — on the response header, every log line, and the Sentry issue. Quote it from an error page and land on the exact failure.",
   },
   {
     icon: ShieldCheck,

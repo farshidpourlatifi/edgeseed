@@ -13,7 +13,7 @@ const steps = [
     title: "Hono middleware",
     badgeClass: "bg-primary text-primary-foreground",
     description:
-      "Middleware builds a per-request context: a correlation id and scoped logger first, then a Drizzle database client and a configured auth instance, never shared between requests.",
+      "Middleware builds a per-request context: a correlation id and scoped logger first, then a Drizzle database client and a configured auth instance, never shared between requests. The id follows the request out — response header, every log line, and any Sentry event.",
   },
   {
     title: "Better Auth",
