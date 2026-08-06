@@ -38,6 +38,14 @@ Constraints specific to this stack:
   ⇒ `withSentry()` is a pass-through. A fresh clone runs with no Sentry account.
 - **Logs become Sentry breadcrumbs**, so an error report carries the request's
   log trail instead of a bare stack.
+- **Logs are also sent to Sentry Logs** (`enableLogs`), which is the queryable
+  stream — breadcrumbs only exist attached to an error, so without this there
+  is no way to search the logs of a request that did _not_ fail.
+- **Sentry's default console integration is removed.** It breadcrumbs every
+  `console.*` call, duplicating the writer above — and badly, since we pass the
+  entry _object_ (Workers Logs indexes its properties), which stringifies to
+  `"[object Object]"`. Two breadcrumbs per line also halve the useful depth of
+  the 100-entry buffer.
 
 ### Why both Cloudflare Workers Logs _and_ Sentry
 

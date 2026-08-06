@@ -8,6 +8,7 @@ import {
   bindSentryRequestScope,
   captureError,
   withSentryBreadcrumbs,
+  withSentryLogs,
   type SentryEnv,
 } from "./sentry";
 
@@ -44,7 +45,10 @@ export const observabilityMiddleware = createMiddleware<ObservabilityEnv>(async 
       env: c.env?.ENVIRONMENT ?? "development",
       version: APP_VERSION,
     },
-    write: withSentryBreadcrumbs(consoleWriter),
+    // Each entry lands in three places: Cloudflare Workers Logs (console),
+    // Sentry Logs (queryable stream), and the breadcrumb trail of any error
+    // event from this request.
+    write: withSentryLogs(withSentryBreadcrumbs(consoleWriter)),
   }).child({ method, path });
 
   c.set("requestId", requestId);

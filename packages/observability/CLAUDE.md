@@ -12,7 +12,7 @@ every Worker. It is a package, not an app-local util, because `apps/web` and
 - `src/logger.ts` — `createLogger()`, levels, `child()`, `resolveLogLevel()`. Pure: no Sentry import, `write`/`now` are injectable seams
 - `src/redact.ts` — log-safe cloning: sensitive keys blanked, Errors expanded, cycles broken, depth/width capped
 - `src/request-id.ts` — `resolveRequestId()`: reuse `x-request-id`, else `cf-ray`, else mint a uuid
-- `src/sentry.ts` — `sentryOptions()` (returns `undefined` with no DSN), `sentryOptionsOrDisabled()`, breadcrumb writer, capture helpers
+- `src/sentry.ts` — `sentryOptions()` (returns `undefined` with no DSN), `sentryOptionsOrDisabled()`, the breadcrumb and Sentry-Logs writers, capture helpers
 - `src/middleware.ts` — Hono `observabilityMiddleware` + `observabilityErrorHandler`
 - `src/index.ts` — barrel
 
@@ -32,6 +32,14 @@ every Worker. It is a package, not an app-local util, because `apps/web` and
 - `observabilityMiddleware` records the _outcome_; `observabilityErrorHandler`
   records _why_. Mount both — Hono's compose() resolves throws through the error
   handler before they unwind, so a `catch` in the middleware is unreachable.
+- **Each entry goes to three sinks**, composed in the middleware's `write`:
+  Workers Logs (`consoleWriter`), Sentry Logs (`withSentryLogs` — the queryable
+  stream), and the error's breadcrumb trail (`withSentryBreadcrumbs`). They are
+  separate wrappers because breadcrumbs exist only attached to an error event.
+- **Sentry's default console integration is removed** in `sentryOptions`. It
+  breadcrumbs every `console.*` call, so each log line produced two breadcrumbs
+  and the console one rendered as `"[object Object]"`. Do not re-add it without
+  first removing `withSentryBreadcrumbs`.
 - Durable Objects / Agents need their own `instrumentAgentWithSentry(sentryOptionsOrDisabled, …)`;
   `withSentry` on the outer fetch handler does not initialise Sentry inside them.
 

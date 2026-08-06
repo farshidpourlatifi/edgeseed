@@ -282,6 +282,10 @@ and a coverage target. Read it before working in that directory.
   matches key names only). Log the pathname.
 - **Workers Logs needs `observability.enabled` in each `wrangler.jsonc`** — without
   it, logs show in `wrangler tail` but are never retained or queryable
+- Every log entry goes to three sinks: Workers Logs, Sentry Logs (`enableLogs`,
+  the queryable stream), and the breadcrumb trail of any error event from that
+  request. Sentry's default console integration is deliberately removed —
+  re-adding it double-records every line as `"[object Object]"`
 - Cloudflare (retention 3d free / 7d paid) and Sentry (grouping, alerting,
   releases) are complementary; leaving `SENTRY_DSN` unset gives a working
   Cloudflare-only setup

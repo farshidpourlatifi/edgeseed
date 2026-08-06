@@ -148,13 +148,13 @@ issue.
 
 ## 5. Tuning
 
-| Variable                    | Default                             | Notes                                                       |
-| --------------------------- | ----------------------------------- | ----------------------------------------------------------- |
-| `SENTRY_DSN`                | unset — Sentry disabled             | Absent means full pass-through                              |
-| `SENTRY_TRACES_SAMPLE_RATE` | `0`                                 | `0`..`1`. Errors are always sent; this only gates _tracing_ |
-| `SENTRY_ENVIRONMENT`        | falls back to `ENVIRONMENT`         | Override only if you need a name like `canary`              |
-| `SENTRY_RELEASE`            | falls back to `APP_VERSION`         | Bumped by `pnpm version:bump`                               |
-| `LOG_LEVEL`                 | `debug` in development, else `info` | Affects logs and breadcrumbs, not error capture             |
+| Variable                    | Default                             | Notes                                                        |
+| --------------------------- | ----------------------------------- | ------------------------------------------------------------ |
+| `SENTRY_DSN`                | unset — Sentry disabled             | Absent means full pass-through                               |
+| `SENTRY_TRACES_SAMPLE_RATE` | `0`                                 | `0`..`1`. Errors are always sent; this only gates _tracing_  |
+| `SENTRY_ENVIRONMENT`        | falls back to `ENVIRONMENT`         | Override only if you need a name like `canary`               |
+| `SENTRY_RELEASE`            | falls back to `APP_VERSION`         | Bumped by `pnpm version:bump`                                |
+| `LOG_LEVEL`                 | `debug` in development, else `info` | Gates logs, breadcrumbs and Sentry Logs; never error capture |
 
 Start production at `SENTRY_TRACES_SAMPLE_RATE=0` (errors only). Raise to
 `0.05`–`0.1` if you want performance data; `1` in production will burn quota
@@ -167,6 +167,10 @@ Turn it on only after a privacy review, and never as a starter default.
 
 - **Errors** — `request.failed` and SSR/loader failures, grouped, with the
   request's log trail attached as breadcrumbs
+- **Logs** — the same structured entries as a searchable stream in Sentry Logs,
+  attributes and all. Breadcrumbs only exist attached to an error; this is how
+  you search a request that succeeded. It costs quota per log line, so keep
+  `LOG_LEVEL` at `info` in production unless you are actively debugging
 - **`request_id` tag** on every event, matching the `x-request-id` response
   header and the log lines
 - **MCP tool spans** — `wrapMcpServerWithSentry` traces each tool call

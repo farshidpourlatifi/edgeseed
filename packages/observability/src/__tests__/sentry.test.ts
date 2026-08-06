@@ -7,6 +7,7 @@ import {
   parseSampleRate,
   sentryOptions,
   sentryOptionsOrDisabled,
+  withoutConsoleIntegration,
   withSentryBreadcrumbs,
 } from "../sentry";
 import type { LogEntry } from "../logger";
@@ -49,8 +50,14 @@ describe("sentryOptions", () => {
       environment: "production",
       release: APP_VERSION,
       tracesSampleRate: 0,
+      enableLogs: true,
+      integrations: withoutConsoleIntegration,
       sendDefaultPii: false,
     });
+  });
+
+  it("enables Sentry Logs, so the structured stream is queryable there too", () => {
+    expect(sentryOptions({ SENTRY_DSN: DSN })).toMatchObject({ enableLogs: true });
   });
 
   it("lets SENTRY_ENVIRONMENT and SENTRY_RELEASE override the defaults", () => {
@@ -112,6 +119,30 @@ describe("capture helpers with Sentry disabled", () => {
     expect(() =>
       bindSentryRequestScope({ requestId: "r1", method: "GET", path: "/x" }),
     ).not.toThrow();
+  });
+});
+
+describe("withoutConsoleIntegration", () => {
+  it("drops the Console integration", () => {
+    const kept = withoutConsoleIntegration([
+      { name: "Console" },
+      { name: "Fetch" },
+      { name: "LinkedErrors" },
+    ]);
+
+    expect(kept.map((i) => i.name)).toEqual(["Fetch", "LinkedErrors"]);
+  });
+
+  it("keeps every other integration, including when Console is absent", () => {
+    const defaults = [{ name: "Fetch" }, { name: "Dedupe" }];
+    expect(withoutConsoleIntegration(defaults)).toEqual(defaults);
+  });
+
+  it("matches on the exact name, not a prefix", () => {
+    // A future `ConsoleLogging` integration must survive this filter.
+    expect(withoutConsoleIntegration([{ name: "ConsoleLogging" }])).toEqual([
+      { name: "ConsoleLogging" },
+    ]);
   });
 });
 
