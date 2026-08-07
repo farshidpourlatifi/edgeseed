@@ -15,7 +15,7 @@ try {
 
 // Re-apply all migrations
 console.log("Re-applying migrations...");
-execSync("pnpm --filter @starter/web exec wrangler d1 migrations apply starter-db --local", {
+execSync("pnpm --filter @starter/web exec wrangler d1 migrations apply edgeseed-db --local", {
   stdio: "inherit",
   cwd: process.cwd(),
 });

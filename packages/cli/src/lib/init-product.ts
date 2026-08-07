@@ -22,6 +22,20 @@ export function deriveDisplayName(slug: string): string {
 }
 
 /**
+ * The slug currently stamped in `product.ts` — the identity being renamed
+ * *from*.
+ *
+ * Read rather than hardcoded so the script cannot drift from the repo it
+ * edits. When the starter itself was renamed (`starter` → `edgeseed`), a
+ * hardcoded `"starter-web"` here would have turned every Worker rename into a
+ * silent no-op: the regex simply stops matching, `rewrite()` sees no change,
+ * and the clone keeps the upstream's Worker names.
+ */
+export function currentProductSlug(productSource: string): string | null {
+  return productSource.match(/export const PRODUCT_SLUG = "([^"]*)"/)?.[1] ?? null;
+}
+
+/**
  * Rewrite `packages/config/src/product.ts`.
  *
  * Replacements are functions, not strings: `String.replace` treats `$&`, `$1`
@@ -45,16 +59,30 @@ export function stampProductIdentity(
 }
 
 /**
- * Rewrite a `wrangler.jsonc`: rename the Worker and drop the database binding
- * back to `local`.
+ * Rewrite a `wrangler.jsonc`: rename the Worker, drop the database binding back
+ * to `local`, and remove any custom domain.
  *
  * Both Workers must land on the SAME database — apps/mcp runs its own Better
  * Auth instance against apps/web's users. Localising only one would leave a
  * clone with its other Worker still bound to the *starter's* D1 id: not merely
  * a broken shared login, but a cross-product data boundary.
+ *
+ * `routes` goes for the same reason in a different currency: it names the
+ * starter's own hostname, and a clone that inherited it would have its first
+ * deploy try to claim a zone somebody else owns.
  */
 export function stampWranglerConfig(source: string, rename: { from: string; to: string }): string {
   return source
     .replace(new RegExp(`"name": "${rename.from}"`), () => `"name": "${rename.to}"`)
-    .replace(/"database_id": "[^"]*"/, () => '"database_id": "local"');
+    .replace(/"database_id": "[^"]*"/, () => '"database_id": "local"')
+    .replace(ROUTES_BLOCK, "");
 }
+
+/**
+ * A `routes` array plus the comment block above it and its trailing comma.
+ *
+ * Deliberately not a brace-matching parse: the value is always a flat array of
+ * route objects, so `[^\]]*` terminates correctly. A nested array here would
+ * need a real parser — assert on the shape if that ever changes.
+ */
+const ROUTES_BLOCK = /\n(?:[ \t]*\/\/[^\n]*\n)*[ \t]*"routes": \[[^\]]*\],?/;

@@ -6,8 +6,8 @@ import { QualityStats } from "./quality-stats";
 const PIPELINE_SCRIPT: ScriptStep[] = [
   {
     cmd: "pnpm verify",
-    cwd: "~/cloudflare-starter",
-    out: [{ text: "> cloudflare-starter@0.1.0 verify", tone: "dim" }, { text: "" }],
+    cwd: "~/edgeseed",
+    out: [{ text: "> edgeseed@0.1.0 verify", tone: "dim" }, { text: "" }],
     lineMs: 110,
   },
   { spinner: "eslint .", ms: 800, done: "lint — eslint . clean" },
@@ -54,7 +54,7 @@ const PIPELINE_SCRIPT: ScriptStep[] = [
     lineMs: 200,
     after: 2000,
   },
-  { cmd: "pnpm test:mutation", cwd: "~/cloudflare-starter", enterPause: 500 },
+  { cmd: "pnpm test:mutation", cwd: "~/edgeseed", enterPause: 500 },
   {
     spinner: "stryker — mutating 294 sites across packages",
     ms: 1700,
@@ -76,7 +76,7 @@ const PIPELINE_SCRIPT: ScriptStep[] = [
 const VERIFY_SUMMARY: ScriptStep[] = [
   {
     cmd: "pnpm verify",
-    cwd: "~/cloudflare-starter",
+    cwd: "~/edgeseed",
     out: [
       "› lint       eslint .                ok",
       "› format     prettier --check .      ok",
@@ -93,7 +93,7 @@ const VERIFY_SUMMARY: ScriptStep[] = [
 const MUTATION_SUMMARY: ScriptStep[] = [
   {
     cmd: "pnpm test:mutation",
-    cwd: "~/cloudflare-starter",
+    cwd: "~/edgeseed",
     out: [
       "Stryker  mutating packages + app server…",
       "killed 159   survived 131   no-coverage 4",

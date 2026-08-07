@@ -1,17 +1,30 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "starter-web",
+  "name": "edgeseed-web",
   "compatibility_date": "2026-03-31",
   "compatibility_flags": ["nodejs_compat"],
   "main": "worker.ts",
   "assets": {
     "directory": "build/client",
   },
+  // `custom_domain: true` makes `wrangler deploy` create the domain binding AND
+  // the proxied DNS record. Requires edgeseed.dev to be a zone on this same
+  // Cloudflare account, and requires that no A/CNAME for `app` already exists —
+  // wrangler creates that record itself and a manual one collides.
+  //
+  // This is EdgeSeed's own domain, so `init:product` strips it from a clone:
+  // inheriting it would make a fresh clone's first deploy try to claim a zone it
+  // does not own.
+  "routes": [{ "pattern": "app.edgeseed.dev", "custom_domain": true }],
   "d1_databases": [
     {
+      // The binding name is load-bearing: everything reads `c.env.DB`
+      // (packages/auth middleware, packages/config env schema, apps/mcp env).
+      // `wrangler d1 create` offers to add a binding named after the database —
+      // accepting that appends a SECOND entry and leaves the app on the old one.
       "binding": "DB",
-      "database_name": "starter-db",
-      "database_id": "510ae3cb-6a46-4409-a1db-b07b59cd504b",
+      "database_name": "edgeseed-db",
+      "database_id": "639d0b4e-b410-4e14-b4a3-8f5e6c95c8fe",
       "migrations_dir": "../../packages/db/migrations",
     },
   ],
@@ -29,7 +42,7 @@
   // passes `--var ENVIRONMENT:production` to correct it at deploy time.
   //
   // Done with --var rather than a named `env.production` block on purpose: a
-  // named environment renames the Worker to `starter-web-production` unless
+  // named environment renames the Worker to `edgeseed-web-production` unless
   // every binding and the name are redeclared, and a renamed Worker is a
   // different secret store — `wrangler secret put` values would silently not
   // apply.

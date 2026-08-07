@@ -7,10 +7,10 @@
  */
 
 /** Human-readable name, shown to users and to MCP clients. */
-export const PRODUCT_NAME = "Starter";
+export const PRODUCT_NAME = "EdgeSeed";
 
 /** Kebab-case identifier, matching the Worker names in wrangler.jsonc. */
-export const PRODUCT_SLUG = "starter";
+export const PRODUCT_SLUG = "edgeseed";
 
 /**
  * What an MCP client displays for this server in its own UI.

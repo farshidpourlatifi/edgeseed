@@ -254,7 +254,7 @@ fee.
 
 ### 2. Do not deploy unused entry points
 
-Leave `starter-mcp` undeployed until it provides a needed tool. Before deployment:
+Leave `edgeseed-mcp` undeployed until it provides a needed tool. Before deployment:
 
 - consider the stateless handler unless durable session state is a requirement — the Durable Object
   is configured and working, but it is the more expensive shape;
@@ -347,7 +347,7 @@ Worker code still count as Worker requests. Prefer true static assets for public
 At least weekly during launch, inspect:
 
 - Workers & Pages → account usage: dynamic requests and CPU time by Worker;
-- D1 → `starter-db` → Metrics → Row Metrics: rows read, rows written, and database size;
+- D1 → `edgeseed-db` → Metrics → Row Metrics: rows read, rows written, and database size;
 - Billing → Billable Usage: current cost by product;
 - Durable Object metrics, only if the stateful MCP design is retained;
 - Workers Logs usage, only if observability is enabled.

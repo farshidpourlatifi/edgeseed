@@ -32,7 +32,7 @@ VALUES ('seed-member-1', 'seed-org-1', 'seed-user-1', 'owner', unixepoch());
 
 console.log("Seeding development data...");
 execSync(
-  `pnpm --filter @starter/web exec wrangler d1 execute starter-db --local --command "${seedSQL.replace(/\n/g, " ")}"`,
+  `pnpm --filter @starter/web exec wrangler d1 execute edgeseed-db --local --command "${seedSQL.replace(/\n/g, " ")}"`,
   { stdio: "inherit", cwd: process.cwd() },
 );
 console.log(`Seed complete. Sign in as ${SEED_EMAIL} / ${SEED_PASSWORD}`);

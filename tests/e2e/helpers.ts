@@ -13,7 +13,7 @@ import { expect, type Locator } from "@playwright/test";
  */
 export function markEmailVerified(email: string) {
   execSync(
-    `pnpm --filter @starter/web exec wrangler d1 execute starter-db --local ` +
+    `pnpm --filter @starter/web exec wrangler d1 execute edgeseed-db --local ` +
       `--command "UPDATE user SET emailVerified = 1 WHERE email = '${email}'"`,
     { stdio: "pipe" },
   );

@@ -4,7 +4,7 @@ const isRemote = process.argv.includes("--remote");
 const flag = isRemote ? "" : "--local";
 
 console.log(`Applying migrations (${isRemote ? "remote" : "local"})...`);
-execSync(`pnpm --filter @starter/web exec wrangler d1 migrations apply starter-db ${flag}`, {
+execSync(`pnpm --filter @starter/web exec wrangler d1 migrations apply edgeseed-db ${flag}`, {
   stdio: "inherit",
   cwd: process.cwd(),
 });
