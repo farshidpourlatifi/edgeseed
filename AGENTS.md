@@ -460,9 +460,16 @@ once you have confirmed nothing needs migrating out of it.
 # 1. Gated deploy — runs the full verify suite, then deploys
 pnpm deploy:web
 
-# 2. Remote migrations (only when schema changes)
+# 2. Remote migrations (only when schema changes) — or `pnpm db:migrate --remote`
 cd apps/web && npx wrangler d1 migrations apply edgeseed-db --remote
 ```
+
+**Always pass `--local` or `--remote` explicitly to any `wrangler d1` command.**
+Wrangler defaults to **local** when neither is given, so an omitted flag does
+not mean "remote" — it means the command quietly acts on your own database and
+reports success. `db:migrate` shipped exactly that bug: `--remote` mapped to an
+empty flag, so the documented production migration path was a no-op against
+production. `resolveDbTarget` now makes the flag impossible to omit.
 
 ### Creating a D1 — keep the binding named `DB`
 
