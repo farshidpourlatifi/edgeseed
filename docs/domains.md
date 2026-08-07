@@ -132,10 +132,35 @@ see the split silently not working, this is the first thing to check.
 **A malformed URL in either variable.** Ignored, single-origin behaviour. A bad
 binding should not take the site down per request.
 
-**The landing page's own links.** `Sign in` and `Get started` use relative
-paths, so from the marketing origin they take one redirect hop to the app.
-Correct, just not free. A product that cares can pass the app origin through the
-root loader and link absolutely.
+**A cross-boundary link without `reloadDocument`.** This is the one that will
+catch you, because it fails silently and only in split mode.
+
+React Router is a client-side router. Once the landing page has hydrated, a
+plain `<Link to="/login">` navigates **without any HTTP request**, so
+`server/origins.ts` never runs. The login page then renders on the _marketing_
+origin, and its `POST /api/auth/sign-in/email` goes there too — where the
+middleware answers with a 302. A 302 on POST downgrades to GET, so sign-in
+fails outright, and any cookie that did get set would be scoped to the wrong
+host.
+
+The fix is `reloadDocument` on the link, which renders a plain anchor and
+forces a document request the middleware can act on:
+
+```tsx
+<Link reloadDocument to="/login">
+  Sign In
+</Link>
+```
+
+**Any link crossing the marketing/app boundary needs it** — currently the
+landing header and hero (`→ /login`, `/register`) and the logo on the
+login/register pages (`→ /`). Links that stay on one side (dashboard → dashboard
+settings, login ↔ register) must _not_ have it; they would lose client-side
+navigation for nothing.
+
+It costs one document load at the boundary in single-origin mode, where a
+client-side transition would have done. That is the deliberate trade: correct
+in both topologies, with no origin configuration reaching the client bundle.
 
 **`init:product` strips `routes`** from a clone, because they name hostnames the
 clone does not own. It does not touch `MARKETING_URL` — that lives in

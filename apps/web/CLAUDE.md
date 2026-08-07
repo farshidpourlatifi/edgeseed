@@ -19,6 +19,7 @@ The product: React Router v7 app + Hono API on a single Cloudflare Worker.
 ## Rules
 
 - New page: add to `routes.ts` → create route file → `npx react-router typegen`
+- **Any link crossing the marketing/app boundary needs `<Link reloadDocument>`.** A plain `<Link>` navigates client-side, so `server/origins.ts` never sees it — in split-origin mode the app page renders on the marketing host and its auth POST takes a 302 that downgrades to GET. Applies to landing → `/login` `/register`, and login/register → `/`. Links staying on one side must NOT use it (`docs/domains.md`)
 - New API route: add to `server/api.ts` with OpenAPI schema → `pnpm api:spec` → add matching MCP tool in `apps/mcp`
 - Auth guard: `redirect("/login")` in the loader when there's no session (see `dashboard.tsx`); child routes rely on the dashboard layout loader — but treat any child loader that touches sensitive data as needing its own check (audit #10)
 - **Sign-up does not sign anyone in.** `requireEmailVerification` withholds the session until the link is followed, so `/register` swaps the form for `VerificationNotice` and `/login` shows the same notice on `EMAIL_NOT_VERIFIED`. Never word that notice as "account created" — Better Auth returns the same shape for an existing address on purpose (ADR 003)

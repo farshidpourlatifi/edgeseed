@@ -1,5 +1,6 @@
 import { Cloud } from "lucide-react";
 
+import { PRODUCT_NAME } from "@starter/config/product";
 import { GithubIcon } from "./github-icon";
 import { GITHUB_URL } from "./site";
 
@@ -17,9 +18,7 @@ export function SiteFooter() {
         <span className="flex size-7 items-center justify-center rounded-md bg-primary">
           <Cloud className="size-4 text-primary-foreground" aria-hidden="true" />
         </span>
-        <span className="text-sm text-muted-foreground">
-          Cloudflare Starter — built for the edge.
-        </span>
+        <span className="text-sm text-muted-foreground">{PRODUCT_NAME} — built for the edge.</span>
       </div>
 
       <nav aria-label="Footer" className="flex flex-wrap items-center gap-x-6 gap-y-2">

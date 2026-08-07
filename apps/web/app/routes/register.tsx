@@ -83,7 +83,9 @@ export default function RegisterPage() {
       </div>
       <Card className="w-full max-w-sm">
         <CardHeader className="space-y-4 text-center">
-          <Link to="/" className="mx-auto flex items-center gap-2">
+          {/* reloadDocument: `/` is the marketing page, which may live on
+              another origin — see site-header.tsx and docs/domains.md */}
+          <Link reloadDocument to="/" className="mx-auto flex items-center gap-2">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
               <Layers className="h-6 w-6 text-primary-foreground" />
             </div>

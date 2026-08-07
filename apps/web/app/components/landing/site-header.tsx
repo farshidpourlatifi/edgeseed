@@ -2,6 +2,7 @@ import * as React from "react";
 import { Link } from "react-router";
 import { Cloud, Menu, X } from "lucide-react";
 
+import { PRODUCT_NAME } from "@starter/config/product";
 import { Button } from "@starter/ui/components/ui/button";
 import { Separator } from "@starter/ui/components/ui/separator";
 import {
@@ -38,9 +39,7 @@ export function SiteHeader() {
           <span className="flex size-8 items-center justify-center rounded-lg bg-primary">
             <Cloud className="size-5 text-primary-foreground" aria-hidden="true" />
           </span>
-          <span className="text-base font-semibold tracking-tight sm:text-lg">
-            Cloudflare Starter
-          </span>
+          <span className="text-base font-semibold tracking-tight sm:text-lg">{PRODUCT_NAME}</span>
         </Link>
 
         <nav aria-label="Main" className="hidden items-center gap-6 lg:flex">
@@ -57,11 +56,25 @@ export function SiteHeader() {
 
         <div className="flex items-center gap-2">
           <ThemeToggle />
+          {/*
+            `reloadDocument` on every link out of the marketing pages into the
+            app. A plain <Link> navigates client-side, which never touches the
+            server — so in a split-origin setup the login page would render on
+            the MARKETING host, and its sign-in POST would take a 302 that
+            downgrades to GET and drops the session cookie on the wrong origin.
+            Forcing a document request lets server/origins.ts do its job.
+            Costs one page load at the boundary; correct in both topologies.
+            docs/domains.md
+          */}
           <Button variant="ghost" className="hidden h-11 sm:inline-flex" asChild>
-            <Link to="/login">Sign In</Link>
+            <Link reloadDocument to="/login">
+              Sign In
+            </Link>
           </Button>
           <Button className="hidden h-11 lg:inline-flex" asChild>
-            <Link to="/register">Get Started</Link>
+            <Link reloadDocument to="/register">
+              Get Started
+            </Link>
           </Button>
 
           <Sheet open={open} onOpenChange={setOpen}>
@@ -100,12 +113,12 @@ export function SiteHeader() {
                   </a>
                 </Button>
                 <Button variant="ghost" className="h-11" asChild>
-                  <Link to="/login" onClick={() => setOpen(false)}>
+                  <Link reloadDocument to="/login" onClick={() => setOpen(false)}>
                     Sign In
                   </Link>
                 </Button>
                 <Button className="h-11" asChild>
-                  <Link to="/register" onClick={() => setOpen(false)}>
+                  <Link reloadDocument to="/register" onClick={() => setOpen(false)}>
                     Get Started
                   </Link>
                 </Button>
