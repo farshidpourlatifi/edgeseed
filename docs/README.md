@@ -173,6 +173,7 @@ Don't use `wrangler secret put` for local development. Put the same variables in
 
 ## Further reading
 
+- [Domain Topology](./domains.md) — single vs split origin, `MARKETING_URL`, custom domains, OAuth callbacks
 - [MCP Server](./mcp.md) — connecting a client, the OAuth flow, tools, deploy checklist
 - [Creating a New Package](./creating-packages.md) — scaffold checklist, wiring, per-package CLAUDE.md
 - [Design Workflow](./design-workflow.md) — V0/shadcn generation and integration (product-owned; swap in your own)

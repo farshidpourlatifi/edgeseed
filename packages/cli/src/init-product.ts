@@ -82,10 +82,15 @@ Done. Next steps:
      the existing one, and the app keeps reading the old c.env.DB.
   2. Add your own custom domain to apps/web/wrangler.jsonc — the starter's was
      stripped, since it named a zone you do not own:
-       "routes": [{ "pattern": "app.yourdomain.com", "custom_domain": true }]
+       "routes": [{ "pattern": "yourdomain.com", "custom_domain": true }]
 
      The zone must be on the same Cloudflare account; wrangler then creates the
      DNS record on deploy. Skip this and you get <worker>.<subdomain>.workers.dev.
+
+     That single entry is the default topology: one origin serving the landing
+     page and the app together. To split them — marketing on the apex, app on
+     app.yourdomain.com — add a second pattern and set MARKETING_URL. Full
+     walkthrough, including the OAuth consequences: docs/domains.md
   3. Set production secrets (docs/README.md#production-secrets):
        BETTER_AUTH_SECRET, BETTER_AUTH_URL (must match the domain above),
        RESEND_API_KEY + EMAIL_FROM, optional OAuth credentials

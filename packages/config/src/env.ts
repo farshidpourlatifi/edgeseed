@@ -33,6 +33,14 @@ const sharedEnvSchema = z.object({
 export const webEnvSchema = sharedEnvSchema.extend({
   /** Public origin. Required only here — the MCP Worker derives its origin per request. */
   BETTER_AUTH_URL: z.string().url(),
+  /**
+   * Marketing origin, when the landing page lives on its own hostname.
+   *
+   * Optional, and absent is the default: one origin serves the landing page and
+   * the app together, which is what `pnpm dev` does on localhost. Set it and
+   * app paths move to `BETTER_AUTH_URL`'s origin. See docs/domains.md.
+   */
+  MARKETING_URL: z.string().url().optional(),
 });
 
 /** MCP server Worker bindings — no BETTER_AUTH_URL: `baseURL` derives from the request origin. */

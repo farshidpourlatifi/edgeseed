@@ -8,14 +8,21 @@
     "directory": "build/client",
   },
   // `custom_domain: true` makes `wrangler deploy` create the domain binding AND
-  // the proxied DNS record. Requires edgeseed.dev to be a zone on this same
-  // Cloudflare account, and requires that no A/CNAME for `app` already exists —
-  // wrangler creates that record itself and a manual one collides.
+  // the DNS record. Requires the zone to be on this same Cloudflare account, and
+  // requires that no A/CNAME already exists for either hostname — wrangler
+  // creates those records itself and a manual one collides.
   //
-  // This is EdgeSeed's own domain, so `init:product` strips it from a clone:
-  // inheriting it would make a fresh clone's first deploy try to claim a zone it
-  // does not own.
-  "routes": [{ "pattern": "app.edgeseed.dev", "custom_domain": true }],
+  // Two entries because this repo runs a split origin: marketing on the apex,
+  // app on `app.`. That split is driven by MARKETING_URL, not by this list —
+  // see docs/domains.md. A single-origin product declares one pattern here and
+  // leaves MARKETING_URL unset.
+  //
+  // `init:product` strips this block from a clone: inheriting these hostnames
+  // would make a fresh clone's first deploy try to claim a zone it does not own.
+  "routes": [
+    { "pattern": "app.edgeseed.dev", "custom_domain": true },
+    { "pattern": "edgeseed.dev", "custom_domain": true },
+  ],
   "d1_databases": [
     {
       // The binding name is load-bearing: everything reads `c.env.DB`

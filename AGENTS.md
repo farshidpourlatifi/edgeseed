@@ -480,19 +480,28 @@ Either answer `DB` at the prompt, or decline and edit `database_id` by hand in
 Changing `database_id` gives you a **fresh local database** too — wrangler keys
 its sqlite state by id, not name. Re-run `pnpm db:reset && pnpm db:seed`.
 
-### Custom domain
+### Custom domains and the origin split
 
-`app.edgeseed.dev` is declared in `apps/web/wrangler.jsonc` as a `custom_domain`
-route, so `wrangler deploy` creates the domain binding and the proxied DNS
-record itself. Requirements: the zone lives on this same Cloudflare account, and
-no manual A/CNAME for `app` exists to collide with the record wrangler creates.
+Full reference: `docs/domains.md`. The shape is **configurable, not baked in** —
+that is deliberate starter surface.
 
-`BETTER_AUTH_URL` must match this origin, and both OAuth callbacks are
-registered per-origin — the `workers.dev` registrations do not cover it.
+- **Default is one origin**: landing page and app share a hostname. Nothing to
+  configure, and it is what `pnpm dev` does on localhost.
+- **Split origin** is opt-in via `MARKETING_URL`. Set it and `server/origins.ts`
+  moves `/login`, `/register`, `/dashboard` and `/api` to `BETTER_AUTH_URL`'s
+  origin, while `/` on the app origin bounces back to marketing.
+- The middleware sits **before** `authMiddleware`, so auth cannot execute on the
+  marketing origin. That guarantee is structural — do not reorder it.
+- If both variables name the same host the resolver falls back to single-origin
+  rather than looping. Tested; check it first if a split silently does nothing.
 
-`init:product` **strips** `routes` from a clone, alongside localising
-`database_id`: a clone inheriting this hostname would have its first deploy try
-to claim a zone it does not own.
+Hostnames are declared as `custom_domain` routes in `apps/web/wrangler.jsonc`,
+so `wrangler deploy` creates the DNS records itself — never pre-create an
+A/CNAME for them, and the zone must be on this same Cloudflare account.
+`init:product` **strips** `routes` from a clone alongside localising
+`database_id`, since they name hostnames the clone does not own.
+
+This repo runs split: `edgeseed.dev` marketing, `app.edgeseed.dev` app.
 
 Never deploy with a raw `wrangler deploy` — that skips the verify gate **and**
 ships `ENVIRONMENT: "development"` from `wrangler.jsonc`, which tags every
