@@ -20,6 +20,7 @@ The product: React Router v7 app + Hono API on a single Cloudflare Worker.
 - New page: add to `routes.ts` → create route file → `npx react-router typegen`
 - New API route: add to `server/api.ts` with OpenAPI schema → `pnpm api:spec` → add matching MCP tool in `apps/mcp`
 - Auth guard: `redirect("/login")` in the loader when there's no session (see `dashboard.tsx`); child routes rely on the dashboard layout loader — but treat any child loader that touches sensitive data as needing its own check (audit #10)
+- **Sign-up does not sign anyone in.** `requireEmailVerification` withholds the session until the link is followed, so `/register` swaps the form for `VerificationNotice` and `/login` shows the same notice on `EMAIL_NOT_VERIFIED`. Never word that notice as "account created" — Better Auth returns the same shape for an existing address on purpose (ADR 003)
 - Secrets: never in `wrangler.jsonc` — `.dev.vars` locally, `wrangler secret put` in production
 - Deploy only via `pnpm deploy:web` (runs the verify gate)
 

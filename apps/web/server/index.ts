@@ -18,6 +18,8 @@ export interface ServerEnv {
     GITHUB_CLIENT_SECRET?: string;
     GOOGLE_CLIENT_ID?: string;
     GOOGLE_CLIENT_SECRET?: string;
+    RESEND_API_KEY?: string;
+    EMAIL_FROM?: string;
   };
   Variables: ObservabilityEnv["Variables"] & {
     db: import("@starter/db").Database;

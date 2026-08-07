@@ -15,7 +15,7 @@ them.
 | #   | Severity | Issue                                                                 | Status         |
 | --- | -------- | --------------------------------------------------------------------- | -------------- |
 | 1   | Critical | `better-auth@1.5.6` account-takeover advisories                       | Resolved       |
-| 2   | High     | Account pre-hijacking via unverified signup + implicit OAuth linking  | Live           |
+| 2   | High     | Account pre-hijacking via unverified signup + implicit OAuth linking  | Resolved       |
 | 3   | High     | `BETTER_AUTH_SECRET` unvalidated; silent fallback to a public default | Live footgun   |
 | 4   | High     | No rate limiting on any auth endpoint                                 | Live           |
 | 5   | High     | No security response headers anywhere                                 | Live           |
@@ -127,6 +127,34 @@ explicit `trustedProviders` allowlist).
 **Related gap:** no `sendResetPassword` is configured either, so password reset
 is non-functional and the login page has no "forgot password" path
 (`apps/web/app/routes/login.tsx:97-112`).
+
+---
+
+**RESOLVED 2026-08-06** — `docs/adr/003-transactional-email.md`.
+
+`createAuth` now sets `requireEmailVerification: true` with `sendOnSignUp`, so a
+pre-registered account is inert: it holds no session and cannot be signed into.
+`account.accountLinking` is explicit, and the linking half is closed by
+`requireLocalEmailVerified: true` — a social identity will not link into a local
+account that has not proven its own address, which is precisely the attack above.
+
+`trustedProviders` is deliberately **empty**, not an allowlist as the fix text
+suggested. That recommendation was backwards: in
+`better-auth/dist/oauth2/link-account.mjs` the refusal is
+`!isTrustedProvider && !userInfo.emailVerified`, so naming a provider means
+"link even when that provider says the address is unverified". Both Google and
+GitHub report verification honestly, so an allowlist would only discard a signal
+already being received.
+
+Sending is `@starter/email` (Resend, or a logging fallback when unconfigured).
+Deny paths are covered in `packages/auth/src/__tests__/auth-config.test.ts` and
+`tests/e2e/auth.spec.ts` (sign-up grants no session; correct credentials are
+refused while unverified).
+
+**Still open from the related gap:** `sendResetPassword` is now wired and
+functional, but there is no forgot-password **UI** — no link on
+`apps/web/app/routes/login.tsx` and no reset route. Reset is reachable only via
+the API.
 
 ### 3. A missing `BETTER_AUTH_SECRET` silently signs sessions with a publicly-known default
 

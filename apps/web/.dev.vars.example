@@ -21,6 +21,14 @@ GITHUB_CLIENT_SECRET=
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 
+# Optional — transactional email (verification + password reset). Both keys are
+# needed together; with either missing the message is logged instead of sent,
+# and in development the log line carries the verification link (that is how you
+# verify an account locally). See docs/adr/003-transactional-email.md.
+# EMAIL_FROM must be on a domain verified in Resend: "EdgeSeed <auth@mail.edgeseed.dev>"
+RESEND_API_KEY=
+EMAIL_FROM=
+
 # Optional — Sentry error reporting; empty disables Sentry entirely
 # (docs/sentry-setup.md — use the <product>-web project's DSN here)
 SENTRY_DSN=

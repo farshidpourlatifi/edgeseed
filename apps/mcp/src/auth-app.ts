@@ -5,6 +5,8 @@ import type { AuthRequest, ClientInfo } from "@cloudflare/workers-oauth-provider
 import type { Context } from "hono";
 import { createDb } from "@starter/db";
 import { createAuth } from "@starter/auth/server";
+import { createEmailSender } from "@starter/email";
+import { createLogger, resolveLogLevel } from "@starter/observability";
 import { APP_VERSION } from "@starter/config/version";
 import { MCP_SERVER_NAME, PRODUCT_NAME } from "@starter/config/product";
 import type { Env } from "./env";
@@ -113,6 +115,19 @@ function authFor(c: Context<AuthEnv>) {
     db,
     secret: c.env.BETTER_AUTH_SECRET,
     baseURL: new URL(c.req.url).origin,
+    // This Worker only signs existing users in — it has no signup or reset
+    // screen, so nothing here sends today. Wired regardless because `createAuth`
+    // requires a transport, and the day this app grows either flow it must
+    // already work rather than fail at the first send.
+    email: createEmailSender({
+      apiKey: c.env.RESEND_API_KEY,
+      from: c.env.EMAIL_FROM,
+      environment: c.env.ENVIRONMENT,
+      logger: createLogger({
+        level: resolveLogLevel(c.env),
+        base: { env: c.env.ENVIRONMENT ?? "development", app: "mcp" },
+      }),
+    }),
     // Without these, an account created through Google or GitHub has no way in:
     // it has no password, and the providers would be disabled on this Worker.
     githubClientId: c.env.GITHUB_CLIENT_ID,

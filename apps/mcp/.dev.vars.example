@@ -22,6 +22,13 @@ GITHUB_CLIENT_SECRET=
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 
+# Optional — transactional email. This Worker has no signup or password-reset
+# screen, so it never sends today; the keys exist because the env schema is
+# shared with apps/web. Leave both empty unless this app grows one of those
+# flows. See docs/adr/003-transactional-email.md.
+RESEND_API_KEY=
+EMAIL_FROM=
+
 # Optional — Sentry error reporting; empty disables Sentry entirely
 # (docs/sentry-setup.md — use the <product>-mcp project's DSN here)
 SENTRY_DSN=
