@@ -57,6 +57,17 @@ describe("MCP authFor env validation", () => {
     expect(res.status).toBe(500);
   });
 
+  /**
+   * At the boundary, not only in the schema. `env.test.ts` proves
+   * `mcpEnvSchema` declares the rule; this proves `authFor` actually runs it,
+   * which is the half that would silently lapse if the schema and the parse
+   * call ever drifted apart.
+   */
+  it("refuses an auth request when the OAuth KV binding is absent", async () => {
+    const res = await authApp.request(AUTH_ROUTE, {}, mcpEnv({ OAUTH_KV: undefined }));
+    expect(res.status).toBe(500);
+  });
+
   it("reaches Better Auth when the env is valid", async () => {
     const res = await authApp.request(AUTH_ROUTE, {}, mcpEnv());
 

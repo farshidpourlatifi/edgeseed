@@ -55,14 +55,23 @@ function rateLimitBinding(name: string) {
 /**
  * A KV namespace binding (`kv_namespaces` in wrangler.jsonc).
  *
- * Same reasoning as `rateLimitBinding`, and the same shape check for the same
- * reason: `get` and `put` together identify a KV namespace, where mere presence
- * would accept whatever else happened to be bound under that name.
+ * Same reasoning as `rateLimitBinding`: mere presence would accept whatever
+ * else happened to be bound under that name.
+ *
+ * `getWithMetadata` is what makes the check discriminating, and it is not
+ * decoration. `get`/`put`/`delete`/`list` are **also** `R2Bucket`'s shape, so a
+ * bucket bound under this name would have passed, kept `check:boot` green, and
+ * failed only once the OAuth provider tried to store a real grant. Of the
+ * members `KVNamespace` declares, `getWithMetadata` is the one R2 does not.
  */
 function kvBinding(name: string) {
   return z.custom<KVNamespace>((v) => {
     const kv = v as KVNamespace | undefined;
-    return typeof kv?.get === "function" && typeof kv?.put === "function";
+    return (
+      typeof kv?.get === "function" &&
+      typeof kv?.put === "function" &&
+      typeof kv?.getWithMetadata === "function"
+    );
   }, `${name} KV binding required — see kv_namespaces in wrangler.jsonc`);
 }
 

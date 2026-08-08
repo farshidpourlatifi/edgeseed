@@ -44,6 +44,14 @@ values, which is the drift actually worth catching.
 Verified by desyncing the table to `max: 5` against a binding of 10 and watching the
 sign-in case go red (`expected 429, received 401`).
 
+**Open each counting test with `awaitRateLimitWindow()`.** Locally the limiter is
+miniflare's, and it is a **fixed** window keyed on `Math.floor(Date.now() / 60000)`
+that calls `buckets.clear()` — every key, not just the one under test — the instant
+that value changes. A sequence straddling a wall-clock minute boundary therefore
+counts from zero again and the expected 429 never arrives. It cost one flaky run
+before the guard existed. The helper only sleeps in the last few seconds of a
+window, so most runs pay nothing.
+
 ## Any spec that signs in or registers needs its own client address
 
 Auth rate limiting keys on `cf-connecting-ip` (`docs/security-audit.md` #4,

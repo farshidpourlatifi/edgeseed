@@ -13,6 +13,13 @@
  */
 export interface FakeKvNamespace {
   get(key: string): Promise<string | null>;
+  /**
+   * Present because it is what tells a KV namespace apart from an `R2Bucket`,
+   * which shares every other member here — `kvBinding` in `@starter/config`
+   * keys its check on exactly that, so a fake without it would be rejected as
+   * not-a-namespace. `metadata` is always null; this fake does not store any.
+   */
+  getWithMetadata(key: string): Promise<{ value: string | null; metadata: null }>;
   put(key: string, value: string): Promise<void>;
   delete(key: string): Promise<void>;
   list(options?: { prefix?: string }): Promise<{ keys: Array<{ name: string }> }>;
@@ -26,6 +33,7 @@ export function createFakeKv(): FakeKvNamespace {
   return {
     store,
     get: async (key) => store.get(key) ?? null,
+    getWithMetadata: async (key) => ({ value: store.get(key) ?? null, metadata: null }),
     put: async (key, value) => {
       store.set(key, value);
     },

@@ -47,6 +47,29 @@ export function clientIp(): string {
   return `100.${64 + Math.floor(Math.random() * 64)}.${byte()}.${byte()}`;
 }
 
+/** Every rate-limit rule uses a 60s window; miniflare aligns it to wall-clock. */
+const RATE_LIMIT_WINDOW_MS = 60_000;
+
+/**
+ * Wait, if needed, until the current rate-limit window has room left to run a
+ * counting sequence inside it.
+ *
+ * Locally the limiter is miniflare's, and it is a **fixed** window keyed on
+ * `Math.floor(Date.now() / 60000)` that calls `buckets.clear()` — every key,
+ * not just one — the moment that value changes. So a test that fires its
+ * eleventh request just after a wall-clock minute boundary counts from zero
+ * again and never sees the 429 it is asserting on. It failed exactly that way
+ * once before this guard existed.
+ *
+ * Cheap: it only sleeps in the last few seconds of a window, so most runs pay
+ * nothing, and the worst case is `headroomMs`.
+ */
+export async function awaitRateLimitWindow(headroomMs = 5_000) {
+  const remaining = RATE_LIMIT_WINDOW_MS - (Date.now() % RATE_LIMIT_WINDOW_MS);
+  if (remaining >= headroomMs) return;
+  await new Promise((resolve) => setTimeout(resolve, remaining + 100));
+}
+
 /**
  * Resolve once React has hydrated `target`.
  *

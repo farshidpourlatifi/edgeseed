@@ -117,12 +117,18 @@ async function probeEnv(
       // Deliberately without wrangler's output. A status is a complete answer,
       // and wrangler logs an unrelated `internal error` line often enough that
       // appending it here buries the actual cause under a red herring.
+      // Both causes, because the 2xx requirement means a status can arrive
+      // from either. A 5xx is the env failing validation; a 404 is far more
+      // likely to be the probe route itself having moved — Better Auth owns
+      // `/ok`, so an upgrade could take it away. Naming only bindings would
+      // send whoever hits that on a hunt through wrangler.jsonc for nothing.
       return {
         target: target.name,
         reason:
-          `${target.envProbe} returned HTTP ${res.status}. The Worker started, but a ` +
-          `request that reads its bindings did not succeed — check that every binding ` +
-          `name in ${target.cwd}/wrangler.jsonc matches the env schema.`,
+          `${target.envProbe} returned HTTP ${res.status}. The Worker started but this ` +
+          `request did not succeed: a 5xx usually means a binding name in ` +
+          `${target.cwd}/wrangler.jsonc no longer matches the env schema, while a 4xx ` +
+          `usually means the probe route itself has moved — check both.`,
       };
     } catch (error) {
       lastTransportError = (error as Error).message;

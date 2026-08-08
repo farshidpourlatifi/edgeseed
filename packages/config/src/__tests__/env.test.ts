@@ -107,6 +107,26 @@ describe("the OAUTH_KV binding", () => {
     );
   });
 
+  /**
+   * The near-miss, and the reason the check is not just `get` + `put`: an
+   * `R2Bucket` has both, plus `delete` and `list`. Bound under this name it
+   * would have passed validation, kept `check:boot` green, and failed only when
+   * the OAuth provider tried to store a real grant. `getWithMetadata` is the
+   * member R2 does not have.
+   */
+  it("rejects an R2 bucket bound under the name", () => {
+    const r2Shaped = {
+      get: () => {},
+      put: () => {},
+      delete: () => {},
+      list: () => {},
+      head: () => {},
+      createMultipartUpload: () => {},
+    };
+
+    expect(() => parseEnv(mcpEnvSchema, createFakeEnv({ OAUTH_KV: r2Shaped }))).toThrow(/OAUTH_KV/);
+  });
+
   it("accepts a real namespace", () => {
     expect(() => parseEnv(mcpEnvSchema, createFakeEnv())).not.toThrow();
   });
