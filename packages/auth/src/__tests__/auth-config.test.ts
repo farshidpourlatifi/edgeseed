@@ -67,7 +67,15 @@ describe("createAuth — email verification", () => {
     expect(email.sent[0].subject.toLowerCase()).toContain("reset");
   });
 
-  it("should propagate a transport failure rather than report a delivery that did not happen", async () => {
+  /**
+   * Scope note: this asserts the callback we hand Better Auth rejects — it does
+   * NOT prove a failed send fails the sign-up request. `/sign-up/email` wraps
+   * the callback in `runInBackgroundOrAwait`, which logs and returns normally,
+   * so sign-up still answers 200 (ADR 003, "A send failure at sign-up is
+   * swallowed"). The rejection does surface on `/send-verification-email`,
+   * which awaits the callback directly — that path is what this guarantees.
+   */
+  it("should reject rather than resolve when the transport fails", async () => {
     const failing: EmailSender = { send: vi.fn(async () => Promise.reject(new Error("502"))) };
 
     await expect(

@@ -36,6 +36,7 @@ import {
   Check,
 } from "lucide-react";
 import { toast } from "sonner";
+import { PRODUCT_NAME } from "@starter/config/product";
 import { BrandMark } from "~/components/brand/brand-mark";
 
 export async function loader({ context, request }: Route.LoaderArgs) {
@@ -207,7 +208,7 @@ function Sidebar({
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
                 <BrandMark className="h-5 w-5 text-primary-foreground" />
               </div>
-              <span className="text-lg font-semibold">Starter</span>
+              <span className="text-lg font-semibold">{PRODUCT_NAME}</span>
             </Link>
           )}
         </div>

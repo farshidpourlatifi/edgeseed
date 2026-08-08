@@ -90,10 +90,29 @@ explicitly because the whole defence rests on it.
 - **The notice must not claim an account was created.** Better Auth returns the
   same shape for an address that already exists (anti-enumeration); wording that
   confirmed creation would rebuild the oracle it removes.
-- **A send failure fails the request.** `sendVerificationEmail` errors propagate
-  to `observabilityErrorHandler` rather than being swallowed. Reporting a
-  delivery that did not happen is worse, and Better Auth's generic duplicate
-  response makes retrying sign-up a working recovery path.
+- **A send failure at sign-up is swallowed — by Better Auth, not by us.**
+  _Corrected 2026-08-08; this bullet previously claimed the opposite._ Our
+  sender rejects and `packages/email` never catches, but `/sign-up/email` wraps
+  the callback in `runInBackgroundOrAwait`, which logs and returns normally on
+  rejection — in **both** its branches, including the plain `await` one we are
+  on (`better-auth/dist/context/create-context.mjs:214-224`). So a hard Resend
+  failure still answers 200 and `/register` still says "check your email". The
+  error is not lost, only demoted: it goes to Better Auth's logger, not to
+  `observabilityErrorHandler`.
+
+  Recovery is the resend button, and it behaves the way this bullet originally
+  described sign-up: `/send-verification-email` awaits the callback directly
+  (`api/routes/email-verification.mjs:31`), so a failure there surfaces to the
+  user. That asymmetry is Better Auth's, and it is the reason the notice offers
+  a resend rather than treating the first send as proof.
+
+  Changing it means not relying on `sendOnSignUp` — set it false and have
+  `/register` call `sendVerificationEmail` itself, paying a second round trip to
+  get a truthful result. Deliberately not done here: it trades a guarantee at
+  the moment of signup for a user row that can exist with no mail attempted at
+  all. Setting `advanced.backgroundTasks.handler` does **not** help; that branch
+  swallows too.
+
 - **`packages/cli` gained one external devDependency**, `better-auth`, so
   `db:seed` can write a real password hash with the same hasher sign-in verifies
   against. The seeded admin can now actually sign in — it never could before,

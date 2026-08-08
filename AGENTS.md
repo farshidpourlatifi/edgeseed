@@ -171,8 +171,14 @@ and this list, or the stale copy will be trusted.
    even when the provider says the address is unverified", so adding a provider
    weakens it — and sending goes through `@starter/email`, which silently falls
    back to logging when `RESEND_API_KEY`/`EMAIL_FROM` are unset. Verify both are
-   set in production. Still missing: a forgot-password UI (reset works only via
-   the API). (`docs/adr/003-transactional-email.md`)
+   set in production. A **configured but failing** sender is quiet too: Better
+   Auth swallows the rejection on `/sign-up/email`, so signup answers 200 and
+   the UI says "check your email" regardless — the resend path is the one that
+   reports failure. Every call minting a verification link must pass
+   `POST_VERIFICATION_REDIRECT` as `callbackURL`; the default is `/`, which in
+   split-origin mode strands a just-verified user on the marketing host. Still
+   missing: a forgot-password UI (reset works only via the API).
+   (`docs/adr/003-transactional-email.md`)
 2. **A missing `BETTER_AUTH_SECRET` fails open — and concern 1 rests on it.**
    The Zod env schema (`parseEnv`) has zero callers, and better-auth's own guard
    keys on `NODE_ENV`, which Workers never set — an unset secret signs sessions

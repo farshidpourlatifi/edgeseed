@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import { authClient } from "~/lib/auth-client";
+import { authClient, POST_VERIFICATION_REDIRECT } from "~/lib/auth-client";
 import { Button } from "@starter/ui/components/ui/button";
 import {
   Card,
@@ -53,6 +53,7 @@ export default function RegisterPage() {
         name,
         email,
         password,
+        callbackURL: POST_VERIFICATION_REDIRECT,
       });
       if (signUpError) {
         setError(signUpError.message ?? "Sign up failed");

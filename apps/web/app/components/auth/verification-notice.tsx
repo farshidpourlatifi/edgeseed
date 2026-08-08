@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { authClient } from "~/lib/auth-client";
+import { authClient, POST_VERIFICATION_REDIRECT } from "~/lib/auth-client";
 import { Button } from "@starter/ui/components/ui/button";
 import { Alert, AlertDescription } from "@starter/ui/components/ui/alert";
 import { Spinner } from "@starter/ui/components/ui/spinner";
@@ -26,7 +26,7 @@ export function VerificationNotice({ email }: VerificationNoticeProps) {
     try {
       const { error: resendError } = await authClient.sendVerificationEmail({
         email,
-        callbackURL: "/dashboard",
+        callbackURL: POST_VERIFICATION_REDIRECT,
       });
       if (resendError) {
         setError(resendError.message ?? "Could not send the email");
