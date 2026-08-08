@@ -11,10 +11,15 @@ import { authApp } from "../auth-app";
  * secret as apps/web, so a lenient env check here would undo the strict one
  * there: a session forged against this Worker is honoured by the web app too.
  *
- * `pnpm check:boot` does not cover it. The boot check requests `/`, which
- * answers from static metadata and never constructs auth — so deleting
- * `parseEnv` from `authFor` would leave the whole gate green. That gap is why
- * these tests target `/api/auth/**`, the route that actually reaches it.
+ * These target `/api/auth/**` because that is the route which actually reaches
+ * `authFor`; `/` answers from static metadata and never constructs auth.
+ *
+ * `pnpm check:boot` reaches that route too as of 2026-08-09, via `envProbe` on
+ * the MCP boot target — so the two are complementary rather than redundant. The
+ * boot check runs against the real `wrangler.jsonc`, which is what catches a
+ * **renamed** binding. These tests inject the env, which is what lets them
+ * **withhold** one: a missing secret, a short secret, Better Auth's default
+ * secret, an absent D1. A wrangler config cannot express any of those.
  */
 
 /** The MCP schema has no BETTER_AUTH_URL — this Worker derives its origin. */

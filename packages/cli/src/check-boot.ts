@@ -22,13 +22,17 @@ import {
 const READY_TIMEOUT_MS = 90_000;
 const POLL_INTERVAL_MS = 500;
 /**
- * Generous on purpose, and the per-request timeout more so than the deadline.
+ * Both generous on purpose, sized for the worst case rather than the normal one.
  *
- * The `envProbe` request is the one that first constructs auth, and on
- * `@starter/mcp` it has been measured completing in 22–31 seconds — an order of
- * magnitude past the readiness route, because it is where the bundle's auth
- * half is first instantiated. A per-request timeout tight enough to abandon it
- * would turn a slow machine into a red gate.
+ * The `envProbe` request is where the bundle's auth half is first instantiated,
+ * so it is far slower than the readiness route the first time. On CI it lands in
+ * about 27ms; on a loaded laptop `@starter/mcp` has been measured taking 22–31
+ * seconds. A per-request timeout tight enough to abandon that would turn a busy
+ * developer machine into a red gate for no reason.
+ *
+ * `PROBE_TIMEOUT_MS` bounds the whole probe including retries;
+ * `PROBE_REQUEST_TIMEOUT_MS` bounds one attempt, and is clamped to whatever is
+ * left of the former.
  */
 const PROBE_TIMEOUT_MS = 120_000;
 const PROBE_REQUEST_TIMEOUT_MS = 75_000;
@@ -93,8 +97,19 @@ async function probeEnv(
       return fail(`${target.envProbe} could not be requested: the Worker exited`);
     }
 
+    // Clamped to what is left of the deadline, or the deadline would bound only
+    // the moment a request *starts*: a retry beginning just under it would
+    // still get a full per-request timeout, running the probe to nearly
+    // `PROBE_TIMEOUT_MS + PROBE_REQUEST_TIMEOUT_MS` and then reporting that
+    // nothing answered "within" the shorter of the two.
+    // The floor of 1 guards the sliver between the loop's check and this line:
+    // `AbortSignal.timeout` rejects a negative argument, and that would surface
+    // as a confusing probe failure rather than the timeout it actually is.
+    const remaining = Math.max(1, deadline - Date.now());
     try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(PROBE_REQUEST_TIMEOUT_MS) });
+      const res = await fetch(url, {
+        signal: AbortSignal.timeout(Math.min(PROBE_REQUEST_TIMEOUT_MS, remaining)),
+      });
       if (isHealthyStatus(res.status)) {
         console.log(`  ${target.name} → ${target.envProbe} HTTP ${res.status} ok`);
         return null;
