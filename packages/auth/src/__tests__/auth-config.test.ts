@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
+import { createFakeRateLimiters } from "@starter/testing/fake-rate-limit";
 import type { EmailMessage, EmailSender } from "@starter/email";
 import { createAuth } from "../server";
+import { RATE_LIMIT_RULES } from "../rate-limit";
 
 /**
  * These assert on `auth.options` rather than on live HTTP because the settings
@@ -19,11 +21,17 @@ function fakeSender(): EmailSender & { sent: EmailMessage[] } {
 }
 
 function build(email: EmailSender = fakeSender()) {
+  const limiters = createFakeRateLimiters();
   return createAuth({
     db: {} as never,
     secret: "x".repeat(32),
     baseURL: "http://localhost:5173",
     email,
+    rateLimiters: {
+      default: limiters.RATE_LIMIT_DEFAULT,
+      credentials: limiters.RATE_LIMIT_CREDENTIALS,
+      mail: limiters.RATE_LIMIT_MAIL,
+    },
   });
 }
 
@@ -107,6 +115,52 @@ describe("createAuth — account linking (audit #2)", () => {
 
   it("should refuse to link an identity carrying a different address", () => {
     expect(linking()?.allowDifferentEmails).toBe(false);
+  });
+});
+
+describe("createAuth — rate limiting (audit #4)", () => {
+  const rateLimit = () => build().options.rateLimit;
+
+  /**
+   * The defect itself. Better Auth defaults `enabled` to `isProduction`, which
+   * reads `NODE_ENV` — a variable Workers never set — so the limiter was off in
+   * every environment including production. Pinned to a literal so it can never
+   * become environment-dependent again.
+   */
+  it("is on unconditionally, never derived from the environment", () => {
+    expect(rateLimit()?.enabled).toBe(true);
+  });
+
+  // Reasons 2 and 3 from the finding: the built-in stores cannot work here.
+  // `memory` is a module-level Map, so it outlives the per-request `createAuth`
+  // but not the isolate — counts are per-isolate and ephemeral, never
+  // aggregating across the isolates serving one caller. `database` wants a
+  // `rateLimit` table that does not exist in the Drizzle schema.
+  it("enforces through the injected storage, not a built-in one", () => {
+    expect(rateLimit()?.customStorage?.consume).toBeTypeOf("function");
+    expect(rateLimit()?.storage).toBeUndefined();
+  });
+
+  it("applies the default class to anything the rules do not name", () => {
+    expect(rateLimit()?.window).toBe(RATE_LIMIT_RULES.default.window);
+    expect(rateLimit()?.max).toBe(RATE_LIMIT_RULES.default.max);
+  });
+
+  it("names the unauthenticated mail endpoints explicitly", () => {
+    const rules = rateLimit()?.customRules ?? {};
+    expect(rules["/send-verification-email"]).toEqual(RATE_LIMIT_RULES.mail);
+    expect(rules["/request-password-reset"]).toEqual(RATE_LIMIT_RULES.mail);
+  });
+
+  /**
+   * Session storage must stay in D1. Wiring KV as `secondaryStorage` — which
+   * the plan originally proposed — moves sessions out of the database
+   * (`databaseStoresSessions = !secondaryStorage || …`), so sign-out and
+   * revocation would inherit KV's eventual consistency. Rate limiting is not
+   * allowed to drag session storage along with it.
+   */
+  it("leaves session storage in the database", () => {
+    expect(build().options.secondaryStorage).toBeUndefined();
   });
 });
 

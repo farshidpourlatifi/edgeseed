@@ -4,6 +4,14 @@ export { createBetterAuthClient } from "./client";
 export type { AuthClient } from "./client";
 export { authMiddleware } from "./middleware";
 export type { AuthEnv } from "./middleware";
+export {
+  AUTH_RATE_LIMIT_CUSTOM_RULES,
+  createRateLimitStorage,
+  rateLimitClassFor,
+  rateLimitKey,
+  RATE_LIMIT_RULES,
+} from "./rate-limit";
+export type { RateLimitClass, RateLimiters } from "./rate-limit";
 export { getSession, requireSession } from "./helpers/session";
 export { ROLES, hasRole } from "./helpers/roles";
 export type { Role } from "./helpers/roles";

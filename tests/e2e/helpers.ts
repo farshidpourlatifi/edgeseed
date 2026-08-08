@@ -20,6 +20,33 @@ export function markEmailVerified(email: string) {
 }
 
 /**
+ * A client address unique to this call, for `cf-connecting-ip`.
+ *
+ * Auth rate limiting keys on that header (audit #4, #11), and nothing sets it
+ * locally: the dev server runs under Vite, not behind Cloudflare, so without
+ * one every request in the suite shares a single bucket and the specs start
+ * throttling each other. Sending it simulates what the edge adds — and it is
+ * only possible locally, since Cloudflare overwrites the header at the edge.
+ *
+ * Unique per call, not a constant, because buckets outlive a test run: they
+ * live in the dev server's memory, `db:reset` does not touch them, and
+ * `reuseExistingServer` keeps that server across local re-runs. A fixed address
+ * would make the second run of the day fail.
+ *
+ * Drawn from the whole of CGNAT space (RFC 6598 reserves `100.64.0.0/10`, so it
+ * cannot be mistaken for a real client) rather than a single `/24`. That is 4.2
+ * million addresses instead of 65 thousand: with a couple of dozen buckets
+ * alive at once across a run and its predecessor, a collision would surface as
+ * an unrelated spec failing with a 429 — the kind of once-in-a-thousand-runs
+ * flake nobody would connect back to here.
+ */
+export function clientIp(): string {
+  const byte = () => Math.floor(Math.random() * 256);
+  // 100.64.x.x through 100.127.x.x — the /10's full second-octet range.
+  return `100.${64 + Math.floor(Math.random() * 64)}.${byte()}.${byte()}`;
+}
+
+/**
  * Resolve once React has hydrated `target`.
  *
  * Server-rendered markup looks interactive long before React attaches to it:

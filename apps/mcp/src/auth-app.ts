@@ -5,6 +5,7 @@ import type { AuthRequest, ClientInfo } from "@cloudflare/workers-oauth-provider
 import type { Context } from "hono";
 import { createDb } from "@starter/db";
 import { createAuth } from "@starter/auth/server";
+import { RATE_LIMIT_RULES, rateLimitKey, type RateLimiters } from "@starter/auth/rate-limit";
 import { createEmailSender } from "@starter/email";
 import { createLogger, resolveLogLevel } from "@starter/observability";
 import { mcpEnvSchema, parseEnv } from "@starter/config/env";
@@ -102,6 +103,17 @@ function rejectUnacceptable(c: Context<AuthEnv>, oauthReq: AuthRequest): Respons
 }
 
 /**
+ * The validated bindings for this request.
+ *
+ * Separate from `authFor` because the rate-limit guard below needs the parsed
+ * env without needing an auth instance — and reading a binding off `c.env`
+ * directly is what the schema exists to prevent.
+ */
+function envFor(c: Context<AuthEnv>) {
+  return parseEnv(mcpEnvSchema, c.env);
+}
+
+/**
  * Better Auth bound to *this* Worker's origin.
  *
  * The MCP Worker is a separate deploy unit from apps/web, so it cannot read the
@@ -116,7 +128,7 @@ function rejectUnacceptable(c: Context<AuthEnv>, oauthReq: AuthRequest): Respons
  * too, so this Worker cannot be the lenient one. See `docs/security-audit.md` #3.
  */
 function authFor(c: Context<AuthEnv>) {
-  const env = parseEnv(mcpEnvSchema, c.env);
+  const env = envFor(c);
 
   const db = createDb(env.DB);
   return createAuth({
@@ -136,12 +148,66 @@ function authFor(c: Context<AuthEnv>) {
         base: { env: env.ENVIRONMENT, app: "mcp" },
       }),
     }),
+    rateLimiters: rateLimitersOf(env),
     // Without these, an account created through Google or GitHub has no way in:
     // it has no password, and the providers would be disabled on this Worker.
     githubClientId: env.GITHUB_CLIENT_ID,
     githubClientSecret: env.GITHUB_CLIENT_SECRET,
     googleClientId: env.GOOGLE_CLIENT_ID,
     googleClientSecret: env.GOOGLE_CLIENT_SECRET,
+  });
+}
+
+/** Narrowed to the three bindings, so this takes a parsed env and not the world. */
+function rateLimitersOf(env: Pick<Env, keyof RateLimiterBindings>): RateLimiters {
+  return {
+    default: env.RATE_LIMIT_DEFAULT,
+    credentials: env.RATE_LIMIT_CREDENTIALS,
+    mail: env.RATE_LIMIT_MAIL,
+  };
+}
+
+type RateLimiterBindings = Pick<
+  Env,
+  "RATE_LIMIT_DEFAULT" | "RATE_LIMIT_CREDENTIALS" | "RATE_LIMIT_MAIL"
+>;
+
+/**
+ * The path this Worker's login form is counted under.
+ *
+ * Its own bucket rather than `/sign-in/email`, because the two are not the same
+ * key space: Better Auth normalises the client IP before keying, this guard
+ * approximates that normalisation, and a near-miss would split one caller
+ * across two buckets in a way that reads as a bug. Separate names, separate
+ * counters, no pretence of sharing.
+ */
+const AUTHORIZE_SIGN_IN_PATH = "/authorize:sign-in";
+
+/**
+ * Rate limit the consent screen's password form.
+ *
+ * `/authorize` does not go through Better Auth's HTTP router — it calls
+ * `auth.api.signInEmail` directly — and the router's `onRequest` hook is where
+ * the limiter lives. Without this, closing audit #4 on `/api/auth/**` would
+ * leave an unlimited password-guessing oracle one path over, on a Worker that
+ * shares its users and its secret with apps/web.
+ *
+ * Returns the response to send, or null when the attempt may proceed.
+ */
+async function refuseIfRateLimited(c: Context<AuthEnv>): Promise<Response | null> {
+  // Through `parseEnv`, not off `c.env`: a misnamed binding must refuse the
+  // request rather than reach `.limit` on undefined and 500 further down.
+  const { credentials } = rateLimitersOf(envFor(c));
+  const { success } = await credentials.limit({
+    key: rateLimitKey(c.req.raw.headers, AUTHORIZE_SIGN_IN_PATH),
+  });
+  if (success) return null;
+
+  // Derived, not written out: `RATE_LIMIT_RULES` is the canonical policy, and a
+  // literal here would be a fourth copy of the window — one that keeps
+  // answering 60 after the binding moves to 10.
+  return c.text("Too many sign-in attempts. Please try again later.", 429, {
+    "Retry-After": String(RATE_LIMIT_RULES.credentials.window),
   });
 }
 
@@ -264,6 +330,11 @@ authApp.post("/authorize", async (c) => {
   }
 
   if (intent === "login") {
+    // Before the credentials are read, let alone verified — a limiter that runs
+    // after the password check still pays for every guess.
+    const refused = await refuseIfRateLimited(c);
+    if (refused) return refused;
+
     const email = String(form.get("email") ?? "");
     const password = String(form.get("password") ?? "");
 

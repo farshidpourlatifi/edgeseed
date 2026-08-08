@@ -41,7 +41,15 @@ for (const file of DOC_FILES) {
 // --- Check 2: .dev.vars.example vs the env schema ---
 
 // Bindings and wrangler.jsonc-managed vars — real, but never set via .dev.vars.
-const NON_DEV_VARS = new Set(["DB", "ENVIRONMENT"]);
+// The RATE_LIMIT_* entries are `[[ratelimits]]` bindings (audit #4); wrangler
+// provides them locally too, so there is nothing for a developer to fill in.
+const NON_DEV_VARS = new Set([
+  "DB",
+  "ENVIRONMENT",
+  "RATE_LIMIT_DEFAULT",
+  "RATE_LIMIT_CREDENTIALS",
+  "RATE_LIMIT_MAIL",
+]);
 
 const ENV_SCHEMA_FILE = "packages/config/src/env.ts";
 // The schemas diverge (mcp has no BETTER_AUTH_URL), so each example is

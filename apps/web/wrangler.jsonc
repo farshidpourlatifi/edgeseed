@@ -23,6 +23,34 @@
     { "pattern": "app.edgeseed.dev", "custom_domain": true },
     { "pattern": "edgeseed.dev", "custom_domain": true },
   ],
+  // Auth rate limiting (docs/security-audit.md #4). One binding per enforcement
+  // class, because a binding carries exactly one limit/period pair; which paths
+  // map to which class lives in `packages/auth/src/rate-limit.ts`, and the
+  // numbers below MUST match `RATE_LIMIT_RULES` there — the binding enforces,
+  // that table is what the app reports and what the tests assert.
+  //
+  // `period` may only be 10 or 60. `namespace_id` is a free-choice integer that
+  // names the counter, NOT a resource to create — there is nothing to
+  // provision, and no dashboard entry appears. Ids are account-scoped, so a
+  // second product deployed into this account must pick different ones or the
+  // two will share buckets.
+  //
+  // Deliberately the same ids in apps/mcp: both Workers mount Better Auth
+  // against the same users, so one bucket per IP+path across both origins is
+  // the intent, not an accident.
+  "ratelimits": [
+    {
+      "name": "RATE_LIMIT_DEFAULT",
+      "namespace_id": "1001",
+      "simple": { "limit": 120, "period": 60 },
+    },
+    {
+      "name": "RATE_LIMIT_CREDENTIALS",
+      "namespace_id": "1002",
+      "simple": { "limit": 10, "period": 60 },
+    },
+    { "name": "RATE_LIMIT_MAIL", "namespace_id": "1003", "simple": { "limit": 3, "period": 60 } },
+  ],
   "d1_databases": [
     {
       // The binding name is load-bearing: everything reads `c.env.DB`

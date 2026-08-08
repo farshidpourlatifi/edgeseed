@@ -28,6 +28,28 @@
       "id": "local",
     },
   ],
+  // Auth rate limiting (docs/security-audit.md #4). This Worker mounts its own
+  // Better Auth on `/api/auth/**`, so it carries the same brute-forceable
+  // surface as apps/web and cannot be the permissive side.
+  //
+  // Same `namespace_id`s as apps/web on purpose: ids are account-scoped, so one
+  // bucket per IP+path spans both origins and an attacker cannot dodge the
+  // limit by switching Workers. Keep the numbers in step with
+  // `RATE_LIMIT_RULES` in `packages/auth/src/rate-limit.ts` and with apps/web —
+  // three copies of the same policy, and the code table is canonical.
+  "ratelimits": [
+    {
+      "name": "RATE_LIMIT_DEFAULT",
+      "namespace_id": "1001",
+      "simple": { "limit": 120, "period": 60 },
+    },
+    {
+      "name": "RATE_LIMIT_CREDENTIALS",
+      "namespace_id": "1002",
+      "simple": { "limit": 10, "period": 60 },
+    },
+    { "name": "RATE_LIMIT_MAIL", "namespace_id": "1003", "simple": { "limit": 3, "period": 60 } },
+  ],
   "d1_databases": [
     {
       "binding": "DB",

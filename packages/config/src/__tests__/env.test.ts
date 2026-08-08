@@ -55,6 +55,40 @@ describe("env schemas", () => {
 });
 
 /**
+ * Audit #4. These are required rather than optional so a Worker deployed
+ * without them serves nothing, instead of serving an unthrottled auth surface —
+ * the same fail-closed reasoning as the secret in #3.
+ */
+describe("rate-limit bindings", () => {
+  const BINDINGS = ["RATE_LIMIT_DEFAULT", "RATE_LIMIT_CREDENTIALS", "RATE_LIMIT_MAIL"] as const;
+
+  it.each(BINDINGS)("rejects an env with no %s binding", (binding) => {
+    expect(() => parseEnv(webEnvSchema, createFakeEnv({ [binding]: undefined }))).toThrow(
+      new RegExp(binding),
+    );
+  });
+
+  it.each(BINDINGS)("requires %s on the mcp Worker too", (binding) => {
+    // Same Better Auth, same users, same secret — this Worker cannot be the
+    // side without a limiter.
+    expect(() => parseEnv(mcpEnvSchema, createFakeEnv({ [binding]: undefined }))).toThrow(
+      new RegExp(binding),
+    );
+  });
+
+  /**
+   * The realistic failure is a *misnamed* binding, not an absent one: wrangler
+   * deploys a Worker whose binding names do not match the code without
+   * complaint, and a presence-only check would accept whatever landed there.
+   */
+  it("rejects a binding that is present but is not a rate limiter", () => {
+    expect(() =>
+      parseEnv(webEnvSchema, createFakeEnv({ RATE_LIMIT_MAIL: { id: "some-kv-namespace" } })),
+    ).toThrow(/RATE_LIMIT_MAIL/);
+  });
+});
+
+/**
  * `.dev.vars` spells an unset optional key as `KEY=`, which arrives as `""`,
  * not as absent — and every optional key in `.dev.vars.example` ships that way.
  * Since the env is validated on every request, treating `""` as a value meant a

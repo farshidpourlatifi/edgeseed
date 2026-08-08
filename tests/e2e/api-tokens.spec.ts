@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { markEmailVerified, waitForHydration } from "./helpers";
+import { clientIp, markEmailVerified, waitForHydration } from "./helpers";
 
 /**
  * The only cookie-authenticated write in the app, driven through a real browser.
@@ -19,6 +19,13 @@ const USER = {
   email: `e2e-tokens-${Date.now()}@example.com`,
   password: "testpassword123",
 };
+
+/**
+ * Its own client address, so this file's sign-up and sign-in draw on their own
+ * rate-limit budget rather than sharing one with every other spec (`clientIp`
+ * in `helpers.ts` explains why the header is needed at all).
+ */
+test.use({ extraHTTPHeaders: { "cf-connecting-ip": clientIp() } });
 
 test.describe("api tokens", () => {
   test.describe.configure({ mode: "serial" });

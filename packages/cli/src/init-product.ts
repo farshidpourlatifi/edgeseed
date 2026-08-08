@@ -100,4 +100,10 @@ Done. Next steps:
      theme preset, then replace the URLs in docs/design-workflow.md.
   7. Starter updates: git fetch upstream && git merge upstream/main
      (docs/starter-as-upstream.md)
+
+Only if you deploy this alongside another product in the SAME Cloudflare
+account: change the namespace_id values under "ratelimits" in both wrangler
+files. They are account-scoped names for the auth rate-limit counters, so two
+products left on the starter's ids would share buckets and throttle each other.
+Nothing to provision — any integer you have not used will do.
 `);

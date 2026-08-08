@@ -34,9 +34,35 @@ function optionalBinding<T extends z.ZodTypeAny>(schema: T) {
   return z.preprocess((value) => (value === "" ? undefined : value), schema.optional());
 }
 
+/**
+ * A Workers rate-limiting binding (`[[ratelimits]]` in wrangler.jsonc).
+ *
+ * Checks for the `limit` method rather than mere presence, because the failure
+ * this guards against is a *misnamed* binding, not an absent one: wrangler
+ * happily deploys a Worker whose binding names do not match the code, and the
+ * limiter would then be silently off — which is the whole of audit #4.
+ *
+ * Required, not optional. An unset limiter refuses every request through
+ * `parseEnv` instead of serving an unthrottled auth surface (`fail closed`).
+ */
+function rateLimitBinding(name: string) {
+  return z.custom<RateLimit>(
+    (v) => typeof (v as RateLimit | undefined)?.limit === "function",
+    `${name} rate-limiting binding required — see [[ratelimits]] in wrangler.jsonc`,
+  );
+}
+
 /** Shared bindings available to all apps */
 const sharedEnvSchema = z.object({
   DB: z.custom<D1Database>((v) => v != null, "D1 binding required"),
+
+  // --- Rate limiting (audit #4) — one binding per enforcement class, because a
+  // binding carries exactly one limit/period pair. The classes and the paths
+  // that map to them live in `packages/auth/src/rate-limit.ts`; the numbers in
+  // wrangler.jsonc must match the table there.
+  RATE_LIMIT_DEFAULT: rateLimitBinding("RATE_LIMIT_DEFAULT"),
+  RATE_LIMIT_CREDENTIALS: rateLimitBinding("RATE_LIMIT_CREDENTIALS"),
+  RATE_LIMIT_MAIL: rateLimitBinding("RATE_LIMIT_MAIL"),
   BETTER_AUTH_SECRET: z
     .string()
     .min(32)

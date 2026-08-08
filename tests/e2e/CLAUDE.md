@@ -31,6 +31,21 @@ or testid.
 - Tests use a per-run throwaway user (`helpers.ts`); never point this suite at
   a deployed environment.
 
+## Any spec that signs in or registers needs its own client address
+
+Auth rate limiting keys on `cf-connecting-ip` (`docs/security-audit.md` #4,
+#11), and nothing sets that header locally — the dev server runs under Vite, not
+behind Cloudflare. Without one, every spec shares a single bucket and they
+throttle each other; `/sign-up/email` allows three per minute, and two specs
+register.
+
+Put `test.use({ extraHTTPHeaders: { "cf-connecting-ip": clientIp() } })` at the
+top of the file. `clientIp()` is unique per call **on purpose**: buckets live in
+the dev server's memory, `db:reset` does not clear them, and
+`reuseExistingServer` keeps that server across local re-runs — a fixed address
+would make the second run of the day fail for reasons that look nothing like the
+cause.
+
 ## Testing a loader guard
 
 **Use `?_routes=` to reach a child loader on its own.** Single fetch resolves

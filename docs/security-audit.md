@@ -17,7 +17,7 @@ them.
 | 1   | Critical | `better-auth@1.5.6` account-takeover advisories                       | Resolved       |
 | 2   | High     | Account pre-hijacking via unverified signup + implicit OAuth linking  | Resolved       |
 | 3   | High     | `BETTER_AUTH_SECRET` unvalidated; silent fallback to a public default | Resolved       |
-| 4   | High     | No rate limiting on any auth endpoint                                 | Live           |
+| 4   | High     | No rate limiting on any auth endpoint                                 | Resolved       |
 | 5   | High     | No security response headers anywhere                                 | Resolved       |
 | 6   | High     | Vulnerable `hono`, `drizzle-orm`, `react-router` versions             | Resolved       |
 | 7   | High     | Global `~/.npmrc` uses plaintext HTTP registry with TLS off           | Live (machine) |
@@ -274,6 +274,16 @@ Three independent reasons this leaves sign-in and sign-up freely brute-forceable
 `storage: "database"` would also fail — there is no `rateLimit` table in the
 Drizzle schema.
 
+**Correction 2026-08-09 — reason 3 above is wrong for the version now pinned.**
+It was written against `better-auth@1.5.6`. In the pinned `1.6.26` the memory
+store is a module-level `Map` (`api/rate-limiter/index.mjs:6`) that
+`getRateLimitStorage` closes over, so rebuilding `createAuth()` per request does
+**not** discard counters. Reason 2 is the whole of it: the counts are
+per-isolate and ephemeral, never aggregating across the isolates serving one
+caller and gone whenever one is evicted. Reasons 1 and 2 stand, so the finding
+and its severity are unchanged — but do not repeat reason 3, which was carried
+into the fix's own comments before this was caught in review.
+
 **Fix:** add a KV binding as `secondaryStorage` and set
 `rateLimit: { enabled: true, storage: "secondary-storage" }` with stricter
 `customRules` on `/sign-in/email` and `/sign-up/email`; or add a Cloudflare Rate
@@ -291,6 +301,63 @@ above still hold, so none of them run. The cost of leaving this open is no
 longer just brute-forceable sign-in: an unauthenticated caller can drive
 outbound mail, burning the Resend quota and delivering it to an address they do
 not own. Rate-limit the mail endpoints in the same change.
+
+**RESOLVED 2026-08-08.** Landed as `packages/auth/src/rate-limit.ts`, wired into
+`createAuth` as `rateLimit.customStorage` with `enabled: true` pinned to a
+literal. Three enforcement classes, one Workers `[[ratelimits]]` binding each,
+declared in both wrangler files and required by `sharedEnvSchema` — so a Worker
+missing one refuses every request rather than serving an unthrottled auth
+surface. Per IP and path, per 60 seconds: **mail 3** (`/sign-up/email`,
+`/send-verification-email`, `/request-password-reset`, `/forget-password`,
+`/change-email`), **credentials 10** (`/sign-in/**`, `/reset-password`,
+`/change-password`), and
+**default 120** for everything else under `/api/auth`, so an endpoint a future
+Better Auth version adds arrives limited rather than unlimited.
+
+**Not KV, and not `secondaryStorage`** — both halves of the prescribed fix above
+turned out to be wrong, which is why this took a different shape:
+
+- Setting `secondaryStorage` **moves sessions out of D1**
+  (`internal-adapter.mjs`: `databaseStoresSessions = !secondaryStorage || …`),
+  so sign-out and revocation would have inherited KV's eventual consistency. A
+  rate-limiting change must not relocate session storage.
+  `rateLimit.customStorage` is consulted before `storage`, so the limiter can be
+  backed independently and sessions stay put.
+- KV allows **one write per second per key** (429 beyond that) and caches
+  negative lookups. A counter is a hot key by definition, so a
+  read-modify-write limiter on KV advances about one increment per second under
+  attack — it converges to roughly a 6× reduction, not a limit. Cloudflare's own
+  KV docs exclude workloads where values "must be read and written in a single
+  transaction."
+
+The `[[ratelimits]]` binding is atomic, costs no storage operations, and has no
+hot-key ceiling. Its constraints are that a period must be 10 or 60 seconds —
+hence every window here is 60 — and that counters are per Cloudflare location,
+which for an IP-keyed limit is wherever that address's traffic already lands.
+
+**Two things this does not do**, both deliberate:
+
+1. It bounds one address, so it is not a defence against a distributed botnet. A
+   Cloudflare WAF rate-limiting rule on `/api/auth/*` remains the complementary
+   volumetric control, and is the thing to add first if abuse ever outgrows this.
+2. `namespace_id`s are account-scoped and both Workers deliberately share them,
+   so one bucket per IP+path spans web and MCP. A **second product** deployed
+   into the same Cloudflare account must pick different ids or the two will
+   share counters.
+
+Covered by unit tests at the vector — requests driven through Better Auth's real
+handler until a 429 comes back, since every part of this finding was a config
+that looked present and did nothing — plus `tests/e2e/rate-limit.spec.ts`, which
+is what proves the bindings are actually declared and reach `createAuth`.
+
+**A bypass the finding did not name, closed in the same change.** The MCP
+Worker's `/authorize` consent screen signs users in through
+`auth.api.signInEmail`, and Better Auth applies its limiter in the HTTP router's
+`onRequest` hook — which `auth.api.*` never passes through. Limiting
+`/api/auth/**` alone would have left an unlimited password-guessing oracle one
+path over, on a Worker that shares its users and its secret with apps/web.
+`auth-app.ts` now calls the credentials limiter itself before reading the
+submitted credentials.
 
 ### 5. No security response headers anywhere in the stack
 
@@ -575,8 +642,10 @@ which is a state an attacker can arrange. Asserted in
 `packages/auth/src/__tests__/auth-config.test.ts`, including that
 `x-forwarded-for` never reappears in it.
 
-Landed ahead of the limiter it protects (#4, still open) because it also fixes
-`session.ipAddress` audit data, which is recorded today.
+Landed ahead of the limiter it protects (#4, resolved 2026-08-08) because it
+also fixes `session.ipAddress` audit data, which is recorded today. The limiter
+now keys on that value, so `tests/e2e/rate-limit.spec.ts` asserts the pairing
+directly: a caller rotating a spoofed `X-Forwarded-For` stays throttled.
 
 ### 12. OAuth and verification tokens are stored in plaintext with no purge
 
@@ -782,12 +851,17 @@ routes that do not exist yet.
   `.dev.vars.example` templates now exist in both apps.
 - **Password policy is the framework default.** No `minPasswordLength` is set, so
   the default 8 applies; `register.tsx:149` adds only a browser-side
-  `minLength={8}`. Weak in combination with the absent rate limiting.
+  `minLength={8}`. Weak in combination with the absent rate limiting. **Partly
+  mitigated 2026-08-08** by #4: sign-in is now 10 attempts per minute per
+  address, so an 8-character password is no longer freely guessable. The policy
+  itself is still the default.
 - **Open registration and open organization creation.** No `disableSignUp` and
   `allowUserToCreateOrganization: true` (`server.ts:45-50`), which with no rate
   limiting permits unbounded automated account and tenant creation — D1 row
   growth and cost amplification. Reasonable as a starter default, but should be a
-  documented, conscious switch.
+  documented, conscious switch. **Partly mitigated 2026-08-08** — `/sign-up/email`
+  is capped at 3 per minute per address by #4. Organization creation is not: it
+  is behind a session, so it falls in the `default` class at 120 per minute.
 - **Session lifetime is untuned.** No `session` option, so: 7-day expiry, 1-day
   rolling refresh (an active session renews indefinitely), no cookie cache — so
   every dashboard request hits D1 — and no absolute cap or
