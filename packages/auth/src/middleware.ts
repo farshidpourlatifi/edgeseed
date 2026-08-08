@@ -7,6 +7,10 @@ import { createAuth, type Auth } from "./server";
 export interface AuthEnv {
   Bindings: {
     DB: D1Database;
+    /** One `[[ratelimits]]` binding per enforcement class — see `rate-limit.ts`. */
+    RATE_LIMIT_DEFAULT: RateLimit;
+    RATE_LIMIT_CREDENTIALS: RateLimit;
+    RATE_LIMIT_MAIL: RateLimit;
     BETTER_AUTH_SECRET: string;
     BETTER_AUTH_URL: string;
     ENVIRONMENT: string;
@@ -63,6 +67,11 @@ export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
       environment: env.ENVIRONMENT,
       logger: c.get("logger"),
     }),
+    rateLimiters: {
+      default: env.RATE_LIMIT_DEFAULT,
+      credentials: env.RATE_LIMIT_CREDENTIALS,
+      mail: env.RATE_LIMIT_MAIL,
+    },
     githubClientId: env.GITHUB_CLIENT_ID,
     githubClientSecret: env.GITHUB_CLIENT_SECRET,
     googleClientId: env.GOOGLE_CLIENT_ID,

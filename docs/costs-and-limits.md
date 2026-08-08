@@ -306,9 +306,13 @@ Source: [Wrangler runtime limits](https://developers.cloudflare.com/workers/wran
 
 ### 5. Stop abuse before expensive application work
 
-- Protect `/api/auth/*` and `/mcp` with appropriate rate limits. Cloudflare's Free zone plan
-  includes one IP-based rate-limiting rule with restricted fields and 10-second windows; tune it
-  from observed legitimate traffic.
+- `/api/auth/*` is already rate limited in the application, through Workers `[[ratelimits]]`
+  bindings (`packages/auth/src/rate-limit.ts`, `docs/security-audit.md` #4). Those bindings cost
+  nothing and consume no storage operations, but they bound one address at a time and are counted
+  per Cloudflare location. For volumetric abuse, add a WAF rule as well: Cloudflare's Free zone
+  plan includes one IP-based rate-limiting rule with restricted fields and 10-second windows; tune
+  it from observed legitimate traffic. `/mcp` has no application-level limit — its bearer-token
+  gate is the control there.
 - Add free Cloudflare Turnstile verification to registration and other account-creation endpoints.
 - Require MCP OAuth, Cloudflare Access, or an application token before exposing tools.
 - Put per-user/per-organization quotas on write-heavy product actions.

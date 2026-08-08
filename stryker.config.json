@@ -7,6 +7,7 @@
     "packages/db/src/**/*.ts",
     "packages/config/src/**/*.ts",
     "packages/auth/src/helpers/**/*.ts",
+    "packages/auth/src/rate-limit.ts",
     "packages/email/src/**/*.ts",
     "packages/observability/src/**/*.ts",
     "packages/ui/src/lib/**/*.ts",

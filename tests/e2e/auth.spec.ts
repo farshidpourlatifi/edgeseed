@@ -1,11 +1,19 @@
 import { test, expect } from "@playwright/test";
-import { markEmailVerified, waitForHydration } from "./helpers";
+import { clientIp, markEmailVerified, waitForHydration } from "./helpers";
 
 const TEST_USER = {
   name: "E2E Test User",
   email: `e2e-${Date.now()}@example.com`,
   password: "testpassword123",
 };
+
+/**
+ * Its own client address. This file signs in four times and registers once, and
+ * auth rate limiting keys on `cf-connecting-ip` — without a header of its own
+ * every spec would draw on one shared budget and a retry could tip the suite
+ * into 429s that look like auth regressions. See `clientIp` in `helpers.ts`.
+ */
+test.use({ extraHTTPHeaders: { "cf-connecting-ip": clientIp() } });
 
 async function fillSignIn(page: import("@playwright/test").Page, password: string) {
   await page.goto("/login");

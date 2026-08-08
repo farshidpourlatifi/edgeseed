@@ -57,6 +57,28 @@ describe("schemaBlockKeys", () => {
   it("should return nothing for an unknown block name", () => {
     expect(schemaBlockKeys(ENV_SOURCE, "missingSchema")).toEqual([]);
   });
+
+  /**
+   * The block used to end at the first `;` anywhere, so one inside a comment
+   * cut it short — and every key below reported as "absent from env.ts" while
+   * sitting there in plain sight. Keys are indented; the statement's closing
+   * `});` is not, which is the distinction the scan relies on.
+   */
+  it("should not end the block at a semicolon inside a comment", () => {
+    const withComment = [
+      "const sharedEnvSchema = z.object({",
+      "  DB: z.custom<D1Database>((v) => v != null, `D1 binding required`),",
+      "  // see rate-limit.ts; the numbers there are canonical",
+      "  RATE_LIMIT_MAIL: rateLimitBinding(),",
+      "});",
+    ].join("\n");
+
+    expect(schemaBlockKeys(withComment, "sharedEnvSchema")).toEqual(["DB", "RATE_LIMIT_MAIL"]);
+  });
+
+  it("should stop at the end of the block, not run into the next declaration", () => {
+    expect(schemaBlockKeys(ENV_SOURCE, "sharedEnvSchema")).not.toContain("BETTER_AUTH_URL");
+  });
 });
 
 describe("exampleKeys", () => {

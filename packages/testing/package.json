@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     "./factory": "./factory.ts",
-    "./fake-env": "./fake-env.ts"
+    "./fake-env": "./fake-env.ts",
+    "./fake-rate-limit": "./fake-rate-limit.ts"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4"

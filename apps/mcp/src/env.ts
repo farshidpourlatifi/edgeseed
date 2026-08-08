@@ -6,6 +6,10 @@ export interface Env extends SentryEnv {
   DB: D1Database;
   /** Grant + token storage for the OAuth provider. */
   OAUTH_KV: KVNamespace;
+  /** One `[[ratelimits]]` binding per class — `packages/auth/src/rate-limit.ts`. */
+  RATE_LIMIT_DEFAULT: RateLimit;
+  RATE_LIMIT_CREDENTIALS: RateLimit;
+  RATE_LIMIT_MAIL: RateLimit;
   /**
    * Not a wrangler binding — `OAuthProvider` injects this into `env` at runtime
    * before invoking any handler.

@@ -23,15 +23,23 @@ export function undocumentedScripts(scripts: string[], docContent: string): stri
 
 /**
  * Keys of one named schema declaration in env.ts source — from
- * `const <blockName>` to the `;` closing the statement, matching the
+ * `const <blockName>` to the line closing the statement, matching the
  * 2-space-indented object keys. Compose shared + app blocks for a Worker's
  * full key set; the schemas diverge (mcp has no BETTER_AUTH_URL).
+ *
+ * The block ends at a `;` in **column zero** — the `});` that closes the
+ * declaration — rather than the first `;` anywhere. Scanning for the first one
+ * truncated the block at a semicolon inside a comment, and the report that
+ * followed said every key below it was "absent from env.ts" while they sat
+ * there in plain sight. The keys themselves are indented by two spaces, so no
+ * key can hide behind this.
  */
 export function schemaBlockKeys(envSource: string, blockName: string): string[] {
   const start = envSource.indexOf(`const ${blockName}`);
   if (start === -1) return [];
-  const end = envSource.indexOf(";", start);
-  const block = envSource.slice(start, end === -1 ? envSource.length : end);
+  const rest = envSource.slice(start);
+  const end = /^\S.*;\s*$/m.exec(rest);
+  const block = end ? rest.slice(0, end.index + end[0].length) : rest;
   return [...block.matchAll(/^ {2}([A-Z][A-Z0-9_]*):/gm)].map((m) => m[1]);
 }
 

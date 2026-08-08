@@ -187,15 +187,32 @@ dependency is why this is Phase 2 and not Phase 1.
 4. Assert a **new** account is created, or linking is refused — not that the
    identity merges into the attacker's row.
 
-### 2.3 Add real rate limiting — **A4 OPEN**, A11 ✅ done 2026-08-08
+### 2.3 Add real rate limiting — **A4, A11** ✅ done 2026-08-08
 
-> **A4 is not done. There is no rate limiting on this app.** Only step 2 below
-> landed — `ipAddressHeaders: ["cf-connecting-ip"]`, pulled forward with the
-> 2026-08-08 batch because it also fixes `session.ipAddress`. Step 1, the KV
-> secondary storage and the rules, is still open, and must cover the mail
-> endpoints (`/send-verification-email`, `/request-password-reset`), not just
-> sign-in. Until it lands, brute-forced sign-in and unauthenticated outbound
-> mail are both live — `security-audit.md` #4 remains High.
+> **Landed, and step 1 below is wrong in both of its halves — read this before
+> trusting it.** The diagnosis holds (the limiter was off, and its storage
+> could not have worked); the prescription does not.
+>
+> - **Not `secondaryStorage`.** Setting it moves sessions out of D1
+>   (`databaseStoresSessions = !secondaryStorage || …`), so a rate-limiting
+>   change would have relocated session storage onto an eventually-consistent
+>   store. `rateLimit.customStorage` is consulted first, so the limiter can be
+>   backed on its own and sessions stay in the database.
+> - **Not KV.** KV allows one write per second per key and caches negative
+>   lookups; a counter is a hot key by definition, so a read-modify-write
+>   limiter on it converges to about a 6× reduction rather than a limit.
+>
+> What shipped is the Workers `[[ratelimits]]` binding — atomic, no storage
+> operations, no hot-key ceiling — as `customStorage`, in three classes: mail 3
+> per 60s, credentials 10 per 60s, default 120 per 60s, all keyed per IP and
+> path. The windows are 60 because a binding's period may only be 10 or 60.
+>
+> Two things the plan did not anticipate. The bindings are **required** in
+> `sharedEnvSchema`, so a Worker missing one refuses every request instead of
+> serving an unthrottled auth surface. And Better Auth's limiter lives in its
+> HTTP router's `onRequest` hook, so anything calling `auth.api.*` directly
+> bypasses it — the MCP `/authorize` login form did, and now calls the limiter
+> itself. See `security-audit.md` #4.
 
 Two halves, and both are required — an IP-keyed limiter is worthless while the IP
 is spoofable:
@@ -214,6 +231,15 @@ is spoofable:
 before the 20th. Then repeat it while sending a rotating spoofed
 `X-Forwarded-For` header and assert the 429 still arrives — that second
 assertion is the one that catches a regression on the header config.
+
+> Both shipped in `tests/e2e/rate-limit.spec.ts`, alongside the same assertions
+> at the unit level, driven through Better Auth's real handler
+> (`packages/auth/src/__tests__/rate-limit.test.ts`). The e2e is what proves the
+> bindings are declared and reach `createAuth`; the unit tests are what make the
+> policy cheap to assert. One thing the plan missed: the e2e specs each need
+> their **own** `cf-connecting-ip`, because nothing sets that header locally and
+> a shared bucket would make the suite throttle itself (`clientIp` in
+> `tests/e2e/helpers.ts`).
 
 ### 2.4 Add security headers — **A5, A14** ✅ done 2026-08-08
 

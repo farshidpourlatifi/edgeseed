@@ -207,15 +207,23 @@ and this list, or the stale copy will be trusted.
    `.min(32)` alone accepted it. **Operational trap:** failing closed means
    deploying to a Worker whose secret was never set takes it down. Run
    `wrangler secret list` before the first deploy carrying it.
-3. **No rate limiting on auth endpoints — and the defaults cannot work here.**
-   better-auth's limiter keys on `NODE_ENV` (off), its memory store dies every
-   request because `createAuth()` is per-request, and no `rateLimit` table
-   exists. Since verification shipped this also leaves `/send-verification-email`
-   and `/request-password-reset` as unauthenticated ways to send mail, so the
-   exposure includes the Resend quota and other people's inboxes, not just
-   brute-forced sign-in. The IP half is done — `ipAddressHeaders` is pinned to
-   `cf-connecting-ip`, and that list stays one entry long, since a fallback
-   restores the spoofable path. (`security-audit.md` #4; #11 resolved)
+3. **Rate limiting ships — it is a binding, not a store, and it is required.**
+   `packages/auth/src/rate-limit.ts` wires three Workers `[[ratelimits]]`
+   bindings into `createAuth` as `rateLimit.customStorage`, keyed per IP+path
+   per 60s: mail 3, credentials 10, default 120 (`security-audit.md` #4,
+   resolved 2026-08-08). Five traps: `enabled: true` is pinned to a **literal**
+   — better-auth's default keys on `NODE_ENV`, which Workers never set, and that
+   is the entire original defect; the bindings are **required** in
+   `sharedEnvSchema`, so a Worker missing one refuses every request instead of
+   quietly running unthrottled; do **not** reach for KV or `secondaryStorage`
+   (KV is one write/sec/key, and `secondaryStorage` moves sessions out of D1);
+   the limiter lives in better-auth's HTTP router hook, so anything calling
+   `auth.api.*` directly **bypasses it** and must limit itself, as MCP's
+   `/authorize` login does; and `ipAddressHeaders` stays one entry long
+   (`cf-connecting-ip`) since a fallback restores the spoofable path it keys on
+   (#11). It bounds one address — a Cloudflare WAF rule is still the answer for
+   volumetric abuse. E2E specs need their own `cf-connecting-ip` (`clientIp` in
+   `tests/e2e/helpers.ts`) or they throttle each other.
 4. **Security headers ship — the CSP has four traps.** `security-headers.ts` is
    mounted above the origin redirect and carries CSP, HSTS, `X-Frame-Options`,
    `nosniff`, `Referrer-Policy`, and `no-store` for cookie-bearing requests
@@ -257,8 +265,11 @@ and this list, or the stale copy will be trusted.
    namespace (the committed `"local"` id is a placeholder with nowhere to
    store grants), and prefer the stateless handler unless session state is
    truly needed — the Durable Object shape bills duration. Leave MCP
-   undeployed until a product needs it. (`costs-and-limits.md`,
-   `starter-as-upstream.md`)
+   undeployed until a product needs it. The rate-limit `namespace_id`s are the
+   one identity a clone can safely keep: they need no provisioning, and both
+   Workers share them on purpose. Change them only when a **second product**
+   lands in the same Cloudflare account, since the ids are account-scoped.
+   (`costs-and-limits.md`, `starter-as-upstream.md`)
 10. **Downstream, `@starter/*` is read-only and applied migrations are
     immutable.** Product code lives in the product's own scope; starter fixes
     are made upstream and arrive via `git merge upstream/main` — never rebase
@@ -396,12 +407,41 @@ this reason.
 `unsafe-inline` because Tailwind injects a runtime `<style>` and Radix writes
 inline style attributes; neither executes script.
 
+### Rate limiting
+
+Three `[[ratelimits]]` bindings, one per enforcement class, adapted to Better
+Auth's storage contract in `packages/auth/src/rate-limit.ts`. The policy table
+there is canonical; the numbers in both `wrangler.jsonc` files must match it,
+since the binding is what enforces and the table is what the app reports.
+
+- **A path's class is a decision, not a default.** `CLASSIFIERS` names what
+  leaves the loose `default` bucket. Anything an **unauthenticated** caller can
+  use to make the app send mail belongs in `mail` — that is why
+  `/sign-up/email` sits there rather than with the credential endpoints.
+- **Never make `enabled` conditional.** It is a literal `true`. Better Auth's
+  own default is `isProduction`, which reads `NODE_ENV` — unset on Workers — and
+  that alone is why the limiter did nothing for the life of the repo.
+- **A new Worker adds the bindings or it does not boot.** They are required in
+  `sharedEnvSchema`, and the check is for the `limit` method rather than mere
+  presence, because the realistic failure is a _misnamed_ binding: wrangler
+  deploys that without complaint.
+- **`auth.api.*` bypasses the limiter.** Better Auth applies it in the HTTP
+  router's `onRequest` hook, so any endpoint that authenticates by calling
+  `auth.api.signInEmail` and friends must call a limiter itself —
+  `rateLimitKey(headers, path)` builds a matching key. MCP's `/authorize` login
+  form is the one such endpoint today; a second one is a new hole.
+- **Do not migrate this to KV.** It was evaluated and rejected: one write per
+  second per key, cached negative lookups, and `secondaryStorage` relocates
+  session storage out of D1 as a side effect.
+
 ### Identity and IP
 
 `ipAddressHeaders` is `["cf-connecting-ip"]` and stays exactly one entry long.
 Cloudflare _appends_ to any client-supplied `X-Forwarded-For`, so the default
 first-entry read is attacker-controlled, and a fallback entry would restore that
 path whenever the trusted header is absent — a state an attacker can arrange.
+The rate limiter keys on that value, so widening the list does not merely dirty
+audit data — it hands an attacker a fresh bucket per request.
 
 MCP tools read identity from `ctx.user` (the OAuth grant), never from tool
 arguments.
@@ -413,6 +453,8 @@ arguments.
 - New middleware that touches a response — does it survive an immutable one?
 - New binding — is it in `webEnvSchema`/`mcpEnvSchema`?
 - New guard — is there a test for the **deny** path?
+- New auth endpoint — is it in the right rate-limit class, and if it reaches
+  Better Auth through `auth.api.*` rather than HTTP, does it limit itself?
 - New inline script — nonce or hash, and which, and is it tested?
 - Invalidated a claim in a doc — did you grep for its other homes? The audit,
   `security-plan.md`, this file and the per-package `CLAUDE.md` files all repeat

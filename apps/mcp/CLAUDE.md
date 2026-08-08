@@ -39,6 +39,12 @@ unauthenticated `/mcp` → 401 + `WWW-Authenticate`; discovery → dynamic regis
 - **Locally, `pnpm dev` uses `--persist-to ../web/.wrangler/state`** so both Workers
   share one local D1. Without it the MCP Worker sees an empty database, because
   `db:migrate` only applies migrations inside `apps/web`.
+- **`/authorize`'s login form rate limits itself, and must keep doing so.** It
+  signs users in through `auth.api.signInEmail`, and Better Auth applies its
+  limiter in the HTTP router's `onRequest` hook — which `auth.api.*` never
+  reaches. Limiting `/api/auth/**` alone would leave an unlimited
+  password-guessing oracle one path over, against the same users and the same
+  secret as apps/web (`docs/security-audit.md` #4).
 - **Identity comes from `ctx.user`, never from tool arguments.** `OAuthProvider`
   passes the grant's props to the Agent; a tool that trusts its own input is a bug.
 - Scope every query by `ctx.user.userId`.

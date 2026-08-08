@@ -4,6 +4,12 @@ import { organization } from "better-auth/plugins";
 import { PRODUCT_NAME } from "@starter/config/product";
 import type { Database } from "@starter/db";
 import { passwordResetEmail, verificationEmail, type EmailSender } from "@starter/email";
+import {
+  AUTH_RATE_LIMIT_CUSTOM_RULES,
+  createRateLimitStorage,
+  RATE_LIMIT_RULES,
+  type RateLimiters,
+} from "./rate-limit";
 
 export interface CreateAuthOptions {
   db: Database;
@@ -15,6 +21,12 @@ export interface CreateAuthOptions {
    * silent default would make a misconfigured deployment look healthy.
    */
   email: EmailSender;
+  /**
+   * Workers rate-limit bindings, one per enforcement class. Required for the
+   * same reason `email` is: an optional limiter is a limiter that a new Worker
+   * silently ships without, which is how audit #4 existed at all.
+   */
+  rateLimiters: RateLimiters;
   githubClientId?: string;
   githubClientSecret?: string;
   googleClientId?: string;
@@ -78,6 +90,24 @@ export function createAuth(opts: CreateAuthOptions) {
         /** Linking is same-address only; a different address is a new account. */
         allowDifferentEmails: false,
       },
+    },
+    /**
+     * Audit #4. `enabled` is pinned rather than derived: Better Auth's default
+     * is `isProduction`, which reads `NODE_ENV` — never set on Workers — so the
+     * limiter was off everywhere. Never make this conditional again.
+     *
+     * `storage` is deliberately absent: `customStorage` is consulted first and
+     * wins outright, so naming a storage here would only mislead. The window and
+     * max below are the `default` class, applied to any `/api/auth` path the
+     * rules do not name. See `rate-limit.ts` for why a Workers binding backs
+     * this rather than the KV secondary storage the plan proposed.
+     */
+    rateLimit: {
+      enabled: true,
+      window: RATE_LIMIT_RULES.default.window,
+      max: RATE_LIMIT_RULES.default.max,
+      customStorage: createRateLimitStorage(opts.rateLimiters),
+      customRules: AUTH_RATE_LIMIT_CUSTOM_RULES,
     },
     advanced: {
       ipAddress: {
