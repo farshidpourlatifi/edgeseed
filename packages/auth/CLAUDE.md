@@ -12,7 +12,7 @@ from here instead of configuring Better Auth themselves.
 - `src/middleware.ts` — `authMiddleware` creates `db` + `auth` per request and stores them on the Hono context (`c.get("db")` / `c.get("auth")`)
 - `src/client.ts` — Better Auth browser client (used by `apps/web/app/lib/auth-client.ts`)
 - `src/helpers/roles.ts` — `ROLES` + `hasRole()` hierarchy (owner > admin > member)
-- `src/helpers/session.ts` — `getSession()` / `requireSession()` (throws 401 `Response`)
+- `src/helpers/session.ts` — `getSession()` / `requireSession()` (throws `HTTPException(401)`)
 - `src/helpers/api-token.ts` — pure crypto: mint, hash, parse `Authorization`, usability check
 - `src/helpers/api-token-store.ts` — `listApiTokens` / `createApiToken` / `revokeApiToken`; keeps drizzle out of `apps/web`
 - `src/helpers/principal.ts` — `principalMiddleware` + `requirePrincipal` / `requireInteractivePrincipal` / `requireOrganization`

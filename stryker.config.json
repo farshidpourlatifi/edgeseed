@@ -13,6 +13,8 @@
     "packages/ui/src/components/ui/terminal-timeline.ts",
     "apps/web/server/api.ts",
     "apps/web/server/origins.ts",
+    "apps/web/server/security-headers.ts",
+    "apps/web/app/lib/require-user.ts",
     "apps/mcp/src/tools/**/*.ts",
     "packages/cli/src/lib/**/*.ts",
     "!**/__tests__/**"

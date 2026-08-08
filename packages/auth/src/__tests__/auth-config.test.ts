@@ -109,3 +109,18 @@ describe("createAuth — account linking (audit #2)", () => {
     expect(linking()?.allowDifferentEmails).toBe(false);
   });
 });
+
+describe("createAuth — client IP resolution (audit #11)", () => {
+  const ipConfig = () => build().options.advanced?.ipAddress;
+
+  it("should read the client IP from cf-connecting-ip", () => {
+    expect(ipConfig()?.ipAddressHeaders).toEqual(["cf-connecting-ip"]);
+  });
+
+  // A fallback entry would reinstate the spoofable path whenever the trusted
+  // header is absent, which is exactly the state an attacker can arrange.
+  it("should trust exactly one header, with no spoofable fallback", () => {
+    expect(ipConfig()?.ipAddressHeaders).toHaveLength(1);
+    expect(ipConfig()?.ipAddressHeaders).not.toContain("x-forwarded-for");
+  });
+});

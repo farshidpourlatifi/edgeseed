@@ -22,6 +22,37 @@ describe("env schemas", () => {
     expect(() => parseEnv(webEnvSchema, createFakeEnv({ BETTER_AUTH_SECRET: "short" }))).toThrow();
   });
 
+  it("rejects a missing BETTER_AUTH_SECRET", () => {
+    expect(() =>
+      parseEnv(webEnvSchema, createFakeEnv({ BETTER_AUTH_SECRET: undefined })),
+    ).toThrow();
+  });
+
+  // The value that ships when nobody ran `wrangler secret put`. It is 38 chars,
+  // so length alone accepts it — this case is the whole point of the refine.
+  it("rejects Better Auth's built-in default secret", () => {
+    expect(() =>
+      parseEnv(
+        webEnvSchema,
+        createFakeEnv({ BETTER_AUTH_SECRET: "better-auth-secret-12345678901234567890" }),
+      ),
+    ).toThrow(/built-in default/);
+  });
+
+  it("rejects Better Auth's default secret for the mcp schema too", () => {
+    expect(() =>
+      parseEnv(
+        mcpEnvSchema,
+        createFakeEnv({ BETTER_AUTH_SECRET: "better-auth-secret-12345678901234567890" }),
+      ),
+    ).toThrow(/built-in default/);
+  });
+
+  it("accepts a real secret of exactly 32 chars", () => {
+    const env = parseEnv(webEnvSchema, createFakeEnv({ BETTER_AUTH_SECRET: "a".repeat(32) }));
+    expect(env.BETTER_AUTH_SECRET).toBe("a".repeat(32));
+  });
+
   it("rejects a non-URL BETTER_AUTH_URL", () => {
     expect(() => parseEnv(webEnvSchema, createFakeEnv({ BETTER_AUTH_URL: "not-a-url" }))).toThrow();
   });

@@ -1,9 +1,30 @@
 import { z } from "zod";
 
+/**
+ * Better Auth's built-in fallback secret, verified against the installed
+ * `better-auth@1.6.26` (`dist/utils/constants.mjs`).
+ *
+ * Rejected explicitly because length alone does not catch it: the constant is 38
+ * characters, so `.min(32)` accepts it. Better Auth's own guard against it is
+ * gated on `NODE_ENV === "production"`, which Workers never set — so without
+ * this check it reaches production after nothing louder than a console warning.
+ *
+ * It signs session cookies *and* email-verification JWTs, which is why this is
+ * load-bearing rather than hygiene: anyone reading Better Auth's public source
+ * could forge a session or mint a verification token for an address they do not
+ * own. See `docs/security-audit.md` #3.
+ */
+const BETTER_AUTH_DEFAULT_SECRET = "better-auth-secret-12345678901234567890";
+
 /** Shared bindings available to all apps */
 const sharedEnvSchema = z.object({
   DB: z.custom<D1Database>((v) => v != null, "D1 binding required"),
-  BETTER_AUTH_SECRET: z.string().min(32),
+  BETTER_AUTH_SECRET: z
+    .string()
+    .min(32)
+    .refine((secret) => secret !== BETTER_AUTH_DEFAULT_SECRET, {
+      message: "BETTER_AUTH_SECRET is Better Auth's built-in default — set a real secret",
+    }),
   ENVIRONMENT: z.enum(["development", "staging", "production"]).default("development"),
   GITHUB_CLIENT_ID: z.string().optional(),
   GITHUB_CLIENT_SECRET: z.string().optional(),

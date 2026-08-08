@@ -16,19 +16,19 @@ them.
 | --- | -------- | --------------------------------------------------------------------- | -------------- |
 | 1   | Critical | `better-auth@1.5.6` account-takeover advisories                       | Resolved       |
 | 2   | High     | Account pre-hijacking via unverified signup + implicit OAuth linking  | Resolved       |
-| 3   | High     | `BETTER_AUTH_SECRET` unvalidated; silent fallback to a public default | Live footgun   |
+| 3   | High     | `BETTER_AUTH_SECRET` unvalidated; silent fallback to a public default | Resolved       |
 | 4   | High     | No rate limiting on any auth endpoint                                 | Live           |
-| 5   | High     | No security response headers anywhere                                 | Live           |
+| 5   | High     | No security response headers anywhere                                 | Resolved       |
 | 6   | High     | Vulnerable `hono`, `drizzle-orm`, `react-router` versions             | Resolved       |
 | 7   | High     | Global `~/.npmrc` uses plaintext HTTP registry with TLS off           | Live (machine) |
 | 8   | Medium   | MCP server has no authentication                                      | Resolved\*     |
 | 9   | Medium   | `BETTER_AUTH_SECRET` committed in `apps/mcp/wrangler.jsonc`           | Resolved       |
-| 10  | Medium   | Dashboard child loaders do not enforce auth themselves                | Pattern risk   |
-| 11  | Medium   | IP-derived controls trust spoofable `x-forwarded-for`                 | Live           |
+| 10  | Medium   | Dashboard child loaders do not enforce auth themselves                | Resolved       |
+| 11  | Medium   | IP-derived controls trust spoofable `x-forwarded-for`                 | Resolved       |
 | 12  | Medium   | OAuth and verification tokens stored in plaintext, never purged       | Live           |
 | 13  | Medium   | `member`/`invitation` foreign keys do not cascade on delete           | Live           |
-| 14  | Medium   | No `Cache-Control` on authenticated responses                         | Live           |
-| 15  | Medium   | No CSRF protection on the `/api/v1` mount                             | Pattern risk   |
+| 14  | Medium   | No `Cache-Control` on authenticated responses                         | Resolved       |
+| 15  | Medium   | No CSRF protection on the `/api/v1` mount                             | Resolved       |
 
 Low and informational findings follow the detailed section.
 
@@ -210,6 +210,26 @@ pre-hijacking fix in #2 entirely. Before verification became the gate this was a
 severe footgun; it is now the single point of failure for a High finding marked
 Resolved. Fix it before treating #2 as closed in production.
 
+**RESOLVED 2026-08-08.** `authMiddleware` now calls
+`parseEnv(webEnvSchema, c.env)` before constructing anything
+(`packages/auth/src/middleware.ts`), and `authFor` does the same with
+`mcpEnvSchema` (`apps/mcp/src/auth-app.ts`) — both Workers, since they share the
+secret and a lenient one would undo the other. A rejected env throws, which
+`observabilityErrorHandler` answers as a 500 with a correlation id: no request is
+served rather than every request served insecurely.
+
+The schema gained an explicit `.refine()` rejecting Better Auth's
+`DEFAULT_SECRET`. Length alone did not catch it — the constant is 38 characters
+and passed `.min(32)`, which is precisely why it could reach production silently.
+Deny-path tests in `packages/config/src/__tests__/env.test.ts` (missing, short,
+and the default value) and `packages/auth/src/__tests__/middleware.test.ts` (the
+request is refused and the handler never runs).
+
+**Operational note:** because this now fails closed, deploying it to a Worker
+whose secret was never set takes that Worker down instead of leaving it
+exploitable. Run `wrangler secret list` before the first deploy carrying this
+change.
+
 ### 4. No rate limiting on any authentication endpoint
 
 `packages/auth/src/server.ts:19-51` passes no `rateLimit` option — a repo-wide
@@ -266,6 +286,42 @@ should any injection bug ever land.
 **Fix:** add `secureHeaders()` from `hono/secure-headers` as the first middleware
 in `apps/web/server/index.ts`. The inline theme script at `apps/web/app/root.tsx:28`
 will need a CSP nonce or hash.
+
+**RESOLVED 2026-08-08** — `apps/web/server/security-headers.ts`, mounted directly
+after `observabilityMiddleware` and above the origin redirect, so redirects carry
+the headers too. Ships CSP, `X-Frame-Options: DENY`, `nosniff`,
+`Referrer-Policy: strict-origin-when-cross-origin`, a two-year preload-eligible
+HSTS, and a deny-by-default `Permissions-Policy`.
+
+The answer to "nonce or hash" turned out to be **both**, for different scripts:
+
+- **Nonce** for React Router's inline scripts. `<Scripts>` and
+  `<ScrollRestoration>` are only half of them — the stream-transfer chunks that
+  push loader data are emitted _mid-stream_ and cannot be reached from
+  `root.tsx` at all. Passing the nonce to `ServerRouter` in `entry.server.tsx`
+  covers every one, since it is the documented default for all nonce-aware
+  components; `renderToReadableStream({ nonce })` covers React's own bootstrap
+  scripts, which are separate again.
+- **Hash** for the theme script, which is static. This keeps it working
+  independently of the nonce path — a missing nonce there would not throw, it
+  would paint the wrong theme, which no status assertion would catch.
+  `THEME_SCRIPT_CSP_HASH` lives beside the script in `app/lib/theme-script.ts`
+  and is asserted against it in `app/__tests__/theme-script.test.ts`, so editing
+  one without the other fails the suite.
+
+Two traps worth recording. A hash source expression must be **quoted**
+(`'sha256-…'`) — unquoted, browsers discard it as an invalid source and report
+only that, while the script it was meant to admit is blocked separately. And
+`<Links>` is passed an explicit empty nonce: left to inherit, it stamps one onto
+`<link>` tags, and because browsers blank the `nonce` attribute after parsing,
+hydration then reports a mismatch React will not patch up.
+
+`script-src` carries no `unsafe-inline` or `unsafe-eval`; `style-src` keeps
+`unsafe-inline` because Tailwind injects a runtime `<style>` and Radix writes
+inline style attributes, neither of which is a script-execution primitive.
+Covered by `apps/web/server/__tests__/security-headers.test.ts` and, because a
+broken CSP is visually silent, an e2e test that drives a Radix menu to prove
+hydration actually happened (`tests/e2e/security-headers.spec.ts`).
 
 ### 6. Vulnerable framework dependencies
 
@@ -445,6 +501,16 @@ convention currently implies the layout loader suffices.
 **Fix:** add a shared `requireUser(context, request)` helper, call it in every
 child loader, and correct the convention in CLAUDE.md.
 
+**RESOLVED 2026-08-08** — `apps/web/app/lib/require-user.ts`, called by the
+layout loader and by **both** child loaders. `dashboard.settings.tsx` now
+redirects instead of returning `{ user: null, tokens: [] }`; that soft return was
+the shape worth deleting, because it answered 200 to an unauthenticated caller
+and looked deliberate. `dashboard._index.tsx` guards even though it returns
+nothing, so the file the next page gets copied from carries the check.
+
+The helper throws rather than returning null, so a caller cannot continue with no
+user by accident. Deny paths in `apps/web/app/__tests__/require-user.test.ts`.
+
 ### 11. IP-derived controls trust the first `x-forwarded-for` entry, which is client-spoofable
 
 `packages/auth/src/server.ts:19-51` sets no `advanced.ipAddress.ipAddressHeaders`
@@ -457,6 +523,16 @@ IP-keyed throttling is bypassed by rotating a spoofed header, and session audit
 data is unreliable.
 
 **Fix:** set `advanced: { ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] } }`.
+
+**RESOLVED 2026-08-08** — set exactly that in `createAuth`
+(`packages/auth/src/server.ts`). The list holds one entry deliberately: a
+fallback would restore the spoofable path whenever the trusted header is absent,
+which is a state an attacker can arrange. Asserted in
+`packages/auth/src/__tests__/auth-config.test.ts`, including that
+`x-forwarded-for` never reappears in it.
+
+Landed ahead of the limiter it protects (#4, still open) because it also fixes
+`session.ipAddress` audit data, which is recorded today.
 
 ### 12. OAuth and verification tokens are stored in plaintext with no purge
 
@@ -522,6 +598,31 @@ machines.
 **Fix:** set `Cache-Control: no-store` for authenticated HTML and loader data
 responses.
 
+**RESOLVED 2026-08-08** — `noStoreForAuthenticated` in
+`apps/web/server/security-headers.ts`, keyed on the request carrying a session
+cookie rather than on a list of paths. A path list would have to be extended by
+whoever adds the next authenticated route, which is the same failure mode as #10
+and #15; keying on the credential covers new routes the day they appear.
+
+Matches the cookie by suffix (`…session_token=`) so a `__Secure-` prefix does not
+silently stop matching.
+
+**Overrides a weaker `Cache-Control` rather than deferring to it.** Only an
+existing `no-store` is preserved. `public, max-age=…` is obviously wrong on
+personalized output, but `private` is overridden too: it keeps a response out of
+shared caches while still allowing the user's own browser to store it, which
+leaves the back-button-on-a-shared-machine exposure this finding names. A route
+wanting its authenticated output cached has to opt out somewhere other than here.
+
+**Immutable responses are cloned, not skipped.** `Response.redirect()` and
+pass-through `fetch()` responses carry an immutable headers guard, and
+`hono/secure-headers` writes without one — so such a response became a 500 that
+also carried no security headers at all. `mutableResponse` rebuilds it first.
+The three middlewares are exported as an ordered `securityMiddleware` list
+because Hono unwinds post-`next()` code in reverse: the normaliser is registered
+**last** so it runs **first**, and reordering them at the mount site would drop
+the headers silently while every isolated unit test still passed.
+
 ### 15. No CSRF protection on the `/api/v1` mount
 
 `apps/web/server/index.ts:33` mounts `apiApp` with no `hono/csrf` middleware and
@@ -536,6 +637,50 @@ every future route is unauthenticated by default rather than fail-closed.
 
 **Fix:** add `csrf()` and a default `requireSession` middleware to `apiApp` now,
 with explicit allowlisting for `/health` and `/doc`.
+
+**RESOLVED 2026-08-08** — both guards now live on `apiApp` itself
+(`apps/web/server/api.ts`) rather than at the mount, so they travel with the
+routes they protect. `PUBLIC_OPERATIONS` allowlists `GET /health` and
+`GET /doc` by method and path; everything
+else calls `requirePrincipal`. The route list in the description above was
+already stale by then — `/me` and `/tokens*` had shipped — which is the argument
+for a default-deny rather than per-route vigilance.
+
+Details that are not obvious:
+
+- **Order matters.** The deny check runs _before_ CSRF. CSRF is only meaningful
+  when the request carries an ambient credential to abuse; an anonymous caller
+  should hear 401, not a confusing 403.
+- **CSRF applies to session callers only.** Nothing attaches a bearer token
+  automatically, so no cross-site page can cause one to be sent, and exempting
+  them keeps the CLI working — it sends neither `Origin` nor `Sec-Fetch-Site`.
+- **`hono/csrf` was tried and removed.** It only inspects requests whose
+  `Content-Type` is form-shaped (`application/x-www-form-urlencoded`,
+  `multipart/form-data`, `text/plain`) or absent — the shapes a cross-origin
+  `<form>` can produce without a CORS preflight. That made it a **no-op on
+  `application/json`**, which is what the settings UI sends on the only
+  cookie-authenticated write in the app: a JSON POST carrying no origin headers
+  reached the handler. Safe in practice today only because no CORS policy exists
+  for a preflight to pass, which is an assumption a later config change would
+  break with nothing failing to say so. Replaced by an explicit same-origin
+  check on **every** unsafe method regardless of content type, reading
+  `Sec-Fetch-Site` and falling back to `Origin` (Safari sent no `Sec-Fetch-*`
+  before 16.4). Absent both, a cookie-authenticated write is refused.
+- **The allowlist is keyed by method _and_ path.** Keyed by path alone,
+  registering `POST /health` later would have made it public, and no existing
+  test would have noticed because the route does not exist yet.
+- **Unknown paths now 401 rather than 404** for anonymous callers. The guard runs
+  before routing resolves, so it cannot know a route is absent — and the side
+  effect is that the surface cannot be enumerated without credentials.
+
+`requireSession` was also fixed to throw `HTTPException` instead of a bare
+`Response`: Hono's `compose()` only routes `Error` instances to the error
+handler, so it had been surfacing as 500 rather than 401.
+
+The test that keeps this true reads the OpenAPI spec and asserts every
+advertised path is either allowlisted or refuses an anonymous caller, mounted and
+unmounted (`apps/web/server/__tests__/api-guard.test.ts`) — the point being
+routes that do not exist yet.
 
 ---
 
@@ -553,12 +698,14 @@ with explicit allowlisting for `/health` and `/doc`.
   `x-theme=`, letting an unrelated cookie control the value. Fix: validate
   against `["dark","light","system"]`, anchor the regex with `(?:^|;\s*)theme=`,
   and add `Secure` on HTTPS.
-- **`requireSession()` returns 500 instead of 401.**
-  `packages/auth/src/helpers/session.ts:12-18` throws a raw `Response`, but Hono
+- **`requireSession()` returned 500 instead of 401. RESOLVED 2026-08-08.**
+  `packages/auth/src/helpers/session.ts:12-18` threw a raw `Response`, but Hono
   only routes `Error` instances to its error handler — a thrown `Response`
   escapes the fetch handler as a Worker exception. Fail-closed, so not a bypass,
-  but the documented API guard is unusable as written. Fix: throw
-  `HTTPException(401)` from `hono/http-exception`.
+  but the documented API guard was unusable as written. Now throws
+  `HTTPException(401)` with a JSON body, matching `requirePrincipal`; covered in
+  `packages/auth/src/__tests__/session.test.ts`. Fixed alongside #15, which is
+  where the reasoning is recorded.
 - **The authorization helpers are dead code.** `requireSession`, `hasRole`, and
   `ROLES` have zero call sites outside `packages/auth/src` and a non-routed
   `_examples` file, so no application-level role enforcement exists at all.

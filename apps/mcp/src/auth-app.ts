@@ -7,6 +7,7 @@ import { createDb } from "@starter/db";
 import { createAuth } from "@starter/auth/server";
 import { createEmailSender } from "@starter/email";
 import { createLogger, resolveLogLevel } from "@starter/observability";
+import { mcpEnvSchema, parseEnv } from "@starter/config/env";
 import { APP_VERSION } from "@starter/config/version";
 import { MCP_SERVER_NAME, PRODUCT_NAME } from "@starter/config/product";
 import type { Env } from "./env";
@@ -108,32 +109,39 @@ function rejectUnacceptable(c: Context<AuthEnv>, oauthReq: AuthRequest): Respons
  * same D1 and the same secret — same users, separate session cookie scoped to
  * this origin. `baseURL` is derived from the request so dev and production both
  * work without another binding.
+ *
+ * Validates the bindings first and lets a bad env throw, exactly as
+ * `authMiddleware` does in apps/web. Sharing the secret means sharing the
+ * failure mode: an unset secret here forges sessions that the *web* app honours
+ * too, so this Worker cannot be the lenient one. See `docs/security-audit.md` #3.
  */
 function authFor(c: Context<AuthEnv>) {
-  const db = createDb(c.env.DB);
+  const env = parseEnv(mcpEnvSchema, c.env);
+
+  const db = createDb(env.DB);
   return createAuth({
     db,
-    secret: c.env.BETTER_AUTH_SECRET,
+    secret: env.BETTER_AUTH_SECRET,
     baseURL: new URL(c.req.url).origin,
     // This Worker only signs existing users in — it has no signup or reset
     // screen, so nothing here sends today. Wired regardless because `createAuth`
     // requires a transport, and the day this app grows either flow it must
     // already work rather than fail at the first send.
     email: createEmailSender({
-      apiKey: c.env.RESEND_API_KEY,
-      from: c.env.EMAIL_FROM,
-      environment: c.env.ENVIRONMENT,
+      apiKey: env.RESEND_API_KEY,
+      from: env.EMAIL_FROM,
+      environment: env.ENVIRONMENT,
       logger: createLogger({
-        level: resolveLogLevel(c.env),
-        base: { env: c.env.ENVIRONMENT ?? "development", app: "mcp" },
+        level: resolveLogLevel(env),
+        base: { env: env.ENVIRONMENT, app: "mcp" },
       }),
     }),
     // Without these, an account created through Google or GitHub has no way in:
     // it has no password, and the providers would be disabled on this Worker.
-    githubClientId: c.env.GITHUB_CLIENT_ID,
-    githubClientSecret: c.env.GITHUB_CLIENT_SECRET,
-    googleClientId: c.env.GOOGLE_CLIENT_ID,
-    googleClientSecret: c.env.GOOGLE_CLIENT_SECRET,
+    githubClientId: env.GITHUB_CLIENT_ID,
+    githubClientSecret: env.GITHUB_CLIENT_SECRET,
+    googleClientId: env.GOOGLE_CLIENT_ID,
+    googleClientSecret: env.GOOGLE_CLIENT_SECRET,
   });
 }
 

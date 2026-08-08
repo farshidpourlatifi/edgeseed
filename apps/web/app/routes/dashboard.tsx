@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Link, Outlet, redirect, useLocation } from "react-router";
+import { Link, Outlet, useLocation } from "react-router";
 import type { Route } from "./+types/dashboard";
 import { authClient } from "~/lib/auth-client";
+import { requireUser } from "~/lib/require-user";
 import { cn } from "@starter/ui/lib/utils";
 import { Button } from "@starter/ui/components/ui/button";
 import { Separator } from "@starter/ui/components/ui/separator";
@@ -40,15 +41,10 @@ import { PRODUCT_NAME } from "@starter/config/product";
 import { BrandMark } from "~/components/brand/brand-mark";
 
 export async function loader({ context, request }: Route.LoaderArgs) {
-  if (!context.auth) {
-    throw redirect("/login");
-  }
-  const session = await context.auth.api.getSession({
-    headers: request.headers,
-  });
-  if (!session) {
-    throw redirect("/login");
-  }
+  // Guards this loader's own data only. Every child loader calls `requireUser`
+  // itself — children run in parallel with this one, so it cannot protect them
+  // (audit #10).
+  const session = await requireUser(context, request);
 
   // Get user's organizations
   let organizations: Array<{ id: string; name: string; slug: string }> = [];

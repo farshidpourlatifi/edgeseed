@@ -197,35 +197,44 @@ and this list, or the stale copy will be trusted.
    split-origin mode strands a just-verified user on the marketing host. Still
    missing: a forgot-password UI (reset works only via the API).
    (`docs/adr/003-transactional-email.md`)
-2. **A missing `BETTER_AUTH_SECRET` fails open — and concern 1 rests on it.**
-   The Zod env schema (`parseEnv`) has zero callers, and better-auth's own guard
-   keys on `NODE_ENV`, which Workers never set — an unset secret signs sessions
-   with a publicly-known constant after only a console warning. Verification
-   tokens are JWTs signed with that same secret, so an unset secret also lets
-   anyone mint one and self-verify any address, undoing concern 1. Check with
-   `wrangler secret list`; the fix is failing closed at boot.
-   (`security-audit.md` #3)
+2. **The env is validated at request time — do not route around it.**
+   `authMiddleware` and the MCP Worker's `authFor` both call `parseEnv` before
+   constructing anything, and a rejected env throws rather than degrading
+   (`security-audit.md` #3, resolved 2026-08-08). This is what keeps concern 1
+   true: verification tokens are JWTs signed with `BETTER_AUTH_SECRET`, so an
+   unset secret would let anyone mint one and self-verify any address. The
+   schema explicitly rejects Better Auth's `DEFAULT_SECRET` — 38 characters, so
+   `.min(32)` alone accepted it. **Operational trap:** failing closed means
+   deploying to a Worker whose secret was never set takes it down. Run
+   `wrangler secret list` before the first deploy carrying it.
 3. **No rate limiting on auth endpoints — and the defaults cannot work here.**
    better-auth's limiter keys on `NODE_ENV` (off), its memory store dies every
    request because `createAuth()` is per-request, and no `rateLimit` table
    exists. Since verification shipped this also leaves `/send-verification-email`
    and `/request-password-reset` as unauthenticated ways to send mail, so the
    exposure includes the Resend quota and other people's inboxes, not just
-   brute-forced sign-in. Any fix must also read the client IP from
-   `cf-connecting-ip` — the first `x-forwarded-for` entry is attacker-controlled
-   on Cloudflare. (`security-audit.md` #4, #11)
-4. **No security headers anywhere.** No CSP, HSTS, `X-Frame-Options`, or
-   `nosniff`, and no `Cache-Control: no-store` on authenticated responses.
-   `secureHeaders()` belongs first in the Hono chain; the inline theme script
-   needs a CSP hash. (`security-audit.md` #5, #14)
-5. **New surface fails open by default.** `principalMiddleware` resolves the
-   caller but does not require one — an unauthenticated request reaches the
-   route with `principal: null`, so every `/api/v1` route must check it. There
-   is no CSRF middleware on the mount. Dashboard child loaders must call the
-   auth guard themselves — in React Router v7 the layout loader is not a
-   security boundary (children run in parallel and can be fetched directly).
-   Ask the standing-pass review questions of every diff that adds a route,
-   loader, table, or tool. (`security-audit.md` #10, #15; `security-plan.md`)
+   brute-forced sign-in. The IP half is done — `ipAddressHeaders` is pinned to
+   `cf-connecting-ip`, and that list stays one entry long, since a fallback
+   restores the spoofable path. (`security-audit.md` #4; #11 resolved)
+4. **Security headers ship — the CSP has four traps.** `security-headers.ts` is
+   mounted above the origin redirect and carries CSP, HSTS, `X-Frame-Options`,
+   `nosniff`, `Referrer-Policy`, and `no-store` for cookie-bearing requests
+   (`security-audit.md` #5, #14, resolved 2026-08-08). When touching it:
+   hash source expressions must be **quoted** (`'sha256-…'`) or browsers discard
+   them silently; the nonce goes to `ServerRouter`, not just `<Scripts>`, or the
+   mid-stream loader-data chunks are blocked; the theme script is admitted by
+   hash and its test fails if the two drift; and `<Links nonce="">` is
+   deliberate — inheriting the nonce puts it on `<link>` tags, which browsers
+   blank, producing a hydration mismatch. A broken CSP paints a dead page
+   without erroring, so verify by driving the UI, never by status code.
+5. **New surface is default-deny — keep it that way.** `apiApp` requires a
+   principal for every method+path not in `PUBLIC_OPERATIONS`, and CSRF applies to session
+   callers only (`security-audit.md` #10, #15, resolved 2026-08-08). Adding a
+   public route means adding it to that allowlist on purpose. Dashboard child
+   loaders each call `requireUser` — in React Router v7 the layout loader is not
+   a security boundary (children run in parallel and can be fetched directly),
+   so a new page guards itself. Ask the standing-pass review questions of every
+   diff that adds a route, loader, table, or tool. (`security-plan.md`)
 6. **OAuth tokens sit in plaintext and tenant rows do not cascade.** Any D1
    export exposes usable Google/GitHub access tokens; expired `verification`
    rows are never purged; `member`/`invitation` foreign keys have no
@@ -255,6 +264,137 @@ and this list, or the stale copy will be trusted.
     are made upstream and arrive via `git merge upstream/main` — never rebase
     a product's main. Never edit a migration that has reached production; add
     a new one. (`starter-as-upstream.md`, `starter-v1-scope.md`)
+
+---
+
+## Security standards
+
+The concerns above are the open risks. This is the settled part: patterns
+already in the code that new work must follow. Deviating is allowed, but it is a
+decision to argue for in the PR, not a detail to get wrong quietly.
+
+Three rules generate most of the rest:
+
+1. **Fail closed.** When configuration is missing or a caller is unidentified,
+   refuse. Never degrade to a working-but-weaker path — a silent downgrade is
+   how every finding in `security-audit.md` shipped.
+2. **Guard where the data is read**, not one layer up. A parent that happens to
+   check today is not a boundary.
+3. **Every guard ships its deny-path test.** The allow path passing proves
+   almost nothing.
+
+### Configuration
+
+Auth-relevant bindings are read through `parseEnv` (`packages/config/src/env.ts`)
+and never off `c.env` directly — `authMiddleware` and the MCP Worker's `authFor`
+both do this, and a rejected env throws rather than degrading. Add every new
+binding to the schema, not just to an app's ad-hoc `Bindings` type.
+
+The schema rejects Better Auth's `DEFAULT_SECRET` explicitly. Length checks are
+not enough on their own: that constant is 38 characters and passed `.min(32)`
+for months.
+
+### The API surface (`apps/web/server/api.ts`)
+
+- **Default deny.** Every operation not in `PUBLIC_OPERATIONS` requires a
+  principal. The allowlist is keyed by **method and path** (`"GET /health"`), so
+  adding `POST` to an existing public path does not inherit its exemption.
+  Making something public is an edit to that list — explicit and reviewable. Do
+  not "temporarily" widen it.
+- **Guards live on `apiApp`, not at the mount** in `index.ts`, so they travel
+  with the routes rather than depending on the mount staying correct.
+- **CSRF applies to session callers only, and runs after the deny check.**
+  Bearer tokens are not ambient credentials — nothing attaches them
+  automatically — so there is no cross-site vector to defend, and exempting them
+  keeps the CLI working, since it sends neither `Origin` nor `Sec-Fetch-Site`.
+  Running CSRF before the deny check would answer an anonymous caller 403
+  instead of 401.
+- **Do not reach for `hono/csrf` here.** It was tried and removed: it only
+  inspects form-shaped or absent content types, making it a **no-op on
+  `application/json`** — the content type of the app's only cookie-authenticated
+  write. The replacement checks every unsafe method regardless of body, via
+  `Sec-Fetch-Site` with an `Origin` fallback, and refuses when neither is
+  present. Do not narrow it back to a content-type predicate.
+- Anonymous requests to unknown `/api/v1` paths answer **401, not 404**. The
+  guard runs before routing resolves; the side effect is that the surface cannot
+  be enumerated without credentials. Do not "fix" this.
+- Reject with `HTTPException`, never a bare `throw new Response(...)`. Hono's
+  `compose()` only routes `Error` instances to the error handler, so a thrown
+  `Response` escapes as a 500.
+
+### Loaders
+
+Every protected loader calls `requireUser(context, request)`
+(`apps/web/app/lib/require-user.ts`) — **including children of the dashboard
+layout**. In React Router v7 the layout loader is not a security boundary:
+children run in parallel with it, and a `.data` request can fetch one directly,
+so the parent's redirect never applies.
+
+Guard even a loader that returns nothing today. Both files in
+`app/routes/_examples/` do, because they are the templates the next page is
+copied from — which is exactly how the original defect propagated.
+
+Throw, never soft-return. `return { user: null }` answers 200 to an
+unauthenticated caller and reads as deliberate.
+
+### Response middleware
+
+- **Never assume a response is mutable.** `Response.redirect()` and responses
+  passed through from `fetch()` carry an immutable headers guard; writing to one
+  throws `TypeError: immutable`. Unguarded, that is a 500 _and_ a response with
+  none of the headers applied. `securityMiddleware` handles this centrally.
+- **Mount `app.use(...securityMiddleware)` as one unit.** Hono unwinds
+  post-`next()` code in reverse registration order, so the list is deliberately
+  ordered inside `security-headers.ts`. Reordering at the call site silently
+  drops headers, and every isolated unit test still passes — which is why there
+  is a test exercising the three together.
+- Authenticated responses get `Cache-Control: no-store`, keyed on the session
+  cookie rather than a path list so new routes are covered on arrival. An
+  existing directive is **overridden** unless it already contains `no-store` or
+  `private`; a `public, max-age` on personalized output is the leak, not a
+  preference to respect.
+
+### CSP — four traps, all of them silent
+
+A broken CSP paints a dead page without erroring, so **verify by driving the UI,
+never by status code.** There is an e2e test that opens a Radix menu for exactly
+this reason.
+
+1. Hash source expressions must be **quoted** (`'sha256-…'`). Unquoted, browsers
+   discard them as an invalid source and report only that.
+2. The nonce goes to **`ServerRouter`**, not just `<Scripts>`. React Router emits
+   loader data as mid-stream script chunks that `root.tsx` cannot reach.
+3. The theme script is admitted by **hash**, and `theme-script.test.ts` fails if
+   the script and its hash drift. Do not hand-edit the hash.
+4. `<Links nonce="">` is deliberate. Inheriting the nonce stamps it on `<link>`
+   tags, and browsers blank the attribute after parsing, producing a hydration
+   mismatch React will not patch up.
+
+`script-src` carries no `unsafe-inline` and no `unsafe-eval`. `style-src` keeps
+`unsafe-inline` because Tailwind injects a runtime `<style>` and Radix writes
+inline style attributes; neither executes script.
+
+### Identity and IP
+
+`ipAddressHeaders` is `["cf-connecting-ip"]` and stays exactly one entry long.
+Cloudflare _appends_ to any client-supplied `X-Forwarded-For`, so the default
+first-entry read is attacker-controlled, and a fallback entry would restore that
+path whenever the trusted header is absent — a state an attacker can arrange.
+
+MCP tools read identity from `ctx.user` (the OAuth grant), never from tool
+arguments.
+
+### Ask of every diff that adds surface
+
+- New route or API path — is it in the allowlist on purpose, or denied by default?
+- New loader — does it call `requireUser` itself?
+- New middleware that touches a response — does it survive an immutable one?
+- New binding — is it in `webEnvSchema`/`mcpEnvSchema`?
+- New guard — is there a test for the **deny** path?
+- New inline script — nonce or hash, and which, and is it tested?
+- Invalidated a claim in a doc — did you grep for its other homes? The audit,
+  `security-plan.md`, this file and the per-package `CLAUDE.md` files all repeat
+  each other, and a stale copy is trusted.
 
 ---
 
@@ -381,13 +521,23 @@ in `packages/ui/src/hooks/use-theme.tsx` manages light/dark/system via cookies.
 ### Auth in loaders
 
 ```ts
-const session = await context.auth.api.getSession({ headers: request.headers });
+const session = await requireUser(context, request); // redirects when signed out
 const orgs = await context.auth.api.listOrganizations({ headers: request.headers });
 ```
 
-The dashboard loader returns `{ user, activeOrganizationId, organizations }`;
-child routes read user data through the parent layout. Treat any child loader
-touching sensitive data as needing its own check (audit #10).
+**Every protected loader calls `requireUser` itself, children included** — not
+only the ones that currently read sensitive data. In React Router v7 the layout
+loader is not a security boundary: children run in parallel with it and a
+`.data` request can fetch one directly, so the parent's redirect never applies.
+A loader that returns nothing today is the template the next page is copied
+from, which is exactly how audit #10 propagated.
+
+Never soft-return. `return { user: null }` answers 200 to an unauthenticated
+caller and reads as deliberate.
+
+The dashboard layout loader returns `{ user, activeOrganizationId, organizations }`
+for its own rendering; child routes may read that through the parent, but they
+still guard themselves.
 
 ### Social login (GitHub + Google)
 
@@ -459,8 +609,8 @@ pnpm check:boot             # Boot each built Worker and prove it serves (after 
 
 - **Adding a page:** route in `routes.ts` → create route file → `npx react-router typegen`
 - **Adding a UI component:** place in `packages/ui/src/components/ui/` → import from `@starter/ui/components/ui/name`
-- **Adding an API route:** add to `apps/web/server/api.ts` with OpenAPI schema → `pnpm api:spec` → add matching MCP tool in `apps/mcp`
-- **Auth guard:** `redirect("/login")` in the loader when there is no session
+- **Adding an API route:** add to `apps/web/server/api.ts` with OpenAPI schema → `pnpm api:spec` → add matching MCP tool in `apps/mcp`. It is authenticated by default; a public one must be named in `PUBLIC_OPERATIONS`, by method and path
+- **Auth guard:** `requireUser(context, request)` in **every** protected loader, children included — the layout loader is not a boundary (audit #10)
 - **Toasts:** `import { toast } from "sonner"` — Toaster is mounted at root
 - **E2E locators:** `getByRole`/`getByLabel` first; `data-testid` only for
   role-less elements; never CSS class selectors — `tests/e2e/CLAUDE.md`

@@ -1,7 +1,12 @@
 import type { Route } from "./+types/dashboard._index";
 import { BrandMark } from "~/components/brand/brand-mark";
+import { requireUser } from "~/lib/require-user";
 
-export async function loader({ context: _context }: Route.LoaderArgs) {
+// Guards even though it returns nothing: the layout loader is not a security
+// boundary in React Router v7, and the next person to add data here would
+// inherit an unguarded loader (audit #10).
+export async function loader({ context, request }: Route.LoaderArgs) {
+  await requireUser(context, request);
   return {};
 }
 

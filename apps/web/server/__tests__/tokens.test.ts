@@ -39,7 +39,17 @@ function appWith(principal: ApiPrincipal | null) {
   return app;
 }
 
-const json = { "content-type": "application/json" };
+/**
+ * What a browser sends on a same-origin non-GET request, and what the CSRF
+ * guard checks. Required on **every** session-authenticated write regardless of
+ * body: the guard covers all unsafe methods, not just the form-shaped content
+ * types `hono/csrf` inspected. Omitting it here is what a cross-site request
+ * looks like, so these tests would 403 while the real UI succeeds.
+ */
+const sameOrigin = { "sec-fetch-site": "same-origin" };
+
+/** A JSON write as a browser issues it. */
+const json = { "content-type": "application/json", ...sameOrigin };
 
 describe("GET /me", () => {
   it("reports a session principal", async () => {
@@ -201,7 +211,10 @@ describe("DELETE /tokens/{id}", () => {
   it("revokes and reports success", async () => {
     store.revokeApiToken.mockResolvedValue(true);
 
-    const res = await appWith(SESSION_PRINCIPAL).request("/tokens/tok_1", { method: "DELETE" });
+    const res = await appWith(SESSION_PRINCIPAL).request("/tokens/tok_1", {
+      method: "DELETE",
+      headers: sameOrigin,
+    });
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ revoked: true });
@@ -212,6 +225,7 @@ describe("DELETE /tokens/{id}", () => {
 
     const res = await appWith(SESSION_PRINCIPAL).request("/tokens/tok_other", {
       method: "DELETE",
+      headers: sameOrigin,
     });
 
     expect(res.status).toBe(404);
@@ -219,7 +233,10 @@ describe("DELETE /tokens/{id}", () => {
 
   it("always scopes the revoke to the caller", async () => {
     store.revokeApiToken.mockResolvedValue(true);
-    await appWith(SESSION_PRINCIPAL).request("/tokens/tok_1", { method: "DELETE" });
+    await appWith(SESSION_PRINCIPAL).request("/tokens/tok_1", {
+      method: "DELETE",
+      headers: sameOrigin,
+    });
 
     expect(store.revokeApiToken).toHaveBeenCalledWith(expect.anything(), {
       userId: "user_1",

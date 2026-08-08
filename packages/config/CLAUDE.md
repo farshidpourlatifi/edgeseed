@@ -4,7 +4,13 @@
 
 Single source of truth for Worker environment validation and the app version.
 Apps never read `env` raw — they parse it through these Zod schemas so a
-missing/malformed binding fails loudly at startup, not silently at request time.
+missing or malformed binding refuses the request instead of quietly degrading.
+
+Validation is **per request**, in `authMiddleware` and the MCP Worker's
+`authFor`: Workers hand `env` to the request handler, so there is no module-init
+env to validate. A rejected env throws, `observabilityErrorHandler` turns that
+into a 500 with a correlation id, and nothing is served — which is the intended
+outcome, not a bug to soften (`docs/security-audit.md` #3).
 
 ## Layout
 

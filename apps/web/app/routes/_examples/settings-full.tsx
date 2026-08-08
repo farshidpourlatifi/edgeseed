@@ -22,12 +22,14 @@ import { Avatar, AvatarFallback } from "@starter/ui/components/ui/avatar";
 import { Spinner } from "@starter/ui/components/ui/spinner";
 import { Upload, Trash2, Users, UserPlus } from "lucide-react";
 import { toast } from "sonner";
+import { requireUser } from "~/lib/require-user";
 
 export async function loader({ context, request }: Route.LoaderArgs) {
-  const session = await context.auth.api.getSession({
-    headers: request.headers,
-  });
-  if (!session) return { user: null };
+  // Redirects rather than returning `{ user: null }`. The soft return answered
+  // 200 to an unauthenticated caller, and since this file exists to be copied,
+  // it would have reintroduced audit #10 into every page copied from it.
+  const session = await requireUser(context, request);
+
   return { user: session.user };
 }
 
