@@ -9,6 +9,24 @@ Cloudflare-native monorepo starter for shipping SaaS products fast. Full V1 spec
 
 ---
 
+## License
+
+MIT. The `LICENSE` file at the repo root is canonical — it covers every file
+here, including `docs/`.
+
+- **Never add per-file license headers.** The root file already covers the tree;
+  headers would be noise across every source file and drift the moment one is
+  copied.
+- `init:product` rewrites `product.ts` and both `wrangler.jsonc` files but
+  deliberately leaves `LICENSE` alone. MIT requires a clone to retain the notice
+  for the starter portions it keeps, so stripping it in a downstream repo is a
+  licensing bug, not a cleanup.
+- The license grants no rights to the **EdgeSeed** name or `edgeseed.dev`. MIT is
+  silent on trademarks, and silence is not a grant — a fork may use the code, not
+  the identity.
+
+---
+
 ## Git and outward-facing actions
 
 ### Permission is per instance. It never propagates.

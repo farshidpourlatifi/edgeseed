@@ -1,4 +1,4 @@
-# Cloudflare Starter
+# EdgeSeed
 
 A minimal, reusable base for Cloudflare-native product experiments.
 
@@ -214,3 +214,10 @@ The web app uses **Hono** as the server middleware layer, bridged to **React Rou
 - React Router loaders/actions with full access to db and auth via `AppLoadContext`
 
 Both `apps/web` and `apps/mcp` share the same `packages/auth` and `packages/db` for consistent auth and data access.
+
+## License
+
+[MIT](./LICENSE) — use it, fork it, ship proprietary products on top of it.
+
+The UI components in `packages/ui/src/components/ui/` are adapted from
+[shadcn/ui](https://ui.shadcn.com), also MIT.
