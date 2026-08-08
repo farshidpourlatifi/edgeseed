@@ -26,4 +26,11 @@ export interface Env extends SentryEnv {
   GITHUB_CLIENT_SECRET?: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
+  /**
+   * Transactional email. Unused today — this Worker has no signup or reset
+   * screen — but `createAuth` takes a transport, and the bindings are shared
+   * with apps/web through `sharedEnvSchema`.
+   */
+  RESEND_API_KEY?: string;
+  EMAIL_FROM?: string;
 }

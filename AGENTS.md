@@ -163,23 +163,39 @@ Distilled from `docs/` on 2026-08-06, statuses verified against the code that
 day. The cited doc stays canonical — when a concern is resolved, update both it
 and this list, or the stale copy will be trusted.
 
-1. **Auth is not ready for real users.** Signup requires no email verification
-   and social linking is implicit, so an attacker who pre-registers a victim's
-   email owns the account the victim later links via Google/GitHub. Password
-   reset is non-functional (no sender configured). Fix before any real user
-   data. (`security-audit.md` #2)
-2. **A missing `BETTER_AUTH_SECRET` fails open.** The Zod env schema
-   (`parseEnv`) has zero callers, and better-auth's own guard keys on
-   `NODE_ENV`, which Workers never set — an unset secret signs sessions with a
-   publicly-known constant after only a console warning. Check with
+1. **Email verification is the gate — do not weaken it.** Signup grants no
+   session until the address is proven, and `requireLocalEmailVerified` stops a
+   social identity linking into an unproven local account. That pair is what
+   closes pre-hijacking (`security-audit.md` #2, resolved 2026-08-06). Two
+   traps: `accountLinking.trustedProviders` must stay **empty** — it means "link
+   even when the provider says the address is unverified", so adding a provider
+   weakens it — and sending goes through `@starter/email`, which silently falls
+   back to logging when `RESEND_API_KEY`/`EMAIL_FROM` are unset. Verify both are
+   set in production. A **configured but failing** sender is quiet too: Better
+   Auth swallows the rejection on `/sign-up/email`, so signup answers 200 and
+   the UI says "check your email" regardless — the resend path is the one that
+   reports failure. Every call minting a verification link must pass
+   `POST_VERIFICATION_REDIRECT` as `callbackURL`; the default is `/`, which in
+   split-origin mode strands a just-verified user on the marketing host. Still
+   missing: a forgot-password UI (reset works only via the API).
+   (`docs/adr/003-transactional-email.md`)
+2. **A missing `BETTER_AUTH_SECRET` fails open — and concern 1 rests on it.**
+   The Zod env schema (`parseEnv`) has zero callers, and better-auth's own guard
+   keys on `NODE_ENV`, which Workers never set — an unset secret signs sessions
+   with a publicly-known constant after only a console warning. Verification
+   tokens are JWTs signed with that same secret, so an unset secret also lets
+   anyone mint one and self-verify any address, undoing concern 1. Check with
    `wrangler secret list`; the fix is failing closed at boot.
    (`security-audit.md` #3)
 3. **No rate limiting on auth endpoints — and the defaults cannot work here.**
    better-auth's limiter keys on `NODE_ENV` (off), its memory store dies every
    request because `createAuth()` is per-request, and no `rateLimit` table
-   exists. Any fix must also read the client IP from `cf-connecting-ip` — the
-   first `x-forwarded-for` entry is attacker-controlled on Cloudflare.
-   (`security-audit.md` #4, #11)
+   exists. Since verification shipped this also leaves `/send-verification-email`
+   and `/request-password-reset` as unauthenticated ways to send mail, so the
+   exposure includes the Resend quota and other people's inboxes, not just
+   brute-forced sign-in. Any fix must also read the client IP from
+   `cf-connecting-ip` — the first `x-forwarded-for` entry is attacker-controlled
+   on Cloudflare. (`security-audit.md` #4, #11)
 4. **No security headers anywhere.** No CSP, HSTS, `X-Frame-Options`, or
    `nosniff`, and no `Cache-Control: no-store` on authenticated responses.
    `secureHeaders()` belongs first in the Hono chain; the inline theme script
@@ -242,6 +258,7 @@ apps/mcp          — MCP server (Cloudflare Workers)
 packages/auth     — Better Auth config, middleware, session/role helpers
 packages/config   — Zod-validated env schemas, version, product identity
 packages/db       — Drizzle schema, migrations, D1 client
+packages/email    — EmailSender port + Resend transport (verification, reset)
 packages/observability — structured logging, correlation IDs, Sentry
 packages/testing  — shared test helpers (dependency-free by rule)
 packages/ui       — shadcn/ui components, hooks, theme
@@ -435,16 +452,74 @@ pnpm check:boot             # Boot each built Worker and prove it serves (after 
 
 ## Deployment
 
-Production URL: `https://starter-web.farshid-pourlatifi-3fa.workers.dev`
-D1 database ID: `510ae3cb-6a46-4409-a1db-b07b59cd504b`
+Target production URL: `https://app.edgeseed.dev` (marketing site: `edgeseed.dev`).
+Only `app.edgeseed.dev` runs auth — `BETTER_AUTH_URL` pins one origin and OAuth
+callbacks are registered per-origin, so the session cookie stays host-scoped
+there and the marketing site can never see it.
+
+**Legacy deploy (pre-rename):** `https://starter-web.farshid-pourlatifi-3fa.workers.dev`.
+The Workers were renamed `starter-*` → `edgeseed-*`, so the next `pnpm deploy:web`
+creates a **new** Worker and leaves that one running. Delete it after cutover,
+then delete this paragraph.
+
+D1: `edgeseed-db` / `639d0b4e-b410-4e14-b4a3-8f5e6c95c8fe` (same id in **both**
+wrangler files — the MCP Worker runs its own Better Auth against these users).
+The pre-rename `starter-db` (`510ae3cb-…`) is no longer referenced; delete it
+once you have confirmed nothing needs migrating out of it.
 
 ```bash
 # 1. Gated deploy — runs the full verify suite, then deploys
 pnpm deploy:web
 
-# 2. Remote migrations (only when schema changes)
-cd apps/web && npx wrangler d1 migrations apply starter-db --remote
+# 2. Remote migrations (only when schema changes) — or `pnpm db:migrate --remote`
+cd apps/web && npx wrangler d1 migrations apply edgeseed-db --remote
 ```
+
+**Always pass `--local` or `--remote` explicitly to any `wrangler d1` command.**
+Wrangler defaults to **local** when neither is given, so an omitted flag does
+not mean "remote" — it means the command quietly acts on your own database and
+reports success. `db:migrate` shipped exactly that bug: `--remote` mapped to an
+empty flag, so the documented production migration path was a no-op against
+production. `resolveDbTarget` now makes the flag impossible to omit.
+
+### Creating a D1 — keep the binding named `DB`
+
+`wrangler d1 create <name>` offers to add the binding for you and suggests a
+binding name derived from the database name. **Do not accept it.** It appends a
+_second_ entry to `d1_databases` rather than replacing the existing one, so the
+app keeps resolving `c.env.DB` to the old database while the config looks
+migrated. Everything reads `c.env.DB` — `packages/auth` middleware,
+`packages/config` env schema, `apps/mcp/src/env.ts`.
+
+Either answer `DB` at the prompt, or decline and edit `database_id` by hand in
+**both** wrangler files. It also rewrites the file with tab indentation, so run
+`pnpm format` afterwards or `format:check` fails.
+
+Changing `database_id` gives you a **fresh local database** too — wrangler keys
+its sqlite state by id, not name. Re-run `pnpm db:reset && pnpm db:seed`.
+
+### Custom domains and the origin split
+
+Full reference: `docs/domains.md`. The shape is **configurable, not baked in** —
+that is deliberate starter surface.
+
+- **Default is one origin**: landing page and app share a hostname. Nothing to
+  configure, and it is what `pnpm dev` does on localhost.
+- **Split origin** is opt-in via `MARKETING_URL`. Set it and `server/origins.ts`
+  moves `/login`, `/register`, `/dashboard` and `/api` to `BETTER_AUTH_URL`'s
+  origin, while `/` on the app origin bounces back to marketing.
+- The middleware sits **before** `authMiddleware`, so auth cannot execute on the
+  marketing origin. That guarantee is structural — do not reorder it.
+- If both variables name the same host the resolver falls back to single-origin
+  rather than looping. Tested; check it first if a split silently does nothing.
+
+Hostnames are declared as `custom_domain` routes in `apps/web/wrangler.jsonc`,
+so `wrangler deploy` creates the DNS records itself — never pre-create an
+A/CNAME for them, and the zone must be on this same Cloudflare account.
+`init:product` **strips** `routes` from a clone alongside localising
+`database_id`, since they name hostnames the clone does not own.
+
+This repo runs split: `edgeseed.dev` marketing, `app.edgeseed.dev` app.
 
 Never deploy with a raw `wrangler deploy` — that skips the verify gate **and**
 ships `ENVIRONMENT: "development"` from `wrangler.jsonc`, which tags every
@@ -462,7 +537,30 @@ Required: `BETTER_AUTH_SECRET` (32+ chars) for both Workers; `BETTER_AUTH_URL`
 for the web Worker only — the MCP Worker derives its origin from each request
 and neither declares nor reads the variable.
 
+**Required whenever `routes` declares more than one hostname:**
+`MARKETING_URL`. The split is driven by the variable, not by the route list, so
+declaring both hostnames without setting it deploys a Worker that answers
+`/login`, `/register`, `/dashboard` and `/api/auth` on **both** — `origins.ts`
+returns `null` for every request and the "auth never constructs on the
+marketing origin" guarantee silently does not hold.
+
+```bash
+wrangler secret put MARKETING_URL   # https://edgeseed.dev
+```
+
+Do **not** put it in `vars`: that block is shared with local dev, so the value
+would reach `pnpm dev` and bounce `localhost:5173/` to the production marketing
+host. Same reason `ENVIRONMENT` is corrected with `--var` at deploy time rather
+than committed. Nothing enforces this yet — the structural fix is to refuse to
+serve a host that is neither origin, tracked in issue #6.
+
 Optional (social login): `GITHUB_CLIENT_ID`/`SECRET`, `GOOGLE_CLIENT_ID`/`SECRET`.
+
+**Effectively required in production (email):** `RESEND_API_KEY` and
+`EMAIL_FROM`, together. Absent, `@starter/email` falls back to logging the
+message instead of sending it — which means nobody can verify an address or
+reset a password, and the only signal is one `warn` per attempt. `EMAIL_FROM`
+must be on a domain verified in Resend. See `docs/adr/003-transactional-email.md`.
 
 Optional (error reporting) — absent means Sentry is fully disabled. Step-by-step:
 `docs/sentry-setup.md`. **One Sentry project per Worker**; environments live

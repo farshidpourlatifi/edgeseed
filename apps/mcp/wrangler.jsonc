@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "starter-mcp",
+  "name": "edgeseed-mcp",
   "compatibility_date": "2026-03-31",
   "compatibility_flags": ["nodejs_compat"],
   "main": "src/index.ts",
@@ -31,11 +31,11 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "starter-db",
+      "database_name": "edgeseed-db",
       // Must match apps/web — this Worker runs its own Better Auth instance
       // against the *same* users. A different id means a different database
       // (locally too, where wrangler keys its sqlite state by id).
-      "database_id": "510ae3cb-6a46-4409-a1db-b07b59cd504b",
+      "database_id": "639d0b4e-b410-4e14-b4a3-8f5e6c95c8fe",
       "migrations_dir": "../../packages/db/migrations",
     },
   ],

@@ -7,6 +7,7 @@ import {
   revokeApiToken,
   type PrincipalEnv,
 } from "@starter/auth";
+import { PRODUCT_NAME } from "@starter/config/product";
 import { APP_VERSION } from "@starter/config/version";
 
 export const apiApp = new OpenAPIHono<PrincipalEnv>();
@@ -187,10 +188,25 @@ apiApp.openapi(revokeTokenRoute, async (c) => {
 });
 
 // --- OpenAPI spec endpoint ---
+
+/**
+ * The one description of this API's identity.
+ *
+ * Exported because `pnpm api:spec` writes `docs/api/openapi.json` from the same
+ * app and previously declared its own copy — which drifted: the committed file
+ * said "Starter API" / `1.0.0` while this endpoint served the real name and
+ * version. A generated artifact that disagrees with the endpoint it documents
+ * is worse than no artifact.
+ *
+ * `title` comes from `product.ts` because it is public surface at
+ * `/api/v1/doc`, and `init:product` renames the product in one place.
+ */
+export const OPENAPI_INFO = {
+  title: `${PRODUCT_NAME} API`,
+  version: APP_VERSION,
+} as const;
+
 apiApp.doc31("/doc", {
   openapi: "3.1.0",
-  info: {
-    title: "Starter API",
-    version: APP_VERSION,
-  },
+  info: OPENAPI_INFO,
 });

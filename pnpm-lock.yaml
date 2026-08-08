@@ -114,6 +114,9 @@ importers:
       '@starter/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@starter/email':
+        specifier: workspace:*
+        version: link:../../packages/email
       '@starter/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -236,6 +239,9 @@ importers:
       '@starter/db':
         specifier: workspace:*
         version: link:../db
+      '@starter/email':
+        specifier: workspace:*
+        version: link:../email
       better-auth:
         specifier: ^1.6.26
         version: 1.6.26(@cloudflare/workers-types@4.20260331.1)(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260331.1)(@opentelemetry/api@1.9.1)(gel@2.2.0)(kysely@0.29.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(vitest@3.2.4(@types/node@22.19.15)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.9.0))
@@ -250,7 +256,11 @@ importers:
         specifier: ^4
         version: 4.20260331.1
 
-  packages/cli: {}
+  packages/cli:
+    devDependencies:
+      better-auth:
+        specifier: ^1.6.26
+        version: 1.6.26(@cloudflare/workers-types@4.20260331.1)(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260331.1)(@opentelemetry/api@1.9.1)(gel@2.2.0)(kysely@0.29.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(vitest@3.2.4(@types/node@22.19.15)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.9.0))
 
   packages/config:
     dependencies:
@@ -280,6 +290,8 @@ importers:
       drizzle-kit:
         specifier: ^0.31.10
         version: 0.31.10
+
+  packages/email: {}
 
   packages/observability:
     dependencies:

@@ -7,10 +7,11 @@ import { Packages } from "~/components/landing/packages";
 import { Quality } from "~/components/landing/quality";
 import { GettingStarted } from "~/components/landing/getting-started";
 import { SiteFooter } from "~/components/landing/site-footer";
+import { PRODUCT_NAME } from "@starter/config/product";
 
 export function meta() {
   return [
-    { title: "Cloudflare Starter — Ship SaaS products on Cloudflare" },
+    { title: `${PRODUCT_NAME} — Ship SaaS products on Cloudflare` },
     {
       name: "description",
       content:

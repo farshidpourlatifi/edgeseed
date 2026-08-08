@@ -1,10 +1,43 @@
 import { describe, it, expect } from "vitest";
 import {
+  currentProductSlug,
   deriveDisplayName,
   isValidProductSlug,
   stampProductIdentity,
   stampWranglerConfig,
 } from "../lib/init-product";
+
+describe("currentProductSlug", () => {
+  it("reads the slug the script will rename from", () => {
+    const source = [
+      'export const PRODUCT_NAME = "EdgeSeed";',
+      'export const PRODUCT_SLUG = "edgeseed";',
+    ].join("\n");
+    expect(currentProductSlug(source)).toBe("edgeseed");
+  });
+
+  it("reads a slug a clone has already stamped", () => {
+    expect(currentProductSlug('export const PRODUCT_SLUG = "acme-cloud";')).toBe("acme-cloud");
+  });
+
+  it("returns null when the declaration is missing", () => {
+    expect(currentProductSlug('export const PRODUCT_NAME = "EdgeSeed";')).toBeNull();
+  });
+
+  it("returns null when the declaration has been reformatted", () => {
+    // The script exits rather than writing a broken repo — silently matching
+    // nothing here is what would turn every later rewrite into a no-op.
+    expect(currentProductSlug("export const PRODUCT_SLUG = 'edgeseed';")).toBeNull();
+  });
+
+  it("round-trips with stampProductIdentity", () => {
+    const stamped = stampProductIdentity('export const PRODUCT_SLUG = "edgeseed";', {
+      slug: "acme",
+      displayName: "Acme",
+    });
+    expect(currentProductSlug(stamped)).toBe("acme");
+  });
+});
 
 describe("isValidProductSlug", () => {
   it.each(["acme", "acme-cloud", "a1", "x-9-y"])("accepts %s", (slug) => {
@@ -141,5 +174,60 @@ describe("stampWranglerConfig", () => {
         /"database_id": "[0-9a-f-]{36}"/,
       );
     }
+  });
+
+  // Same class of bug as the database id, different currency: a clone that
+  // inherited the starter's hostname would have its first deploy try to claim a
+  // zone somebody else owns.
+  describe("custom domains", () => {
+    const withRoutes = `{
+  "name": "starter-web",
+  "main": "worker.ts",
+  // Comment above the routes block, which must go with it.
+  "routes": [{ "pattern": "app.edgeseed.dev", "custom_domain": true }],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_id": "510ae3cb-6a46-4409-a1db-b07b59cd504b",
+    },
+  ],
+}`;
+
+    it("strips the starter's custom domain from a clone", () => {
+      const out = stampWranglerConfig(withRoutes, { from: "starter-web", to: "acme-web" });
+
+      expect(out).not.toContain("routes");
+      expect(out).not.toContain("app.edgeseed.dev");
+    });
+
+    it("takes the routes comment with it rather than orphaning it", () => {
+      const out = stampWranglerConfig(withRoutes, { from: "starter-web", to: "acme-web" });
+      expect(out).not.toContain("Comment above the routes block");
+    });
+
+    it("leaves the rest of the config intact when stripping routes", () => {
+      const out = stampWranglerConfig(withRoutes, { from: "starter-web", to: "acme-web" });
+
+      expect(out).toContain('"name": "acme-web"');
+      expect(out).toContain('"main": "worker.ts"');
+      expect(out).toContain('"binding": "DB"');
+      expect(out).toContain('"database_id": "local"');
+    });
+
+    it("still produces parseable config after stripping", () => {
+      const out = stampWranglerConfig(withRoutes, { from: "starter-web", to: "acme-web" });
+      const stripped = out.replace(/^\s*\/\/[^\n]*$/gm, "").replace(/,(\s*[}\]])/g, "$1");
+
+      expect(() => JSON.parse(stripped)).not.toThrow();
+    });
+
+    it("is a no-op on a config that declares no routes", () => {
+      // apps/mcp has no custom domain — stripping must not mangle it.
+      expect(stampWranglerConfig(mcp, { from: "starter-mcp", to: "acme-mcp" })).toBe(
+        mcp
+          .replace('"name": "starter-mcp"', '"name": "acme-mcp"')
+          .replace(/"database_id": "[^"]*"/, '"database_id": "local"'),
+      );
+    });
   });
 });

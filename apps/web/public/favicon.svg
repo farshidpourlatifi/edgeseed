@@ -1,23 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- Mirrors the site-header logo: rounded bg-primary square + lucide Cloud.
+  <!-- Mirrors the in-app mark: rounded bg-primary badge + lucide `Layers`,
+       matching app/components/brand/brand-mark.tsx. Change one, change the
+       other — a favicon must be a standalone fetchable file, so it cannot
+       import the component.
+
+       Badge rather than a bare glyph: at 16px in a tab strip, a solid ground
+       with a knocked-out mark holds contrast against any page background,
+       where thin strokes on transparent do not.
+
        Colors track the OS/browser theme via prefers-color-scheme, matching the
        light/dark --primary pairs in app.css (sky-700/sky-50, sky-500/sky-950). -->
   <style>
     .bg { fill: #0369a1; }
-    .icon { stroke: #f0f9ff; }
+    .mark { stroke: #f0f9ff; }
     @media (prefers-color-scheme: dark) {
       .bg { fill: #0ea5e9; }
-      .icon { stroke: #082f49; }
+      .mark { stroke: #082f49; }
     }
   </style>
   <rect class="bg" width="32" height="32" rx="8"/>
-  <path
-    class="icon"
-    d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"
-    fill="none"
-    stroke-width="2.5"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    transform="translate(6 6) scale(0.8333)"
-  />
+  <!-- lucide's 24x24 grid scaled into a 22px box, inset 5px -->
+  <g class="mark" transform="translate(5 5) scale(0.91667)"
+     fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/>
+    <path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/>
+    <path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/>
+  </g>
 </svg>

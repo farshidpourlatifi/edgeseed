@@ -7,6 +7,7 @@ import {
   type ObservabilityEnv,
 } from "@starter/observability/middleware";
 import { apiApp } from "./api";
+import { resolveOriginRedirect } from "./origins";
 
 export interface ServerEnv {
   Bindings: ObservabilityEnv["Bindings"] & {
@@ -18,6 +19,10 @@ export interface ServerEnv {
     GITHUB_CLIENT_SECRET?: string;
     GOOGLE_CLIENT_ID?: string;
     GOOGLE_CLIENT_SECRET?: string;
+    RESEND_API_KEY?: string;
+    EMAIL_FROM?: string;
+    /** Marketing origin. Unset ⇒ one origin serves everything (docs/domains.md). */
+    MARKETING_URL?: string;
   };
   Variables: ObservabilityEnv["Variables"] & {
     db: import("@starter/db").Database;
@@ -31,6 +36,21 @@ const app = new Hono<ServerEnv>();
 // Request logger + correlation id. Mounted first so everything below is
 // covered, including failures inside authMiddleware itself.
 app.use(observabilityMiddleware);
+
+// Split-origin topology, when configured. Mounted before authMiddleware on
+// purpose: an app path arriving on the marketing origin leaves as a redirect
+// without ever constructing an auth instance there, so the guarantee that auth
+// only runs on one origin is structural rather than a convention. No-op unless
+// MARKETING_URL is set — see docs/domains.md.
+app.use(async (c, next) => {
+  const target = resolveOriginRedirect({
+    marketingUrl: c.env.MARKETING_URL,
+    appUrl: c.env.BETTER_AUTH_URL,
+    requestUrl: c.req.url,
+  });
+  if (target) return c.redirect(target, 302);
+  await next();
+});
 
 // Create db + auth per request
 app.use(authMiddleware);

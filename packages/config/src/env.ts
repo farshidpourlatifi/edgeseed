@@ -10,6 +10,12 @@ const sharedEnvSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
 
+  // --- Transactional email (both optional: absent falls back to logging the message) ---
+  /** Resend API key. Needed together with EMAIL_FROM, or the fallback is used. */
+  RESEND_API_KEY: z.string().optional(),
+  /** Verified sender, plain or `"Name <addr@domain>"`. The domain must be verified in Resend. */
+  EMAIL_FROM: z.string().optional(),
+
   // --- Observability (all optional: logging works standalone, Sentry is opt-in) ---
   /** Absent/empty disables Sentry entirely — `withSentry` becomes a pass-through. */
   SENTRY_DSN: z.string().optional(),
@@ -27,6 +33,14 @@ const sharedEnvSchema = z.object({
 export const webEnvSchema = sharedEnvSchema.extend({
   /** Public origin. Required only here — the MCP Worker derives its origin per request. */
   BETTER_AUTH_URL: z.string().url(),
+  /**
+   * Marketing origin, when the landing page lives on its own hostname.
+   *
+   * Optional, and absent is the default: one origin serves the landing page and
+   * the app together, which is what `pnpm dev` does on localhost. Set it and
+   * app paths move to `BETTER_AUTH_URL`'s origin. See docs/domains.md.
+   */
+  MARKETING_URL: z.string().url().optional(),
 });
 
 /** MCP server Worker bindings — no BETTER_AUTH_URL: `baseURL` derives from the request origin. */

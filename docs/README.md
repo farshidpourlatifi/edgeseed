@@ -1,8 +1,8 @@
-# Cloudflare Starter — Documentation
+# EdgeSeed — Documentation
 
 ## Overview
 
-This is a Cloudflare-native monorepo starter for shipping SaaS products fast. It provides auth, database, API, UI, and MCP tooling out of the box — all running on Cloudflare Workers.
+EdgeSeed is a Cloudflare-native monorepo starter for shipping SaaS products fast. It provides auth, database, API, UI, and MCP tooling out of the box — all running on Cloudflare Workers.
 
 For the full V1 scope and design decisions, see [starter-v1-scope.md](./starter-v1-scope.md).
 
@@ -40,6 +40,9 @@ packages/auth     — Better Auth (email/password, GitHub, Google, orgs)
 packages/cli      — Dev workflow scripts
 packages/config   — Zod-validated env schemas
 packages/db       — Drizzle ORM + D1 schema and migrations
+packages/email    — EmailSender port + Resend transport
+packages/observability — structured logging, correlation ids, Sentry
+packages/testing  — shared test helpers (dependency-free)
 packages/ui       — shadcn/ui components + theme
 docs/adr          — Architecture decision records
 docs/api          — Generated OpenAPI specs
@@ -115,9 +118,19 @@ Secrets are set once per environment with `wrangler secret put <NAME>` (run from
 # Session signing key — any random 32+ char string:
 openssl rand -hex 32 | wrangler secret put BETTER_AUTH_SECRET
 
-# Public URL of the deployed app, e.g. https://starter-web.<subdomain>.workers.dev
+# Public URL of the deployed app, e.g. https://app.edgeseed.dev
 wrangler secret put BETTER_AUTH_URL
 ```
+
+**Also required if `routes` in `wrangler.jsonc` declares more than one
+hostname** — the marketing origin, e.g. `https://edgeseed.dev`:
+
+```bash
+wrangler secret put MARKETING_URL
+```
+
+Without it the split never activates and both hostnames serve the app's auth
+routes. See [Domain Topology](./domains.md).
 
 **Optional — GitHub social login.** Create an OAuth app at
 https://github.com/settings/developers with the callback URL
@@ -142,6 +155,26 @@ Social login providers are auto-enabled only when their credentials are set
 email/password auth still works. For production OAuth apps, use your real domain
 in the callback URLs.
 
+**Effectively required — transactional email.** Sign-up grants no session until
+the address is verified, so without a working sender nobody can complete
+registration or reset a password. Cloudflare cannot send this mail (Email
+Routing is inbound only; the Email Workers `send_email` binding refuses any
+recipient outside its allowlist), so the starter uses Resend. Verify a sending
+domain at https://resend.com/domains, create an API key, then:
+
+```bash
+wrangler secret put RESEND_API_KEY
+# Must be on the verified domain, e.g. "EdgeSeed <auth@mail.edgeseed.dev>"
+wrangler secret put EMAIL_FROM
+```
+
+Both are needed together. With either missing, `@starter/email` logs the message
+instead of sending it and warns once per attempt — which looks healthy in every
+dashboard while no mail leaves the building. In local development that fallback
+is the feature: the log line carries the verification link, so a fresh clone
+works with no Resend account. Details in
+[ADR 003](./adr/003-transactional-email.md).
+
 ### Local dev
 
 Don't use `wrangler secret put` for local development. Put the same variables in
@@ -150,6 +183,7 @@ Don't use `wrangler secret put` for local development. Put the same variables in
 
 ## Further reading
 
+- [Domain Topology](./domains.md) — single vs split origin, `MARKETING_URL`, custom domains, OAuth callbacks
 - [MCP Server](./mcp.md) — connecting a client, the OAuth flow, tools, deploy checklist
 - [Creating a New Package](./creating-packages.md) — scaffold checklist, wiring, per-package CLAUDE.md
 - [Design Workflow](./design-workflow.md) — V0/shadcn generation and integration (product-owned; swap in your own)
@@ -160,5 +194,7 @@ Don't use `wrangler secret put` for local development. Put the same variables in
 - [Security Fix & Test Plan](./security-plan.md) — remediation phases and the standing review pass
 - [Cloudflare Costs and Guardrails](./costs-and-limits.md)
 - [ADR 001: Monorepo Structure](./adr/001-monorepo-structure.md)
+- [ADR 002: Observability](./adr/002-observability.md)
+- [ADR 003: Transactional Email](./adr/003-transactional-email.md)
 - [OpenAPI Spec](./api/openapi.json)
 - [V1 Scope](./starter-v1-scope.md)

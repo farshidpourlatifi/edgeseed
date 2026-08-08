@@ -5,8 +5,14 @@
 Dev workflow scripts run via `tsx` from the root `package.json` (`db:*`,
 `api:spec`, `version:bump`). Not shipped anywhere — tooling only. Scripts
 shell out via `pnpm --filter` rather than importing workspace packages, so
-this package declares no dependencies (shared test helpers live in
+this package declares no workspace dependencies (shared test helpers live in
 `@starter/testing`).
+
+The one external devDependency is `better-auth`, for `hashPassword` in
+`db-seed.ts`. Seeding a login-able user means writing a password hash, and the
+hash must be produced by the same code sign-in verifies with — reimplementing
+its scrypt parameters here would silently rot the moment Better Auth changes
+them.
 
 ## Layout
 

@@ -136,7 +136,24 @@ it("rejects better-auth's default secret", () => {
 That third case needs an explicit `.refine()` on the schema — length alone does
 not catch it, and it is precisely the value that ships silently today.
 
-### 2.2 Require email verification and disable implicit account linking — **A2**
+### 2.2 Require email verification and disable implicit account linking — **A2** — DONE 2026-08-06
+
+Implemented as `docs/adr/003-transactional-email.md`. Two corrections to the
+plan below, both discovered by reading better-auth rather than its docs:
+
+- **The transport is Resend, not Cloudflare.** Email Routing is inbound only and
+  the Email Workers `send_email` binding rejects any recipient outside
+  `allowed_destination_addresses` — it cannot mail a stranger.
+- **`trustedProviders` is empty, not an allowlist.** The option means "link even
+  when the provider reports the address unverified", so an allowlist is weaker
+  than none. `requireLocalEmailVerified: true` is what closes A2.
+
+Steps 1–2 of the test below are covered in `tests/e2e/auth.spec.ts`. Steps 3–4
+are **not** — driving a real Google sign-in in e2e needs a provider stub, which
+does not exist yet. The linking rules are asserted at the config boundary in
+`packages/auth/src/__tests__/auth-config.test.ts` instead.
+
+Original plan follows.
 
 In `packages/auth/src/server.ts`: set
 `emailAndPassword.requireEmailVerification: true`, add an
@@ -191,7 +208,7 @@ responses.
 **Test:**
 
 ```bash
-curl -sI https://starter-web.farshid-pourlatifi-3fa.workers.dev/login | grep -iE 'content-security|x-frame|x-content-type|referrer-policy|strict-transport'
+curl -sI https://app.edgeseed.dev/login | grep -iE 'content-security|x-frame|x-content-type|referrer-policy|strict-transport'
 ```
 
 Better, as an e2e assertion so it cannot regress silently:

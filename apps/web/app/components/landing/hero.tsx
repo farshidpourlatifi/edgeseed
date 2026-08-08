@@ -29,7 +29,8 @@ export function Hero() {
 
         <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
           <Button size="lg" className="h-12 px-6" asChild>
-            <Link to="/register">
+            {/* reloadDocument: crosses the marketing/app boundary — see site-header.tsx */}
+            <Link reloadDocument to="/register">
               Get Started
               <ArrowRight className="size-4" aria-hidden="true" />
             </Link>

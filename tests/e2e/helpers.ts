@@ -1,4 +1,23 @@
+import { execSync } from "node:child_process";
 import { expect, type Locator } from "@playwright/test";
+
+/**
+ * Mark an address verified directly in the local D1.
+ *
+ * The verification link is a signed token delivered by email, and with no
+ * `RESEND_API_KEY` in CI the message is only written to the dev server's log —
+ * which a Playwright test cannot read. Flipping the column is the seam that
+ * keeps the rest of the journey (register → refused → verified → in) testable.
+ *
+ * Local-only by construction: same `--local` invocation the seed uses.
+ */
+export function markEmailVerified(email: string) {
+  execSync(
+    `pnpm --filter @starter/web exec wrangler d1 execute edgeseed-db --local ` +
+      `--command "UPDATE user SET emailVerified = 1 WHERE email = '${email}'"`,
+    { stdio: "pipe" },
+  );
+}
 
 /**
  * Resolve once React has hydrated `target`.

@@ -1,10 +1,13 @@
 import { execSync } from "node:child_process";
+import { resolveDbTarget } from "./lib/db-target";
 
-const isRemote = process.argv.includes("--remote");
-const flag = isRemote ? "" : "--local";
+const target = resolveDbTarget(process.argv);
 
-console.log(`Applying migrations (${isRemote ? "remote" : "local"})...`);
-execSync(`pnpm --filter @starter/web exec wrangler d1 migrations apply starter-db ${flag}`, {
-  stdio: "inherit",
-  cwd: process.cwd(),
-});
+// The flag is always passed explicitly. Omitting it does NOT mean remote —
+// wrangler defaults to local, so an implicit remote silently migrates the
+// developer's own database and reports success.
+console.log(`Applying migrations to the ${target.label} database (edgeseed-db)...`);
+execSync(
+  `pnpm --filter @starter/web exec wrangler d1 migrations apply edgeseed-db ${target.flag}`,
+  { stdio: "inherit", cwd: process.cwd() },
+);

@@ -1,5 +1,6 @@
-import { Cloud } from "lucide-react";
+import { BrandMark } from "~/components/brand/brand-mark";
 
+import { PRODUCT_NAME } from "@starter/config/product";
 import { GithubIcon } from "./github-icon";
 import { GITHUB_URL } from "./site";
 
@@ -15,11 +16,9 @@ export function SiteFooter() {
     <footer className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-10 sm:px-6 md:flex-row md:items-center md:justify-between">
       <div className="flex items-center gap-2">
         <span className="flex size-7 items-center justify-center rounded-md bg-primary">
-          <Cloud className="size-4 text-primary-foreground" aria-hidden="true" />
+          <BrandMark className="size-4 text-primary-foreground" />
         </span>
-        <span className="text-sm text-muted-foreground">
-          Cloudflare Starter — built for the edge.
-        </span>
+        <span className="text-sm text-muted-foreground">{PRODUCT_NAME} — built for the edge.</span>
       </div>
 
       <nav aria-label="Footer" className="flex flex-wrap items-center gap-x-6 gap-y-2">

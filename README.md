@@ -36,6 +36,7 @@ packages/
   cli/          Dev workflow scripts (db, api:spec, version:bump)
   config/       Zod-validated env and runtime config
   db/           Drizzle ORM + D1 schema and migrations
+  email/        Transactional email — EmailSender port + Resend transport
   observability/ Structured logging, correlation ids, Sentry wiring
   testing/      Shared test helpers (factories, fake env) — dependency-free
   ui/           shadcn/ui + Tailwind v4 design system
