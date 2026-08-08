@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
+import { RATE_LIMIT_RULES } from "@starter/auth/rate-limit";
 import { clientIp } from "./helpers";
 
 /**
@@ -18,9 +19,19 @@ import { clientIp } from "./helpers";
  * throttle another — and so a re-run against a reused dev server starts fresh.
  */
 
-/** Matches `RATE_LIMIT_RULES` in `packages/auth/src/rate-limit.ts`. */
-const CREDENTIALS_LIMIT = 10;
-const MAIL_LIMIT = 3;
+/**
+ * Read from the policy table rather than restated, which is what turns this
+ * file into the coupling check between the table and `wrangler.jsonc`.
+ *
+ * The binding is what enforces; the table is what the app believes. Nothing
+ * else compares the two — the wrangler comment says "these must match" and no
+ * code enforced it. Derived, the mismatch fails in **both** directions: raise
+ * the table without the binding and the run is refused early, raise the binding
+ * without the table and the expected 429 never arrives. Hard-coded, both stay
+ * green at the old numbers, which is exactly the drift worth catching.
+ */
+const CREDENTIALS_LIMIT = RATE_LIMIT_RULES.credentials.max;
+const MAIL_LIMIT = RATE_LIMIT_RULES.mail.max;
 
 function attempt(
   request: APIRequestContext,

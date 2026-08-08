@@ -34,8 +34,9 @@ export function markEmailVerified(email: string) {
  * would make the second run of the day fail.
  *
  * Drawn from the whole of CGNAT space (RFC 6598 reserves `100.64.0.0/10`, so it
- * cannot be mistaken for a real client) rather than a single `/24`. That is 4.2
- * million addresses instead of 65 thousand: with a couple of dozen buckets
+ * cannot be mistaken for a real client) rather than the single `/16` this used
+ * to sample. That is 4.2 million addresses instead of 65 thousand: with a
+ * couple of dozen buckets
  * alive at once across a run and its predecessor, a collision would surface as
  * an unrelated spec failing with a 429 — the kind of once-in-a-thousand-runs
  * flake nobody would connect back to here.

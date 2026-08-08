@@ -31,6 +31,19 @@ or testid.
 - Tests use a per-run throwaway user (`helpers.ts`); never point this suite at
   a deployed environment.
 
+## `rate-limit.spec.ts` is the only check that the policy and the bindings agree
+
+The limits live in three places: `RATE_LIMIT_RULES` (`packages/auth/src/rate-limit.ts`),
+`simple.limit` in both `wrangler.jsonc` files, and this spec. The binding is what
+enforces; the table is what the app believes. **Import the numbers from the table —
+never restate them here.** Derived, a mismatch fails in both directions: raise the
+table without the binding and the run is refused early, raise the binding without
+the table and the expected 429 never arrives. Restated, both stay green at the old
+values, which is the drift actually worth catching.
+
+Verified by desyncing the table to `max: 5` against a binding of 10 and watching the
+sign-in case go red (`expected 429, received 401`).
+
 ## Any spec that signs in or registers needs its own client address
 
 Auth rate limiting keys on `cf-connecting-ip` (`docs/security-audit.md` #4,
