@@ -660,8 +660,10 @@ there and the marketing site can never see it.
 
 **Legacy deploy (pre-rename):** `https://starter-web.farshid-pourlatifi-3fa.workers.dev`.
 The Workers were renamed `starter-*` → `edgeseed-*`, so the next `pnpm deploy:web`
-creates a **new** Worker and leaves that one running. Delete it after cutover,
-then delete this paragraph.
+creates a **new** Worker and leaves that one running. Its secrets did **not**
+come with it — see "Secrets" below; diff
+`wrangler secret list --name starter-web` against `edgeseed-web` before deleting
+it. Delete it after cutover, then delete this paragraph.
 
 D1: `edgeseed-db` / `639d0b4e-b410-4e14-b4a3-8f5e6c95c8fe` (same id in **both**
 wrangler files — the MCP Worker runs its own Better Auth against these users).
@@ -733,6 +735,19 @@ production Sentry event `development` and leaves `LOG_LEVEL` at `debug`.
 All sensitive vars go through `wrangler secret put <NAME>`, never
 `wrangler.jsonc`. A `var` **shadows** a same-named secret at deploy time, so a
 committed value silently wins over `wrangler secret put`.
+
+**Renaming a Worker gives it an empty secret store.** Secrets are keyed by
+Worker name, so the `starter-*` → `edgeseed-*` rename stranded
+`GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GOOGLE_CLIENT_ID`,
+`GOOGLE_CLIENT_SECRET` and `SENTRY_DSN` on the old Worker. Nothing warned:
+`createAuth` builds `socialProviders` conditionally, so production answered
+`PROVIDER_NOT_FOUND` on every social sign-in, and `withSentry()` degraded to a
+pass-through with no error reporting at all. Redeploying does not help — code
+and secrets ship through separate channels, and `wrangler deploy` never touches
+the store. Carry them over **before** deleting the old Worker:
+`wrangler secret list --name <old>` gives the names, but values cannot be read
+back, so each has to be re-obtained from its provider — and GitHub shows a
+client secret exactly once, so that one must be regenerated.
 
 Required: `BETTER_AUTH_SECRET` (32+ chars) for both Workers; `BETTER_AUTH_URL`
 for the web Worker only — the MCP Worker derives its origin from each request
