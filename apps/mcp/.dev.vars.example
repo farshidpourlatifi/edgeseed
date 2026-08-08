@@ -37,5 +37,4 @@ SENTRY_ENVIRONMENT=
 SENTRY_RELEASE=
 
 # Optional — debug|info|warn|error (defaults: debug in development, else info).
-# Kept commented: the schema rejects an empty string for this enum key.
-# LOG_LEVEL=debug
+LOG_LEVEL=

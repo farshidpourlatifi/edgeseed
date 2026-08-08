@@ -52,7 +52,58 @@ describe("env schemas", () => {
     const env = parseEnv(webEnvSchema, createFakeEnv({ BETTER_AUTH_SECRET: "a".repeat(32) }));
     expect(env.BETTER_AUTH_SECRET).toBe("a".repeat(32));
   });
+});
 
+/**
+ * `.dev.vars` spells an unset optional key as `KEY=`, which arrives as `""`,
+ * not as absent — and every optional key in `.dev.vars.example` ships that way.
+ * Since the env is validated on every request, treating `""` as a value meant a
+ * 500 on the documented setup path.
+ */
+describe("blank optional bindings", () => {
+  const blankable = [
+    "MARKETING_URL",
+    "GITHUB_CLIENT_ID",
+    "GITHUB_CLIENT_SECRET",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    "RESEND_API_KEY",
+    "EMAIL_FROM",
+    "SENTRY_DSN",
+    "SENTRY_ENVIRONMENT",
+    "SENTRY_RELEASE",
+    "SENTRY_TRACES_SAMPLE_RATE",
+    "LOG_LEVEL",
+  ] as const;
+
+  it.each(blankable)("treats an empty %s as unset", (key) => {
+    const env = parseEnv(webEnvSchema, createFakeEnv({ [key]: "" })) as Record<string, unknown>;
+    expect(env[key]).toBeUndefined();
+  });
+
+  it("parses an env with every optional key blank, as the example file ships it", () => {
+    const blanks = Object.fromEntries(blankable.map((key) => [key, ""]));
+    expect(() => parseEnv(webEnvSchema, createFakeEnv(blanks))).not.toThrow();
+  });
+
+  it("falls back to the ENVIRONMENT default when it is blank", () => {
+    const env = parseEnv(webEnvSchema, createFakeEnv({ ENVIRONMENT: "" }));
+    expect(env.ENVIRONMENT).toBe("development");
+  });
+
+  // Blank still means missing for the two that are required — an empty secret is
+  // exactly the case #3 exists to refuse, not a value to wave through.
+  it.each(["BETTER_AUTH_SECRET", "BETTER_AUTH_URL"])("still rejects a blank %s", (key) => {
+    expect(() => parseEnv(webEnvSchema, createFakeEnv({ [key]: "" }))).toThrow();
+  });
+
+  it("still rejects a malformed value that is not blank", () => {
+    expect(() => parseEnv(webEnvSchema, createFakeEnv({ MARKETING_URL: "not-a-url" }))).toThrow();
+    expect(() => parseEnv(webEnvSchema, createFakeEnv({ LOG_LEVEL: "loud" }))).toThrow();
+  });
+});
+
+describe("env schemas, continued", () => {
   it("rejects a non-URL BETTER_AUTH_URL", () => {
     expect(() => parseEnv(webEnvSchema, createFakeEnv({ BETTER_AUTH_URL: "not-a-url" }))).toThrow();
   });
