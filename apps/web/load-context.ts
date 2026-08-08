@@ -21,8 +21,13 @@ declare module "react-router" {
     requestId: string;
     /**
      * Per-request CSP nonce. React Router's inline scripts must carry it or the
-     * policy blocks them — root.tsx passes it to `<Scripts>` and
-     * `<ScrollRestoration>`, entry.server.tsx to `renderToReadableStream`.
+     * policy blocks them.
+     *
+     * `entry.server.tsx` is the only consumer: it hands the value to
+     * `ServerRouter`, which is the documented default for every nonce-aware
+     * component *and* for the mid-stream loader-data chunks that `root.tsx`
+     * cannot reach — and to `renderToReadableStream` for React's own bootstrap
+     * scripts. `root.tsx` deliberately threads no nonce of its own.
      */
     cspNonce: string | undefined;
   }

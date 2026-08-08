@@ -33,8 +33,9 @@ describe("GET /doc", () => {
 
 describe("unknown routes", () => {
   // 401 rather than 404 to an anonymous caller: the default-deny guard runs
-  // before routing resolves, so it cannot know the route is absent — and not
-  // answering means the surface cannot be enumerated without credentials.
+  // before routing resolves, so it cannot know the route is absent. Not surface
+  // hiding — `GET /doc` is public — but it removes the 404/401 difference as an
+  // oracle for probing paths the spec does not advertise.
   it("401s outside the defined surface when anonymous", async () => {
     const res = await apiApp.request("/nope");
     expect(res.status).toBe(401);

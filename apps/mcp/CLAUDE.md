@@ -25,6 +25,15 @@ unauthenticated `/mcp` → 401 + `WWW-Authenticate`; discovery → dynamic regis
   `apps/web` and cannot read that origin's session cookie, so users sign in again
   here. Same D1, same `BETTER_AUTH_SECRET`, same user rows — separate cookie.
   `baseURL` is derived from the request origin, so no extra binding is needed.
+- **`authFor` validates the env before constructing anything, and must keep
+  doing so.** Sharing the secret means sharing the failure mode: a session forged
+  against a lenient MCP Worker is honoured by the web app too, so this side
+  cannot be the permissive one (`docs/security-audit.md` #3).
+  **`pnpm check:boot` does not cover this** — it requests `/`, which answers from
+  static metadata and never reaches `authFor`, so deleting the check would leave
+  the whole gate green. The deny-path tests in `src/__tests__/auth-app.test.ts`
+  target `/api/auth/**` for that reason, and they pin `/` as env-independent
+  because the boot check depends on it staying that way.
 - **`database_id` must match `apps/web`.** A different id is a different database,
   locally too — wrangler keys its sqlite state by id.
 - **Locally, `pnpm dev` uses `--persist-to ../web/.wrangler/state`** so both Workers

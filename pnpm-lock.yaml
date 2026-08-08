@@ -133,6 +133,9 @@ importers:
       '@cloudflare/workers-types':
         specifier: ^4
         version: 4.20260331.1
+      '@starter/testing':
+        specifier: workspace:*
+        version: link:../../packages/testing
       typescript:
         specifier: ^5.7
         version: 5.9.3

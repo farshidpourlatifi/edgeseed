@@ -222,8 +222,33 @@ The schema gained an explicit `.refine()` rejecting Better Auth's
 `DEFAULT_SECRET`. Length alone did not catch it — the constant is 38 characters
 and passed `.min(32)`, which is precisely why it could reach production silently.
 Deny-path tests in `packages/config/src/__tests__/env.test.ts` (missing, short,
-and the default value) and `packages/auth/src/__tests__/middleware.test.ts` (the
-request is refused and the handler never runs).
+and the default value), `packages/auth/src/__tests__/middleware.test.ts` (the
+request is refused and the handler never runs), and
+`apps/mcp/src/__tests__/auth-app.test.ts` for the MCP half. The MCP tests target
+`/api/auth/**` deliberately: `pnpm check:boot` requests `/`, which answers from
+static metadata and never reaches `authFor`, so without them deleting the MCP
+check would leave the entire gate green.
+
+**A blank binding counts as unset.** `.dev.vars` spells an unset optional key as
+`KEY=`, which arrives as `""`, and `.optional()` admits only `undefined`. Every
+optional key in `.dev.vars.example` ships that way — `MARKETING_URL=` included —
+so validating on every request turned the documented setup path into a 500 on
+every request, surfaced as a Zod URL error with nothing pointing at `.dev.vars`.
+`optionalBinding` (`packages/config/src/env.ts`) now maps `""` to absent. The
+trap was already known for enums: the example shipped `LOG_LEVEL` commented out
+with a note that the schema rejects an empty string for it, which both example
+files can now drop. Blank still means missing for `BETTER_AUTH_SECRET` and
+`BETTER_AUTH_URL`, which are required.
+
+**Environments that run the Worker need an env to run it with.** `check:boot`
+passes throwaway values as `--var` (`BOOT_VARS` in
+`packages/cli/src/lib/boot-check.ts`) and the CI e2e job writes a throwaway
+`.dev.vars`. Its job is to prove the _bundle runs_; a correctly-failing Worker
+with no secret serves nothing, which would make the check assert "is CI
+configured" instead. Both were caught by CI, not locally — a developer machine
+has a `.dev.vars`, so `pnpm verify` passed while the same commit failed the gate.
+Worth recording that CI's auth e2e had until then been running against Better
+Auth's public default secret, the fallback this finding removes.
 
 **Operational note:** because this now fails closed, deploying it to a Worker
 whose secret was never set takes that Worker down instead of leaving it
@@ -511,6 +536,25 @@ nothing, so the file the next page gets copied from carries the check.
 The helper throws rather than returning null, so a caller cannot continue with no
 user by accident. Deny paths in `apps/web/app/__tests__/require-user.test.ts`.
 
+**Tested at the vector, not just at the helper.** Unit tests on `requireUser`
+pass whether or not a loader calls it, so `tests/e2e/loader-guards.spec.ts`
+requests the loader directly. Two things make that test non-obvious, and both
+were got wrong first:
+
+- **A plain `.data` request does not exercise the child.** Single fetch resolves
+  every matched loader in one request, and any one of them redirecting
+  short-circuits the whole payload — so `/dashboard/settings.data` is satisfied
+  by the _layout's_ guard and keeps passing with the child wide open.
+  `?_routes=routes%2Fdashboard.settings` asks for one loader by id without its
+  parent, which is the request this finding is actually about.
+- **The status code is not the assertion.** An unauthenticated `.data` request
+  answers **202**, with the redirect encoded in the body as
+  `SingleFetchRedirect`. Asserting a 302, or merely "not 200", proves nothing.
+
+Verified by removing the guard in a throwaway worktree: the `?_routes=` case goes
+red while the plain `.data` cases stay green, which is the whole argument for
+targeting the child.
+
 ### 11. IP-derived controls trust the first `x-forwarded-for` entry, which is client-spoofable
 
 `packages/auth/src/server.ts:19-51` sets no `advanced.ipAddress.ipAddressHeaders`
@@ -670,8 +714,11 @@ Details that are not obvious:
   registering `POST /health` later would have made it public, and no existing
   test would have noticed because the route does not exist yet.
 - **Unknown paths now 401 rather than 404** for anonymous callers. The guard runs
-  before routing resolves, so it cannot know a route is absent — and the side
-  effect is that the surface cannot be enumerated without credentials.
+  before routing resolves, so it cannot know a route is absent. This is not
+  surface hiding: `GET /doc` is public and lists every route the app serves
+  (Low, "OpenAPI spec and version are publicly exposed"). What it removes is the
+  404/401 difference as an oracle for probing paths the spec does **not**
+  advertise.
 
 `requireSession` was also fixed to throw `HTTPException` instead of a bare
 `Response`: Hono's `compose()` only routes `Error` instances to the error

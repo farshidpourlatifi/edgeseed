@@ -294,6 +294,18 @@ The schema rejects Better Auth's `DEFAULT_SECRET` explicitly. Length checks are
 not enough on their own: that constant is 38 characters and passed `.min(32)`
 for months.
 
+**Optional bindings go through `optionalBinding`, not `.optional()`.** `.dev.vars`
+delivers an unset key as `""`, not as absent, and every optional key in
+`.dev.vars.example` ships that way — so a plain `.optional()` rejects the
+documented setup path on every request.
+
+**Anything that runs the Worker needs an env to run it with.** `check:boot`
+supplies throwaway values as `--var` and the CI e2e job writes a throwaway
+`.dev.vars`; without them a correctly failing Worker serves nothing and the check
+asserts "is CI configured" instead of "does the bundle boot". Remember that
+`pnpm verify` passes locally in this situation, because a developer machine has a
+`.dev.vars` — CI is the only place this shows up.
+
 ### The API surface (`apps/web/server/api.ts`)
 
 - **Default deny.** Every operation not in `PUBLIC_OPERATIONS` requires a
@@ -316,8 +328,10 @@ for months.
   `Sec-Fetch-Site` with an `Origin` fallback, and refuses when neither is
   present. Do not narrow it back to a content-type predicate.
 - Anonymous requests to unknown `/api/v1` paths answer **401, not 404**. The
-  guard runs before routing resolves; the side effect is that the surface cannot
-  be enumerated without credentials. Do not "fix" this.
+  guard runs before routing resolves, so it cannot know the route is absent. It
+  does not hide the surface — `GET /doc` is public and lists every route — but it
+  does remove the 404/401 difference as an oracle for probing paths the spec does
+  not advertise. Do not "fix" this.
 - Reject with `HTTPException`, never a bare `throw new Response(...)`. Hono's
   `compose()` only routes `Error` instances to the error handler, so a thrown
   `Response` escapes as a 500.
@@ -333,6 +347,12 @@ so the parent's redirect never applies.
 Guard even a loader that returns nothing today. Both files in
 `app/routes/_examples/` do, because they are the templates the next page is
 copied from — which is exactly how the original defect propagated.
+
+**Test a new guard at the vector.** A unit test on `requireUser` passes whether
+or not the loader calls it, and a plain `.data` request is satisfied by the
+layout's guard — so request the child alone with
+`?_routes=routes%2F<route-id>` and assert on the `SingleFetchRedirect` payload,
+not the status (which is 202). `tests/e2e/loader-guards.spec.ts`.
 
 Throw, never soft-return. `return { user: null }` answers 200 to an
 unauthenticated caller and reads as deliberate.

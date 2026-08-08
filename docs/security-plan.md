@@ -112,11 +112,20 @@ the starter is used for a real product.
 
 ### 2.1 Fail closed on missing or weak env — **A3** ✅ done 2026-08-08
 
-> **Landed as described, with one refinement.** Validation is **per request** in
-> `authMiddleware` and the MCP Worker's `authFor`, not at worker init — Workers
-> only hand `env` to the request handler, so there is no init-time env to check.
-> The schema also gained an explicit `.refine()` rejecting Better Auth's
-> `DEFAULT_SECRET`, which `.min(32)` accepted at 38 characters.
+> **Landed, with three refinements the plan did not anticipate.** Validation is
+> **per request** in `authMiddleware` and the MCP Worker's `authFor`, not at
+> worker init — Workers only hand `env` to the request handler, so there is no
+> init-time env to check. The schema gained an explicit `.refine()` rejecting
+> Better Auth's `DEFAULT_SECRET`, which `.min(32)` accepted at 38 characters.
+>
+> And a **blank binding now counts as unset**: `.dev.vars` delivers an unset
+> optional key as `""`, which `.optional()` rejects, so validating every request
+> broke the documented setup path (`MARKETING_URL=` ships that way in
+> `.dev.vars.example`). Failing closed also means environments that _run_ the
+> Worker need an env to run it with — `check:boot` passes throwaway `--var`s and
+> the CI e2e job writes a throwaway `.dev.vars`. Both gaps were found by CI, not
+> locally, because a developer machine has a `.dev.vars` and `pnpm verify`
+> therefore passed. See `security-audit.md` #3.
 
 The schema already existed and was already correct
 (`packages/config/src/env.ts:6`); it simply had no callers. The fix wires
@@ -253,6 +262,12 @@ for a 200.
 > unsafe method via `Sec-Fetch-Site` with an `Origin` fallback. And the allowlist
 > is keyed by method **and** path, so `POST` on a public path is not exempt.
 > See `security-audit.md` #15.
+>
+> **A10's test is an e2e, not the unit test named below.** A unit test on
+> `requireUser` passes whether or not a loader calls it, and a plain `.data`
+> request is satisfied by the _layout's_ guard — so the child has to be requested
+> on its own with `?_routes=`, asserting on the `SingleFetchRedirect` payload
+> rather than the status, which is 202. `tests/e2e/loader-guards.spec.ts`.
 
 - Add `csrf()` from `hono/csrf` to `apiApp`.
 - Add a default session-check middleware to `apiApp`, allowlisting `/health` and
