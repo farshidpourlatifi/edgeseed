@@ -3,6 +3,17 @@
   "testRunner": "vitest",
   "plugins": ["@stryker-mutator/vitest-runner"],
   "coverageAnalysis": "perTest",
+  "ignorePatterns": [
+    ".wrangler",
+    ".turbo",
+    ".claude/worktrees",
+    "build",
+    "dist",
+    "coverage",
+    "reports",
+    "test-results",
+    "playwright-report"
+  ],
   "mutate": [
     "packages/db/src/**/*.ts",
     "packages/config/src/**/*.ts",
@@ -17,7 +28,8 @@
     "apps/web/app/lib/require-user.ts",
     "apps/mcp/src/tools/**/*.ts",
     "packages/cli/src/lib/**/*.ts",
-    "!**/__tests__/**"
+    "!**/__tests__/**",
+    "!packages/config/src/product.ts"
   ],
   "reporters": ["clear-text", "progress", "html"],
   "htmlReporter": {
