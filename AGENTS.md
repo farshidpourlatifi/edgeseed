@@ -280,7 +280,9 @@ and this list, or the stale copy will be trusted.
    its own Better Auth against the web app's users, so a different id is a
    different user set. Before deploying MCP: create a real `OAUTH_KV`
    namespace (the committed `"local"` id is a placeholder with nowhere to
-   store grants), and prefer the stateless handler unless session state is
+   store grants — the schema checks that binding's **name**, so `check:boot`
+   catches a rename but never a placeholder id), and prefer the stateless
+   handler unless session state is
    truly needed — the Durable Object shape bills duration. Leave MCP
    undeployed until a product needs it. The rate-limit `namespace_id`s are the
    one identity a clone can safely keep: they need no provisioning, and both

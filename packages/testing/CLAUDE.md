@@ -11,6 +11,7 @@ never re-introduce.
 
 - `factory.ts` — `buildUser` / `buildOrganization` / `buildMember` row factories (unique ids per call)
 - `fake-env.ts` — `createFakeEnv()` for Worker env objects in unit tests
+- `fake-kv.ts` — `createFakeKv()`, an in-memory KV namespace. Small but real: `put` stores and `get` returns it, because a stub that discarded writes would let a storage test pass against nothing. It models no expiry, metadata, `list` pagination or eventual consistency — the doc comment lists what to reach elsewhere for
 - `fake-rate-limit.ts` — `createFakeRateLimiter()` / `createFakeRateLimiters()`, an in-memory stand-in for a Workers `[[ratelimits]]` binding. A real counter, not an always-succeed stub: a fake that cannot refuse would let a rate-limit deny-path test pass against nothing. It models no time window, because no test waits 60 seconds — use `reset()` rather than assuming expiry
 
 ## Rules

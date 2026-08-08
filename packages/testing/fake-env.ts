@@ -1,9 +1,13 @@
+import { createFakeKv } from "./fake-kv";
 import { createFakeRateLimiters } from "./fake-rate-limit";
 
 /** Create a mock Worker env for testing */
 export function createFakeEnv(overrides?: Record<string, unknown>) {
   return {
     DB: {} as D1Database,
+    // Only `mcpEnvSchema` requires this; the web schema ignores the extra key,
+    // so one fake env still serves both.
+    OAUTH_KV: createFakeKv(),
     // Required bindings since audit #4: `parseEnv` refuses an env without them,
     // so every test that boots a Worker chain needs them present. Unlimited by
     // default — see `fake-rate-limit.ts`.

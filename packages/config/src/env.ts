@@ -52,6 +52,20 @@ function rateLimitBinding(name: string) {
   );
 }
 
+/**
+ * A KV namespace binding (`kv_namespaces` in wrangler.jsonc).
+ *
+ * Same reasoning as `rateLimitBinding`, and the same shape check for the same
+ * reason: `get` and `put` together identify a KV namespace, where mere presence
+ * would accept whatever else happened to be bound under that name.
+ */
+function kvBinding(name: string) {
+  return z.custom<KVNamespace>((v) => {
+    const kv = v as KVNamespace | undefined;
+    return typeof kv?.get === "function" && typeof kv?.put === "function";
+  }, `${name} KV binding required — see kv_namespaces in wrangler.jsonc`);
+}
+
 /** Shared bindings available to all apps */
 const sharedEnvSchema = z.object({
   DB: z.custom<D1Database>((v) => v != null, "D1 binding required"),
@@ -113,7 +127,24 @@ export const webEnvSchema = sharedEnvSchema.extend({
 });
 
 /** MCP server Worker bindings — no BETTER_AUTH_URL: `baseURL` derives from the request origin. */
-export const mcpEnvSchema = sharedEnvSchema.extend({});
+export const mcpEnvSchema = sharedEnvSchema.extend({
+  /**
+   * OAuth grants, authorization codes and access tokens for `OAuthProvider`.
+   *
+   * Here rather than only in `apps/mcp/src/env.ts` because a type is not a
+   * check: typed ad hoc, a binding renamed in wrangler.jsonc compiled, deployed
+   * and passed the gate, and only the OAuth flow noticed. `authFor` validates
+   * this schema on every request, and `check:boot` reaches `authFor` through
+   * `envProbe`, so the rename now fails before it ships.
+   *
+   * This Worker cannot issue or honour a grant without it, so it is required —
+   * refusing is better than answering OAuth requests with nowhere to put them.
+   *
+   * `OAUTH_PROVIDER` is deliberately absent: it is not a wrangler binding at
+   * all, but helpers the provider injects into `env` at runtime.
+   */
+  OAUTH_KV: kvBinding("OAUTH_KV"),
+});
 
 export type SharedEnv = z.infer<typeof sharedEnvSchema>;
 export type WebEnv = z.infer<typeof webEnvSchema>;
