@@ -164,6 +164,23 @@ Testing follows the same pragmatism:
   though the thresholds are advisory. Logic globs go in `mutate` in
   `stryker.config.json`; UI components follow the `terminal-timeline` pattern
   first (extract the logic into a pure `.ts` module, mutate that).
+- **`ignorePatterns` in `stryker.config.json` is load-bearing — never empty
+  it.** Stryker does **not** read `.gitignore`. It crawls the whole working
+  directory, ignoring only a hard-coded list (`node_modules`, `.git`, `.next`,
+  `.nuxt`, `.svelte-kit`, `*.tsbuildinfo`) plus whatever `ignorePatterns` adds.
+  Then `disableTypeChecks` (default `true`) babel-parses **every** file
+  matching `**/*.{js,ts,jsx,tsx,html,vue,mjs,mts,cts,cjs}` in one unbounded
+  `Promise.all` and keeps the rewritten source in memory. `wrangler dev` leaves
+  a 5.5 MB bundle plus a 12 MB sourcemap per run in `apps/*/.wrangler/tmp`, so
+  a few days of dev work is ~355 MB of bundled JS handed to babel at once —
+  the parent process OOMs at any `--max-old-space-size`, before the dry run,
+  with `coverageAnalysis` making no difference. Patterns are **bare directory
+  names** (`.wrangler`, not `**/.wrangler/**`), matching Stryker's own
+  hard-coded list: the crawler tests each pattern against the directory entry
+  name, so a bare name prunes the subtree at any depth, while a `**/…/**` glob
+  only ever matches files _below_ it. Add a build-output directory here the
+  moment a new tool starts writing one; do not add `.react-router`, whose
+  generated types are tracked.
 - **Test behavior at the boundary, not the implementation inside it.** A test
   that breaks on a refactor with no behavior change works against the
   refactoring rule above. And every guard ships its deny-path test — the allow
