@@ -68,9 +68,18 @@ wrangler secret put BETTER_AUTH_URL   # https://app.example.com  — the APP ori
 wrangler secret put MARKETING_URL     # https://example.com
 ```
 
-`MARKETING_URL` is not sensitive, so it can be a `vars` entry in
-`wrangler.jsonc` instead. A `var` **shadows** a same-named secret at deploy
-time — pick one place, not both.
+**Both are required once `routes` declares two hostnames.** The split is driven
+by `MARKETING_URL`, not by the route list: declare both hostnames and leave it
+unset and the resolver returns `null` for every request, so the app answers
+`/login`, `/register`, `/dashboard` and `/api/auth` on the marketing origin too.
+Nothing fails loudly — the guarantee below just does not hold.
+
+`MARKETING_URL` is not sensitive, so a `vars` entry looks tempting. Don't: that
+block is shared with local dev, so the value reaches `pnpm dev` and, because
+`localhost:5173` is then neither origin, bounces the local landing page to the
+production marketing host. `ENVIRONMENT` is corrected with `--var` at deploy
+time for exactly this reason. Use the secret. (And a `var` **shadows** a
+same-named secret at deploy time, so never set both.)
 
 ### 3. What the middleware then does
 

@@ -122,6 +122,16 @@ openssl rand -hex 32 | wrangler secret put BETTER_AUTH_SECRET
 wrangler secret put BETTER_AUTH_URL
 ```
 
+**Also required if `routes` in `wrangler.jsonc` declares more than one
+hostname** — the marketing origin, e.g. `https://edgeseed.dev`:
+
+```bash
+wrangler secret put MARKETING_URL
+```
+
+Without it the split never activates and both hostnames serve the app's auth
+routes. See [Domain Topology](./domains.md).
+
 **Optional — GitHub social login.** Create an OAuth app at
 https://github.com/settings/developers with the callback URL
 `{BETTER_AUTH_URL}/api/auth/callback/github`, then:

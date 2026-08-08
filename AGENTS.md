@@ -537,6 +537,23 @@ Required: `BETTER_AUTH_SECRET` (32+ chars) for both Workers; `BETTER_AUTH_URL`
 for the web Worker only — the MCP Worker derives its origin from each request
 and neither declares nor reads the variable.
 
+**Required whenever `routes` declares more than one hostname:**
+`MARKETING_URL`. The split is driven by the variable, not by the route list, so
+declaring both hostnames without setting it deploys a Worker that answers
+`/login`, `/register`, `/dashboard` and `/api/auth` on **both** — `origins.ts`
+returns `null` for every request and the "auth never constructs on the
+marketing origin" guarantee silently does not hold.
+
+```bash
+wrangler secret put MARKETING_URL   # https://edgeseed.dev
+```
+
+Do **not** put it in `vars`: that block is shared with local dev, so the value
+would reach `pnpm dev` and bounce `localhost:5173/` to the production marketing
+host. Same reason `ENVIRONMENT` is corrected with `--var` at deploy time rather
+than committed. Nothing enforces this yet — the structural fix is to refuse to
+serve a host that is neither origin, tracked in issue #6.
+
 Optional (social login): `GITHUB_CLIENT_ID`/`SECRET`, `GOOGLE_CLIENT_ID`/`SECRET`.
 
 **Effectively required in production (email):** `RESEND_API_KEY` and

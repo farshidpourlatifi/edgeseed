@@ -3,11 +3,13 @@ import { join } from "node:path";
 
 async function main() {
   // Dynamic import of the web app's Hono API app
-  const { apiApp } = await import("../../../apps/web/server/api");
+  const { apiApp, OPENAPI_INFO } = await import("../../../apps/web/server/api");
 
+  // `OPENAPI_INFO` rather than a copy: this file used to declare its own title
+  // and version, and both drifted from what `/api/v1/doc` actually serves.
   const spec = apiApp.getOpenAPI31Document({
     openapi: "3.1.0",
-    info: { title: "Starter API", version: "1.0.0" },
+    info: OPENAPI_INFO,
   });
 
   const outDir = join("docs", "api");
