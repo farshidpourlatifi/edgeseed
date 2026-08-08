@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   BOOT_TARGETS,
+  envProbeUrl,
   extractBootError,
   healthUrl,
   isHealthyStatus,
@@ -105,6 +106,50 @@ describe("targets", () => {
 
   it("builds a loopback url", () => {
     expect(healthUrl(BOOT_TARGETS[0])).toBe("http://127.0.0.1:8791/api/v1/health");
+  });
+});
+
+/**
+ * The second request, which is what makes a **binding** mistake fail the gate.
+ * Readiness only proves the bundle starts; a binding renamed in wrangler.jsonc
+ * leaves the runtime perfectly healthy and throws inside `parseEnv` on the
+ * first request that reads it.
+ */
+describe("envProbe", () => {
+  const target = (name: string) => BOOT_TARGETS.find((t) => t.name === name)!;
+
+  /**
+   * `/api/v1/health` already sits behind `authMiddleware`, so the readiness
+   * request validates the web Worker's env on its own. A probe there would
+   * assert nothing the first request has not already proved.
+   */
+  it("is absent for the web Worker, whose readiness path already validates the env", () => {
+    expect(target("@starter/web").envProbe).toBeUndefined();
+    expect(envProbeUrl(target("@starter/web"))).toBeNull();
+  });
+
+  /**
+   * The MCP Worker answers `/` from static metadata on purpose — that route is
+   * pinned env-independent — so without a second request nothing in CI would
+   * ever reach `authFor`.
+   */
+  it("sends the mcp Worker at a route that reaches its auth env", () => {
+    expect(target("@starter/mcp").envProbe).toBe("/api/auth/ok");
+    expect(envProbeUrl(target("@starter/mcp"))).toBe("http://127.0.0.1:8792/api/auth/ok");
+  });
+
+  // The failure mode this guards is a *silent* one: repoint the probe at a
+  // route that answers 200 without constructing auth — `/` being the obvious
+  // candidate — and the check keeps passing while proving nothing at all.
+  it("keeps the probe on the path prefix that constructs auth", () => {
+    expect(target("@starter/mcp").envProbe).toMatch(/^\/api\/auth\//);
+  });
+
+  it("reuses its target's port, so the probe cannot address the wrong Worker", () => {
+    for (const t of BOOT_TARGETS) {
+      const url = envProbeUrl(t);
+      if (url) expect(url).toContain(`:${t.port}`);
+    }
   });
 });
 

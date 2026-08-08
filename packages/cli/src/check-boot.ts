@@ -9,6 +9,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import {
   BOOT_TARGETS,
   bootVarArgs,
+  envProbeUrl,
   extractBootError,
   healthUrl,
   isHealthyStatus,
@@ -20,6 +21,17 @@ import {
 
 const READY_TIMEOUT_MS = 90_000;
 const POLL_INTERVAL_MS = 500;
+/**
+ * Generous on purpose, and the per-request timeout more so than the deadline.
+ *
+ * The `envProbe` request is the one that first constructs auth, and on
+ * `@starter/mcp` it has been measured completing in 22–31 seconds — an order of
+ * magnitude past the readiness route, because it is where the bundle's auth
+ * half is first instantiated. A per-request timeout tight enough to abandon it
+ * would turn a slow machine into a red gate.
+ */
+const PROBE_TIMEOUT_MS = 120_000;
+const PROBE_REQUEST_TIMEOUT_MS = 75_000;
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -37,6 +49,75 @@ function killTree(child: ChildProcess) {
       // Already gone.
     }
   }
+}
+
+/**
+ * Request the target's `envProbe`, if it declares one.
+ *
+ * Separate from the readiness poll because it answers a different question:
+ * readiness proves the bundle runs, this proves the Worker's **bindings** are
+ * named the way the code reads them. A renamed binding leaves the runtime
+ * perfectly healthy and fails `parseEnv` on the first request that needs it.
+ *
+ * Retries on transport failures, and only on those. The first request to reach
+ * auth is dramatically slower than the readiness route — measured at 22s for
+ * `@starter/mcp` on a loaded machine, since it is the request that first builds
+ * Better Auth — and wrangler refuses connections while it settles. A status
+ * code, by contrast, is an answer: a misnamed binding throws inside `parseEnv`
+ * and comes back 500, which must fail immediately rather than be retried for a
+ * minute.
+ */
+async function probeEnv(
+  target: BootTarget,
+  /** Whatever wrangler has printed so far — the only account of *why* a probe fails. */
+  outputSoFar: () => string,
+  /** False once the child is gone, so a dead process is not polled to the deadline. */
+  isAlive: () => boolean,
+): Promise<BootFailure | null> {
+  const url = envProbeUrl(target);
+  if (!url) return null;
+
+  const fail = (reason: string): BootFailure => {
+    const wranglerSaid = extractBootError(outputSoFar());
+    return {
+      target: target.name,
+      reason: wranglerSaid ? `${reason} — wrangler reported: ${wranglerSaid}` : reason,
+    };
+  };
+
+  const deadline = Date.now() + PROBE_TIMEOUT_MS;
+  let lastTransportError = "no response";
+
+  while (Date.now() < deadline) {
+    if (!isAlive()) {
+      return fail(`${target.envProbe} could not be requested: the Worker exited`);
+    }
+
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(PROBE_REQUEST_TIMEOUT_MS) });
+      if (isHealthyStatus(res.status)) {
+        console.log(`  ${target.name} → ${target.envProbe} HTTP ${res.status} ok`);
+        return null;
+      }
+      // Deliberately without wrangler's output. A status is a complete answer,
+      // and wrangler logs an unrelated `internal error` line often enough that
+      // appending it here buries the actual cause under a red herring.
+      return {
+        target: target.name,
+        reason:
+          `${target.envProbe} returned HTTP ${res.status}. The Worker started, but a ` +
+          `request that reads its bindings did not succeed — check that every binding ` +
+          `name in ${target.cwd}/wrangler.jsonc matches the env schema.`,
+      };
+    } catch (error) {
+      lastTransportError = (error as Error).message;
+      await sleep(POLL_INTERVAL_MS);
+    }
+  }
+
+  return fail(
+    `${target.envProbe} never answered within ${PROBE_TIMEOUT_MS / 1000}s (${lastTransportError})`,
+  );
 }
 
 async function bootOne(target: BootTarget): Promise<BootFailure | null> {
@@ -88,7 +169,15 @@ async function bootOne(target: BootTarget): Promise<BootFailure | null> {
         const res = await fetch(healthUrl(target), { signal: AbortSignal.timeout(3_000) });
         if (isHealthyStatus(res.status)) {
           console.log(`  ${target.name} → HTTP ${res.status} ok`);
-          return null;
+          // `await`, not a bare `return` of the promise. Returning inside `try`
+          // runs the `finally` at the return statement rather than at
+          // settlement, so `killTree` would SIGKILL the Worker the instant the
+          // probe began and the probe would poll a dead port until its deadline.
+          return await probeEnv(
+            target,
+            () => output,
+            () => !exited,
+          );
         }
         // Listening but not healthy: a Worker that boots into a broken state.
         return { target: target.name, reason: `${target.path} returned HTTP ${res.status}` };

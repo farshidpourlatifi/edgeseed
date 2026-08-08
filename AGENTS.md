@@ -675,7 +675,12 @@ pnpm check:boot             # Boot each built Worker and prove it serves (after 
   action 403s and crashes **before scanning**, which looks like a finding.
 - Deploys go through `pnpm deploy:web`, which refuses to ship unless `pnpm verify` passes.
 - **`pnpm check:boot` runs inside `verify` and in CI** (after `build`/`typecheck`).
-  It starts each built Worker and asserts it serves one unauthenticated request.
+  It starts each built Worker and asserts it serves an unauthenticated request —
+  and, where a target declares `envProbe`, a **second** request that reaches
+  `parseEnv`. That second one is what catches a binding renamed in
+  `wrangler.jsonc`, which wrangler deploys without complaint and which would
+  otherwise take every auth route down with the gate green. `@starter/web` needs
+  no probe: its readiness path already sits behind `authMiddleware`.
   `build` proves compilation; only this proves the bundle _runs_. Without it a
   Worker that throws at module init passes the entire gate — not hypothetical: it
   caught exactly that on its first run, when vite left `zod` external, wrangler
