@@ -6,11 +6,13 @@
  * prevent. That makes it the one inline script in the document whose content is
  * fixed, so CSP admits it by **hash** rather than by nonce.
  *
- * Hash, not nonce, on purpose: a nonce has to reach `Layout` through root
- * loader data, and `Layout` also renders on error paths where that data can be
- * absent. A missing nonce here would not throw — it would silently paint the
- * wrong theme. The hash cannot miss, and it keeps this script working
- * independently of the nonce plumbing that React Router's own scripts need.
+ * Hash, not nonce, on purpose. React Router's own scripts get the nonce from
+ * `ServerRouter` (`entry.server.tsx`), which covers every component it renders —
+ * but this `<script>` is written by hand in `root.tsx`, outside that mechanism,
+ * so nonce-ing it would mean threading the value into `Layout` separately, and
+ * `Layout` also renders on error paths where loader data can be absent. A
+ * missing nonce here would not throw; it would silently paint the wrong theme.
+ * A hash cannot miss, and it keeps this script independent of that plumbing.
  *
  * `THEME_SCRIPT_CSP_HASH` is asserted against this string in
  * `app/__tests__/theme-script.test.ts`, so editing the script without

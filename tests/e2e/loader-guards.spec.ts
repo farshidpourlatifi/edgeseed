@@ -24,9 +24,15 @@ import { test, expect } from "@playwright/test";
  * `?_routes=` is the vector: it asks for one route's loader by id, without its
  * parent. That is the request a child guard has to answer on its own.
  */
-const CHILD_ONLY = "/dashboard/settings.data?_routes=routes%2Fdashboard.settings";
+const CHILD_ONLY = [
+  "/dashboard/settings.data?_routes=routes%2Fdashboard.settings",
+  // `_index` guards even though it returns nothing today, because it is the
+  // template the next dashboard page is copied from. Without its own
+  // child-only case, removing that guard leaves this suite and CI green.
+  "/dashboard.data?_routes=routes%2Fdashboard._index",
+];
 
-const DATA_ROUTES = ["/dashboard.data", "/dashboard/settings.data", CHILD_ONLY];
+const DATA_ROUTES = ["/dashboard.data", "/dashboard/settings.data", ...CHILD_ONLY];
 
 test.describe("dashboard loaders refuse an unauthenticated caller", () => {
   for (const route of DATA_ROUTES) {

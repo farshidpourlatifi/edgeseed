@@ -370,9 +370,11 @@ unauthenticated caller and reads as deliberate.
   is a test exercising the three together.
 - Authenticated responses get `Cache-Control: no-store`, keyed on the session
   cookie rather than a path list so new routes are covered on arrival. An
-  existing directive is **overridden** unless it already contains `no-store` or
-  `private`; a `public, max-age` on personalized output is the leak, not a
-  preference to respect.
+  existing directive is **overridden unless it already contains `no-store`** —
+  `private` is not enough, because it keeps a response out of shared caches
+  while still letting the browser store it, which leaves the
+  back-button-on-a-shared-machine exposure #14 names. Do not relax this to
+  "preserve anything private".
 
 ### CSP — four traps, all of them silent
 
@@ -456,10 +458,21 @@ and a coverage target. Read it before working in that directory.
 
 `apps/web/server/index.ts` is a Hono app that:
 
-- Runs `observabilityMiddleware` first, then `authMiddleware` (db + auth per request)
+- Runs `observabilityMiddleware` first, so it sees every request
+- Then `app.use(...securityMiddleware)` — response headers, the CSP nonce, and
+  `no-store` for cookie-bearing requests. Mounted as one ordered unit; see
+  "Security standards"
+- Then the origin redirect (no-op unless `MARKETING_URL` is set), which sits
+  **below** the headers so redirects carry them and **above** `authMiddleware`
+  so auth never constructs on the marketing origin
+- Then `authMiddleware` — validates the env through `parseEnv` and refuses the
+  request if it fails, then builds db + auth per request
 - Mounts Better Auth at `/api/auth/**`
-- Mounts `principalMiddleware` on `/api/v1/*`, then the versioned API at `/api/v1`
-- Passes `db`, `auth`, `logger` and `requestId` to React Router loaders via `load-context.ts`
+- Mounts `principalMiddleware` on `/api/v1/*`, then the versioned API at
+  `/api/v1`, which is **default-deny** with a same-origin CSRF check for session
+  callers
+- Passes `db`, `auth`, `logger`, `requestId` and `cspNonce` to React Router
+  loaders via `load-context.ts`
 
 ### Observability
 

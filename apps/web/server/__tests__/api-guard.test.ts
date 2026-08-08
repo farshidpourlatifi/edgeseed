@@ -93,8 +93,10 @@ describe("default deny on /api/v1", () => {
     expect(res.status).toBe(200);
   });
 
-  // Fail closed on paths that do not exist: the guard cannot know, and an
-  // unauthenticated 404 would let anyone map the surface.
+  // Fail closed on paths that do not exist: the guard runs before routing
+  // resolves, so it cannot know. This does not hide the surface — `GET /doc` is
+  // public and lists every route — but it does remove the 404/401 difference as
+  // an oracle for probing paths the spec does not advertise.
   it("refuses an unknown path rather than reporting it absent", async () => {
     const res = await appWith(null).request("/not-a-route");
     expect(res.status).toBe(401);

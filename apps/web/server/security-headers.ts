@@ -21,11 +21,18 @@ export const securityHeaders = secureHeaders({
   contentSecurityPolicy: {
     defaultSrc: ["'self'"],
     /**
-     * Two admission rules for two kinds of inline script, and both are needed:
-     * the nonce covers React Router's `<Scripts>` and `<ScrollRestoration>`,
-     * whose hydration payload differs per request and so cannot be hashed; the
-     * hash covers the static theme script, which must work even on error paths
-     * where root loader data — and therefore the nonce — may not reach `Layout`.
+     * Two admission rules for two kinds of inline script, and both are needed.
+     *
+     * The **nonce** covers everything React Router emits — `<Scripts>`,
+     * `<ScrollRestoration>`, and the mid-stream loader-data chunks — whose
+     * content differs per request and so cannot be hashed. `entry.server.tsx`
+     * hands it to `ServerRouter`, which is the default for all of them.
+     *
+     * The **hash** covers the theme script, which `root.tsx` writes by hand
+     * outside that mechanism. Nonce-ing it would mean threading the value into
+     * `Layout` separately, and `Layout` also renders on error paths where that
+     * can be absent — where a missing nonce would not throw, it would silently
+     * paint the wrong theme.
      */
     // The hash is quoted here rather than in the constant: CSP source
     // expressions require the quotes, but the constant is the bare digest the
