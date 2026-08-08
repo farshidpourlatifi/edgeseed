@@ -28,7 +28,6 @@ import {
   PanelLeft,
   LogOut,
   User,
-  Layers,
   Bell,
   Menu,
   Building2,
@@ -37,6 +36,7 @@ import {
   Check,
 } from "lucide-react";
 import { toast } from "sonner";
+import { BrandMark } from "~/components/brand/brand-mark";
 
 export async function loader({ context, request }: Route.LoaderArgs) {
   if (!context.auth) {
@@ -199,13 +199,13 @@ function Sidebar({
           {collapsed ? (
             <Link to="/dashboard" className="flex items-center">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                <Layers className="h-5 w-5 text-primary-foreground" />
+                <BrandMark className="h-5 w-5 text-primary-foreground" />
               </div>
             </Link>
           ) : (
             <Link to="/dashboard" className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                <Layers className="h-5 w-5 text-primary-foreground" />
+                <BrandMark className="h-5 w-5 text-primary-foreground" />
               </div>
               <span className="text-lg font-semibold">Starter</span>
             </Link>

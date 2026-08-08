@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Link } from "react-router";
-import { Cloud, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
+import { BrandMark } from "~/components/brand/brand-mark";
 
 import { PRODUCT_NAME } from "@starter/config/product";
 import { Button } from "@starter/ui/components/ui/button";
@@ -37,7 +38,7 @@ export function SiteHeader() {
           className="flex items-center gap-2 rounded-md focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
         >
           <span className="flex size-8 items-center justify-center rounded-lg bg-primary">
-            <Cloud className="size-5 text-primary-foreground" aria-hidden="true" />
+            <BrandMark className="size-5 text-primary-foreground" />
           </span>
           <span className="text-base font-semibold tracking-tight sm:text-lg">{PRODUCT_NAME}</span>
         </Link>

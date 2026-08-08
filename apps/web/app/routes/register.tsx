@@ -15,7 +15,8 @@ import { Separator } from "@starter/ui/components/ui/separator";
 import { Alert, AlertDescription } from "@starter/ui/components/ui/alert";
 import { Spinner } from "@starter/ui/components/ui/spinner";
 import { ThemeToggle } from "@starter/ui/components/ui/theme-toggle";
-import { Layers, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
+import { BrandMark } from "~/components/brand/brand-mark";
 import { VerificationNotice } from "~/components/auth/verification-notice";
 
 export default function RegisterPage() {
@@ -87,7 +88,7 @@ export default function RegisterPage() {
               another origin — see site-header.tsx and docs/domains.md */}
           <Link reloadDocument to="/" className="mx-auto flex items-center gap-2">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
-              <Layers className="h-6 w-6 text-primary-foreground" />
+              <BrandMark className="h-6 w-6 text-primary-foreground" />
             </div>
           </Link>
           {!pendingEmail && (
