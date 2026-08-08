@@ -200,6 +200,16 @@ rotate immediately.
 init or in `authMiddleware`, and throw when the secret is absent or under 32
 characters.
 
+**Raised 2026-08-08 — this is now load-bearing for #2.** Email verification
+tokens are JWTs signed with this same secret, not database rows:
+`createEmailVerificationToken` calls `signJWT(payload, secret, expiresIn)`
+(`better-auth/dist/api/routes/email-verification.mjs:13-19`). So with the secret
+unset, an attacker does not merely forge session cookies — they mint a valid
+verification token for any address and self-verify it, which unwinds the
+pre-hijacking fix in #2 entirely. Before verification became the gate this was a
+severe footgun; it is now the single point of failure for a High finding marked
+Resolved. Fix it before treating #2 as closed in production.
+
 ### 4. No rate limiting on any authentication endpoint
 
 `packages/auth/src/server.ts:19-51` passes no `rateLimit` option — a repo-wide
@@ -224,6 +234,18 @@ Drizzle schema.
 `customRules` on `/sign-in/email` and `/sign-up/email`; or add a Cloudflare Rate
 Limiting rule scoped to `/api/auth/*`. Combine with finding 11 — an IP-keyed
 limiter is worthless while the IP is spoofable.
+
+**Widened 2026-08-08 — mandatory verification added unauthenticated mail
+triggers.** Since #2 was closed, `/sign-up/email` sends a message and
+`/send-verification-email` exists as a public resend endpoint (the button in
+`apps/web/app/components/auth/verification-notice.tsx`), alongside
+`/request-password-reset`. Better Auth ships default rules for exactly these —
+3 per 60s for the mail senders, 3 per 10s for sign-in/sign-up
+(`better-auth/dist/api/rate-limiter/index.mjs:370-383`) — but all three reasons
+above still hold, so none of them run. The cost of leaving this open is no
+longer just brute-forceable sign-in: an unauthenticated caller can drive
+outbound mail, burning the Resend quota and delivering it to an address they do
+not own. Rate-limit the mail endpoints in the same change.
 
 ### 5. No security response headers anywhere in the stack
 
@@ -454,6 +476,25 @@ cleaned up, so the exposure accumulates indefinitely.
 **Fix:** at minimum document the reliance on D1 at-rest encryption; better,
 enable field encryption via Better Auth database hooks. Add a scheduled purge of
 expired `verification` rows.
+
+**Corrected 2026-08-08 — half of the token claim above is wrong, the other half
+just went live.** Verified against `better-auth@1.6.26`, the version now
+installed; the audit was written against 1.5.6.
+
+- **Email verification writes no row at all.** The token is a JWT signed with
+  `BETTER_AUTH_SECRET` (`api/routes/email-verification.mjs:13-19`), carried
+  entirely in the URL. There is nothing in `verification` to leak or purge — the
+  exposure moved to the secret instead, which is why #3 is now load-bearing.
+- **Password reset does store a plaintext token, and this is newly reachable.**
+  `request-password-reset` writes `identifier: "reset-password:<token>"` from
+  `generateId(24)` (`api/routes/password.mjs:74-77`). Reset had no configured
+  sender when the audit ran, so the path was dead; ADR 003 wired one, so these
+  rows are now written in normal use. `/reset-password` consumes the row on
+  success, but tokens that are never used — or that expire — stay forever. The
+  purge in the fix above is the live half of this finding.
+
+The `accessToken`/`refreshToken`/`idToken` plaintext storage is unaffected by
+that correction and remains the larger part of #12.
 
 ### 13. Tenant data does not cascade on delete
 

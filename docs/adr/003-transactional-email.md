@@ -113,4 +113,6 @@ explicitly because the whole defence rests on it.
 - **The MCP Worker wires a sender it never uses.** It has no signup or reset
   screen, but `createAuth` requires a transport and the env schema is shared.
 - Audit #2 is closed. Password reset is functional at the API level; the
-  forgot-password **UI** is still unbuilt (see below).
+  forgot-password **UI** is still unbuilt — no link on `/login`, no reset route.
+  Tracked in `docs/security-audit.md` #2 under "Still open from the related gap",
+  which stays the single home for it.

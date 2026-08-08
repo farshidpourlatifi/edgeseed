@@ -173,18 +173,23 @@ and this list, or the stale copy will be trusted.
    back to logging when `RESEND_API_KEY`/`EMAIL_FROM` are unset. Verify both are
    set in production. Still missing: a forgot-password UI (reset works only via
    the API). (`docs/adr/003-transactional-email.md`)
-2. **A missing `BETTER_AUTH_SECRET` fails open.** The Zod env schema
-   (`parseEnv`) has zero callers, and better-auth's own guard keys on
-   `NODE_ENV`, which Workers never set — an unset secret signs sessions with a
-   publicly-known constant after only a console warning. Check with
+2. **A missing `BETTER_AUTH_SECRET` fails open — and concern 1 rests on it.**
+   The Zod env schema (`parseEnv`) has zero callers, and better-auth's own guard
+   keys on `NODE_ENV`, which Workers never set — an unset secret signs sessions
+   with a publicly-known constant after only a console warning. Verification
+   tokens are JWTs signed with that same secret, so an unset secret also lets
+   anyone mint one and self-verify any address, undoing concern 1. Check with
    `wrangler secret list`; the fix is failing closed at boot.
    (`security-audit.md` #3)
 3. **No rate limiting on auth endpoints — and the defaults cannot work here.**
    better-auth's limiter keys on `NODE_ENV` (off), its memory store dies every
    request because `createAuth()` is per-request, and no `rateLimit` table
-   exists. Any fix must also read the client IP from `cf-connecting-ip` — the
-   first `x-forwarded-for` entry is attacker-controlled on Cloudflare.
-   (`security-audit.md` #4, #11)
+   exists. Since verification shipped this also leaves `/send-verification-email`
+   and `/request-password-reset` as unauthenticated ways to send mail, so the
+   exposure includes the Resend quota and other people's inboxes, not just
+   brute-forced sign-in. Any fix must also read the client IP from
+   `cf-connecting-ip` — the first `x-forwarded-for` entry is attacker-controlled
+   on Cloudflare. (`security-audit.md` #4, #11)
 4. **No security headers anywhere.** No CSP, HSTS, `X-Frame-Options`, or
    `nosniff`, and no `Cache-Control: no-store` on authenticated responses.
    `secureHeaders()` belongs first in the Hono chain; the inline theme script
