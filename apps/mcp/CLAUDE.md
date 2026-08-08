@@ -29,11 +29,17 @@ unauthenticated `/mcp` → 401 + `WWW-Authenticate`; discovery → dynamic regis
   doing so.** Sharing the secret means sharing the failure mode: a session forged
   against a lenient MCP Worker is honoured by the web app too, so this side
   cannot be the permissive one (`docs/security-audit.md` #3).
-  **`pnpm check:boot` does not cover this** — it requests `/`, which answers from
-  static metadata and never reaches `authFor`, so deleting the check would leave
-  the whole gate green. The deny-path tests in `src/__tests__/auth-app.test.ts`
-  target `/api/auth/**` for that reason, and they pin `/` as env-independent
-  because the boot check depends on it staying that way.
+  **`pnpm check:boot` covers this as of 2026-08-09, through a second request.**
+  Readiness is still polled on `/`, which answers from static metadata and must
+  stay env-independent — the boot check depends on that, and the tests in
+  `src/__tests__/auth-app.test.ts` pin it. The coverage comes from `envProbe`
+  on the MCP boot target (`packages/cli/src/lib/boot-check.ts`), which then
+  requests `/api/auth/ok` and requires a 2xx. That is the request that reaches
+  `authFor`, so a **binding renamed in `wrangler.jsonc`** now fails the gate
+  instead of passing it. Verified by renaming `RATE_LIMIT_MAIL` and watching
+  the check report HTTP 500.
+  The unit deny-path tests still earn their place: they inject a fake env, so
+  they cover schema rules the wrangler config cannot express.
 - **`database_id` must match `apps/web`.** A different id is a different database,
   locally too — wrangler keys its sqlite state by id.
 - **Locally, `pnpm dev` uses `--persist-to ../web/.wrangler/state`** so both Workers
@@ -52,7 +58,10 @@ unauthenticated `/mcp` → 401 + `WWW-Authenticate`; discovery → dynamic regis
 ## Status / known gaps — read before deploying
 
 - `OAUTH_KV` is `id: "local"` — run `wrangler kv namespace create OAUTH_KV` and paste
-  the real id before deploying
+  the real id before deploying. **`mcpEnvSchema` validates the binding's _name_,
+  not its id**, so a renamed binding now fails `pnpm check:boot` while a
+  placeholder id still deploys quietly and loses every grant. The id remains a
+  release-checklist item, not something the gate can catch
 - `BETTER_AUTH_SECRET` is no longer in `wrangler.jsonc` `vars` (audit #9 resolved) —
   set it locally in `.dev.vars` (start from `.dev.vars.example`) and in production
   via `wrangler secret put`, mirroring the web app

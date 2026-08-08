@@ -1,6 +1,6 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
 import { RATE_LIMIT_RULES } from "@starter/auth/rate-limit";
-import { clientIp } from "./helpers";
+import { awaitRateLimitWindow, clientIp } from "./helpers";
 
 /**
  * Auth rate limiting, at the vector — `docs/security-audit.md` #4.
@@ -17,6 +17,12 @@ import { clientIp } from "./helpers";
  *
  * Each test uses its own client address, so one test tripping a limit cannot
  * throttle another — and so a re-run against a reused dev server starts fresh.
+ *
+ * Each also opens with `awaitRateLimitWindow()`. Locally the limiter is
+ * miniflare's fixed, wall-clock-aligned window, and it clears **every** bucket
+ * on rollover — so a sequence that straddles a minute boundary counts from zero
+ * again and the expected 429 never arrives. That is not hypothetical: it is why
+ * this file went flaky once.
  */
 
 /**
@@ -69,6 +75,7 @@ async function statuses(
  * access to it spends the Resend quota on inboxes that never asked.
  */
 test("the verification resend endpoint stops sending past its limit", async ({ request }) => {
+  await awaitRateLimitWindow();
   const ip = clientIp();
 
   const collected = await statuses(request, "/send-verification-email", MAIL_LIMIT + 1, ip);
@@ -78,6 +85,7 @@ test("the verification resend endpoint stops sending past its limit", async ({ r
 });
 
 test("password reset requests stop past the same limit", async ({ request }) => {
+  await awaitRateLimitWindow();
   const ip = clientIp();
 
   const collected = await statuses(request, "/request-password-reset", MAIL_LIMIT + 1, ip);
@@ -86,6 +94,7 @@ test("password reset requests stop past the same limit", async ({ request }) => 
 });
 
 test("sign-in stops past its limit", async ({ request }) => {
+  await awaitRateLimitWindow();
   const ip = clientIp();
 
   const collected = await statuses(request, "/sign-in/email", CREDENTIALS_LIMIT + 1, ip);
@@ -101,6 +110,7 @@ test("sign-in stops past its limit", async ({ request }) => {
  * limiter above becomes decorative.
  */
 test("rotating a spoofed x-forwarded-for does not buy more attempts", async ({ request }) => {
+  await awaitRateLimitWindow();
   const ip = clientIp();
 
   const collected = await statuses(request, "/sign-in/email", CREDENTIALS_LIMIT + 1, ip, (i) => ({
@@ -111,6 +121,7 @@ test("rotating a spoofed x-forwarded-for does not buy more attempts", async ({ r
 });
 
 test("one throttled client does not lock out everyone else", async ({ request }) => {
+  await awaitRateLimitWindow();
   const throttled = clientIp();
   await statuses(request, "/sign-in/email", CREDENTIALS_LIMIT + 1, throttled);
 
@@ -120,6 +131,7 @@ test("one throttled client does not lock out everyone else", async ({ request })
 });
 
 test("the mail budget is separate from the sign-in budget", async ({ request }) => {
+  await awaitRateLimitWindow();
   const ip = clientIp();
   await statuses(request, "/send-verification-email", MAIL_LIMIT + 1, ip);
 

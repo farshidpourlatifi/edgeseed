@@ -16,11 +16,39 @@ export interface BootTarget {
   port: number;
   /** Path polled for readiness. Must not require auth. */
   path: string;
+  /**
+   * A second path, requested once the target is ready, that must reach code
+   * validating the env through `parseEnv`.
+   *
+   * `path` above proves the bundle *starts*. It does not prove the Worker's
+   * **bindings** are named the way the code reads them — and wrangler deploys a
+   * mismatch without complaint, so a renamed `[[ratelimits]]` or KV binding
+   * would take every auth route down with the whole gate green.
+   *
+   * Only needed where readiness is served by a route that never touches the
+   * env. `@starter/web` polls `/api/v1/health`, which already sits behind
+   * `authMiddleware` and therefore behind `parseEnv` — one request covers both.
+   * `@starter/mcp` answers `/` from static metadata on purpose, so it needs
+   * this second request to reach `authFor`.
+   */
+  envProbe?: string;
 }
 
 export const BOOT_TARGETS: readonly BootTarget[] = [
   { name: "@starter/web", cwd: "apps/web", port: 8791, path: "/api/v1/health" },
-  { name: "@starter/mcp", cwd: "apps/mcp", port: 8792, path: "/" },
+  /**
+   * `/api/auth/ok` is Better Auth's own health endpoint: it answers `{ok:true}`
+   * and touches no database, so it isolates "the bindings resolved" from
+   * "the local D1 happens to be migrated". Reaching it runs `authFor`, which
+   * calls `parseEnv(mcpEnvSchema, …)` before constructing anything.
+   *
+   * Requiring 2xx rather than merely "not 5xx" is deliberate. Any path under
+   * `/api/auth/**` would prove the env validated, since `authFor` runs before
+   * the request is routed — but then a mistyped probe would 404 and keep
+   * passing, and the check would quietly stop proving anything. A 2xx ties it
+   * to a route that must actually exist.
+   */
+  { name: "@starter/mcp", cwd: "apps/mcp", port: 8792, path: "/", envProbe: "/api/auth/ok" },
 ];
 
 /**
@@ -84,6 +112,12 @@ export function extractBootError(output: string): string | null {
 
 export function healthUrl(target: BootTarget): string {
   return `http://127.0.0.1:${target.port}${target.path}`;
+}
+
+/** The `envProbe` request for a target, or null when it declares none. */
+export function envProbeUrl(target: BootTarget): string | null {
+  if (!target.envProbe) return null;
+  return `http://127.0.0.1:${target.port}${target.envProbe}`;
 }
 
 /**

@@ -4,7 +4,7 @@ import type { SentryEnv } from "@starter/observability";
 /** Worker bindings for the MCP server. Mirrors `mcpEnvSchema` in @starter/config. */
 export interface Env extends SentryEnv {
   DB: D1Database;
-  /** Grant + token storage for the OAuth provider. */
+  /** Grant + token storage for the OAuth provider. Validated by `mcpEnvSchema`. */
   OAUTH_KV: KVNamespace;
   /** One `[[ratelimits]]` binding per class — `packages/auth/src/rate-limit.ts`. */
   RATE_LIMIT_DEFAULT: RateLimit;

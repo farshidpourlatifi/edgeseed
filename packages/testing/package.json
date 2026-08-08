@@ -6,6 +6,7 @@
   "exports": {
     "./factory": "./factory.ts",
     "./fake-env": "./fake-env.ts",
+    "./fake-kv": "./fake-kv.ts",
     "./fake-rate-limit": "./fake-rate-limit.ts"
   },
   "devDependencies": {

@@ -225,9 +225,16 @@ Deny-path tests in `packages/config/src/__tests__/env.test.ts` (missing, short,
 and the default value), `packages/auth/src/__tests__/middleware.test.ts` (the
 request is refused and the handler never runs), and
 `apps/mcp/src/__tests__/auth-app.test.ts` for the MCP half. The MCP tests target
-`/api/auth/**` deliberately: `pnpm check:boot` requests `/`, which answers from
+`/api/auth/**` deliberately: `pnpm check:boot` polls `/`, which answers from
 static metadata and never reaches `authFor`, so without them deleting the MCP
 check would leave the entire gate green.
+
+**Updated 2026-08-09.** `check:boot` now makes a second request to
+`/api/auth/ok` on that Worker (`envProbe` in `packages/cli/src/lib/boot-check.ts`),
+so the runtime path through `authFor` is covered too. The unit tests remain the
+deny-path coverage — they can withhold a binding, which a wrangler config
+cannot — but a binding _renamed_ in `apps/mcp/wrangler.jsonc` is now caught by
+the gate rather than by production.
 
 **A blank binding counts as unset.** `.dev.vars` spells an unset optional key as
 `KEY=`, which arrives as `""`, and `.optional()` admits only `undefined`. Every

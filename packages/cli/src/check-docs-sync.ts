@@ -46,6 +46,7 @@ for (const file of DOC_FILES) {
 const NON_DEV_VARS = new Set([
   "DB",
   "ENVIRONMENT",
+  "OAUTH_KV",
   "RATE_LIMIT_DEFAULT",
   "RATE_LIMIT_CREDENTIALS",
   "RATE_LIMIT_MAIL",
