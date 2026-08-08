@@ -1,6 +1,8 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
+import type { Context } from "hono";
 import {
   createApiToken,
+  getPrincipal,
   listApiTokens,
   requireInteractivePrincipal,
   requirePrincipal,
@@ -11,6 +13,94 @@ import { PRODUCT_NAME } from "@starter/config/product";
 import { APP_VERSION } from "@starter/config/version";
 
 export const apiApp = new OpenAPIHono<PrincipalEnv>();
+
+/**
+ * Where this app is mounted, so `server/index.ts` and the guard below cannot
+ * disagree. `c.req.path` inside a routed sub-app is the *full* path, but tests
+ * exercise `apiApp` directly where it is not — the guard normalises using this.
+ */
+export const API_BASE_PATH = "/api/v1";
+
+/**
+ * The only operations that answer without a principal. Everything else needs one.
+ *
+ * An allowlist, so a route added later is guarded by default rather than needing
+ * someone to remember. That is the whole point: the per-handler
+ * `requirePrincipal` calls below already cover today's routes — this covers the
+ * ones nobody has written yet. See `docs/security-audit.md` #15.
+ *
+ * Keyed by **method and path**, not path alone. A path-only allowlist would make
+ * `POST /health` public the moment someone registered it, which is the opposite
+ * of default deny — and nothing would have failed, because no such route exists
+ * to notice today.
+ */
+const PUBLIC_OPERATIONS = new Set(["GET /health", "GET /doc"]);
+
+/** The request path relative to this app, whether mounted or exercised directly. */
+function pathWithinApi(path: string): string {
+  return path.startsWith(API_BASE_PATH) ? path.slice(API_BASE_PATH.length) || "/" : path;
+}
+
+/** Methods that cannot change state, so CSRF does not apply to them. */
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+/**
+ * Did the browser say this request came from our own page?
+ *
+ * `Sec-Fetch-Site` is the primary signal and is unforgeable by page script;
+ * `Origin` is the fallback for browsers that do not send it (Safari before
+ * 16.4). Neither present means no browser vouched for the request, which for a
+ * cookie-authenticated write is a refusal, not a maybe.
+ */
+function isSameOriginRequest(c: Context<PrincipalEnv>): boolean {
+  const secFetchSite = c.req.header("sec-fetch-site");
+  if (secFetchSite !== undefined) return secFetchSite === "same-origin";
+
+  const origin = c.req.header("origin");
+  if (origin !== undefined) return origin === new URL(c.req.url).origin;
+
+  return false;
+}
+
+/** Default deny. Public operations opt out by name; everything else needs a principal. */
+apiApp.use(async (c, next) => {
+  const operation = `${c.req.method} ${pathWithinApi(c.req.path)}`;
+  if (!PUBLIC_OPERATIONS.has(operation)) requirePrincipal(c);
+  await next();
+});
+
+/**
+ * CSRF, for cookie-authenticated callers only.
+ *
+ * Runs *after* the deny check on purpose. CSRF is only meaningful when the
+ * request carries an ambient credential the browser attached by itself — an
+ * anonymous caller has no privilege to abuse, and should hear 401 rather than a
+ * confusing 403.
+ *
+ * Bearer tokens are exempt for the same reason: nothing attaches them
+ * automatically, so no cross-site page can cause one to be sent. Exempting them
+ * also keeps the CLI working, which sends neither `Origin` nor `Sec-Fetch-Site`.
+ *
+ * **Deliberately not `hono/csrf`.** That middleware only checks requests whose
+ * `Content-Type` is form-shaped (`application/x-www-form-urlencoded`,
+ * `multipart/form-data`, `text/plain`) or absent — the shapes a cross-origin
+ * `<form>` can produce without a CORS preflight. It is therefore a **no-op on
+ * `application/json`**, which is exactly what this API's only cookie-authenticated
+ * write sends. That is safe today only because no CORS policy is configured, so
+ * the preflight fails; it would become a real hole the day someone adds one, and
+ * nothing would fail to say so. Checking every unsafe method regardless of
+ * content type costs one comparison and does not depend on that assumption.
+ */
+apiApp.use(async (c, next) => {
+  if (getPrincipal(c)?.via !== "session") return next();
+  if (SAFE_METHODS.has(c.req.method)) return next();
+
+  if (!isSameOriginRequest(c)) {
+    return c.json({ error: "Cross-origin request refused" }, 403);
+  }
+
+  await next();
+});
 
 const ErrorSchema = z.object({ error: z.string() });
 

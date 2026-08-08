@@ -6,6 +6,7 @@
  */
 import { Link } from "react-router";
 import type { Route } from "../+types/dashboard._index";
+import { requireUser } from "~/lib/require-user";
 import {
   Card,
   CardContent,
@@ -58,7 +59,13 @@ const quickActions = [
   },
 ];
 
-export async function loader({ context: _context }: Route.LoaderArgs) {
+export async function loader({ context, request }: Route.LoaderArgs) {
+  // Guards before it reads anything, and stays here even though the stats below
+  // are static — this file is a copy-paste starting point, so whatever it does
+  // is what the next dashboard page will do. The layout loader is not a
+  // security boundary in React Router v7 (audit #10).
+  await requireUser(context, request);
+
   // TODO: query real stats from DB
   return {};
 }

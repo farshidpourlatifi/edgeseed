@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import type { Context } from "hono";
+import { HTTPException } from "hono/http-exception";
 import type { AuthEnv } from "../middleware";
 import { getSession, requireSession } from "../helpers/session";
 
@@ -35,14 +36,28 @@ describe("requireSession", () => {
     await expect(requireSession(c)).resolves.toBe(session);
   });
 
-  it("throws a 401 Response when unauthenticated", async () => {
+  // Must be an HTTPException, not a bare Response: Hono's compose() only routes
+  // Error instances to the error handler, so a Response escapes as a 500.
+  it("throws a 401 HTTPException when unauthenticated", async () => {
     const { c } = fakeContext(null);
     try {
       await requireSession(c);
       expect.unreachable("requireSession should have thrown");
     } catch (thrown) {
-      expect(thrown).toBeInstanceOf(Response);
-      expect((thrown as Response).status).toBe(401);
+      expect(thrown).toBeInstanceOf(HTTPException);
+      expect((thrown as HTTPException).status).toBe(401);
+    }
+  });
+
+  it("carries a JSON body the client can read", async () => {
+    const { c } = fakeContext(null);
+    try {
+      await requireSession(c);
+      expect.unreachable("requireSession should have thrown");
+    } catch (thrown) {
+      const res = (thrown as HTTPException).getResponse();
+      expect(res.headers.get("content-type")).toBe("application/json");
+      await expect(res.json()).resolves.toEqual({ error: "Unauthorized" });
     }
   });
 });

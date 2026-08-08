@@ -18,6 +18,7 @@
     "hono": "^4.13.0"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4"
+    "@cloudflare/workers-types": "^4",
+    "@starter/testing": "workspace:*"
   }
 }

@@ -110,12 +110,26 @@ Then re-run `pnpm test` and `pnpm dev` to confirm nothing broke. Verify
 These are the findings where the code is "correct" today but wrong the moment
 the starter is used for a real product.
 
-### 2.1 Fail closed on missing or weak env — **A3**
+### 2.1 Fail closed on missing or weak env — **A3** ✅ done 2026-08-08
 
-The schema already exists and is already correct
-(`packages/config/src/env.ts:6`). It simply has no callers. Wire
-`parseEnv(webEnvSchema, c.env)` into `authMiddleware` (or worker init) and let it
-throw.
+> **Landed, with three refinements the plan did not anticipate.** Validation is
+> **per request** in `authMiddleware` and the MCP Worker's `authFor`, not at
+> worker init — Workers only hand `env` to the request handler, so there is no
+> init-time env to check. The schema gained an explicit `.refine()` rejecting
+> Better Auth's `DEFAULT_SECRET`, which `.min(32)` accepted at 38 characters.
+>
+> And a **blank binding now counts as unset**: `.dev.vars` delivers an unset
+> optional key as `""`, which `.optional()` rejects, so validating every request
+> broke the documented setup path (`MARKETING_URL=` ships that way in
+> `.dev.vars.example`). Failing closed also means environments that _run_ the
+> Worker need an env to run it with — `check:boot` passes throwaway `--var`s and
+> the CI e2e job writes a throwaway `.dev.vars`. Both gaps were found by CI, not
+> locally, because a developer machine has a `.dev.vars` and `pnpm verify`
+> therefore passed. See `security-audit.md` #3.
+
+The schema already existed and was already correct
+(`packages/config/src/env.ts:6`); it simply had no callers. The fix wires
+`parseEnv(webEnvSchema, c.env)` into `authMiddleware` and lets it throw.
 
 **Test** — add to `packages/config` or `packages/auth`:
 
@@ -173,7 +187,15 @@ dependency is why this is Phase 2 and not Phase 1.
 4. Assert a **new** account is created, or linking is refused — not that the
    identity merges into the attacker's row.
 
-### 2.3 Add real rate limiting — **A4, A11**
+### 2.3 Add real rate limiting — **A4 OPEN**, A11 ✅ done 2026-08-08
+
+> **A4 is not done. There is no rate limiting on this app.** Only step 2 below
+> landed — `ipAddressHeaders: ["cf-connecting-ip"]`, pulled forward with the
+> 2026-08-08 batch because it also fixes `session.ipAddress`. Step 1, the KV
+> secondary storage and the rules, is still open, and must cover the mail
+> endpoints (`/send-verification-email`, `/request-password-reset`), not just
+> sign-in. Until it lands, brute-forced sign-in and unauthenticated outbound
+> mail are both live — `security-audit.md` #4 remains High.
 
 Two halves, and both are required — an IP-keyed limiter is worthless while the IP
 is spoofable:
@@ -193,7 +215,14 @@ before the 20th. Then repeat it while sending a rotating spoofed
 `X-Forwarded-For` header and assert the 429 still arrives — that second
 assertion is the one that catches a regression on the header config.
 
-### 2.4 Add security headers — **A5, A14**
+### 2.4 Add security headers — **A5, A14** ✅ done 2026-08-08
+
+> Landed as `apps/web/server/security-headers.ts`. Two corrections to the plan
+> below, recorded because both cost time: the theme script's hash is **not**
+> sufficient on its own — React Router's mid-stream loader-data scripts need a
+> nonce passed to `ServerRouter` — and a hash source expression must be quoted
+> (`'sha256-…'`) or the browser discards it as invalid. `Cache-Control` is keyed
+> on the session cookie, not on a path list. See `security-audit.md` #5.
 
 Add `secureHeaders()` from `hono/secure-headers` as the **first** middleware in
 `apps/web/server/index.ts`, with at minimum `frame-ancestors 'none'` /
@@ -223,7 +252,22 @@ Then confirm the app still renders — a CSP that blocks the theme script produc
 a flash of unstyled content rather than a hard error, so check visually, not just
 for a 200.
 
-### 2.5 Make the API surface fail closed — **A10, A15**
+### 2.5 Make the API surface fail closed — **A10, A15** ✅ done 2026-08-08
+
+> **Three corrections to the plan below.** CSRF runs **after** the deny check and
+> applies to session callers only — bearer tokens are not ambient credentials.
+> `hono/csrf` was tried and **removed**: it only inspects form-shaped or absent
+> content types, so it was a no-op on `application/json`, which is what the only
+> cookie-authenticated write in the app sends. The replacement checks every
+> unsafe method via `Sec-Fetch-Site` with an `Origin` fallback. And the allowlist
+> is keyed by method **and** path, so `POST` on a public path is not exempt.
+> See `security-audit.md` #15.
+>
+> **A10's test is an e2e, not the unit test named below.** A unit test on
+> `requireUser` passes whether or not a loader calls it, and a plain `.data`
+> request is satisfied by the _layout's_ guard — so the child has to be requested
+> on its own with `?_routes=`, asserting on the `SingleFetchRedirect` payload
+> rather than the status, which is 202. `tests/e2e/loader-guards.spec.ts`.
 
 - Add `csrf()` from `hono/csrf` to `apiApp`.
 - Add a default session-check middleware to `apiApp`, allowlisting `/health` and

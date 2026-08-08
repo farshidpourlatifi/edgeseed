@@ -24,6 +24,30 @@ export const BOOT_TARGETS: readonly BootTarget[] = [
 ];
 
 /**
+ * The minimum env a Worker needs to serve anything, supplied as `--var` so this
+ * check does not depend on a `.dev.vars` that exists on a laptop and not in CI.
+ *
+ * These are throwaway values and must never look otherwise: the point is to
+ * prove the *bundle runs*, not that the deployment is configured. Since
+ * `authMiddleware` validates the env on every request and refuses when it is
+ * missing (`docs/security-audit.md` #3), a Worker with no secret correctly
+ * serves nothing — which would make this check assert "is CI configured"
+ * instead of "does the bundle boot".
+ *
+ * The secret is 32+ characters and is deliberately not Better Auth's default,
+ * because the schema rejects both.
+ */
+export const BOOT_VARS: Readonly<Record<string, string>> = {
+  BETTER_AUTH_SECRET: "boot-check-throwaway-secret-not-for-any-real-use",
+  BETTER_AUTH_URL: "http://127.0.0.1:8791",
+};
+
+/** `--var KEY:value` pairs for `wrangler dev`. */
+export function bootVarArgs(vars: Readonly<Record<string, string>> = BOOT_VARS): string[] {
+  return Object.entries(vars).flatMap(([key, value]) => ["--var", `${key}:${value}`]);
+}
+
+/**
  * wrangler prints this when workerd refuses to start — typically a throw during
  * module evaluation. Detecting it lets the check fail in a second instead of
  * waiting out the readiness timeout.

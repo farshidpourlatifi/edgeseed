@@ -79,6 +79,23 @@ export function createAuth(opts: CreateAuthOptions) {
         allowDifferentEmails: false,
       },
     },
+    advanced: {
+      ipAddress: {
+        /**
+         * Cloudflare **appends** the real visitor IP to any client-supplied
+         * `X-Forwarded-For`, so Better Auth's default of `x-forwarded-for` then
+         * `split(",")[0]` reads a value the caller chose. That IP keys rate
+         * limiting and is recorded as `session.ipAddress`, so trusting it means
+         * a limiter bypassed by rotating a header and audit data that lies.
+         *
+         * `cf-connecting-ip` is set by the edge and cannot be spoofed by the
+         * client. Single-entry list on purpose: adding a fallback would restore
+         * the spoofable path whenever the trusted header is absent.
+         * See `docs/security-audit.md` #11.
+         */
+        ipAddressHeaders: ["cf-connecting-ip"],
+      },
+    },
     socialProviders: {
       ...(opts.githubClientId && opts.githubClientSecret
         ? {

@@ -10,6 +10,13 @@ They are **not registered as routes** — they exist as copy-paste starting poin
 3. Run `npx react-router typegen` to generate types
 4. Wire real data in the loader (replace static arrays with DB queries)
 
+**Keep the `requireUser(context, request)` call.** Both examples open their
+loader with it, and it must survive the copy: in React Router v7 the dashboard
+layout loader is not a security boundary — children run in parallel with it and
+a `.data` request can fetch one directly, so every loader guards itself
+(`docs/security-audit.md` #10). These files are the template the next page is
+built from, which is why they guard even where they return nothing sensitive.
+
 ## Available examples
 
 | File                         | What it shows                                                                              |

@@ -8,6 +8,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import {
   BOOT_TARGETS,
+  bootVarArgs,
   extractBootError,
   healthUrl,
   isHealthyStatus,
@@ -43,7 +44,17 @@ async function bootOne(target: BootTarget): Promise<BootFailure | null> {
 
   const child = spawn(
     "npx",
-    ["wrangler", "dev", "--port", String(target.port), "--ip", "127.0.0.1"],
+    [
+      "wrangler",
+      "dev",
+      "--port",
+      String(target.port),
+      "--ip",
+      "127.0.0.1",
+      // Without these the Worker boots and then refuses every request, because
+      // the env fails validation — see BOOT_VARS.
+      ...bootVarArgs(),
+    ],
     { cwd: target.cwd, detached: true, stdio: ["ignore", "pipe", "pipe"] },
   );
 

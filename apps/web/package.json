@@ -31,6 +31,7 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1",
     "@cloudflare/workers-types": "^4",
+    "@starter/testing": "workspace:*",
     "@hono/vite-dev-server": "^0.19",
     "@react-router/dev": "^7.18.2",
     "@tailwindcss/vite": "^4",

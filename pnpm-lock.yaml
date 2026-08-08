@@ -133,6 +133,9 @@ importers:
       '@cloudflare/workers-types':
         specifier: ^4
         version: 4.20260331.1
+      '@starter/testing':
+        specifier: workspace:*
+        version: link:../../packages/testing
       typescript:
         specifier: ^5.7
         version: 5.9.3
@@ -206,6 +209,9 @@ importers:
       '@react-router/dev':
         specifier: ^7.18.2
         version: 7.18.2(@types/node@22.19.15)(jiti@2.6.1)(lightningcss@1.32.0)(react-router@7.18.2(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(tsx@4.21.0)(typescript@5.9.3)(vite@6.4.1(@types/node@22.19.15)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.9.0))(wrangler@4.79.0(@cloudflare/workers-types@4.20260331.1))(yaml@2.9.0)
+      '@starter/testing':
+        specifier: workspace:*
+        version: link:../../packages/testing
       '@tailwindcss/vite':
         specifier: ^4
         version: 4.2.2(vite@6.4.1(@types/node@22.19.15)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.9.0))
@@ -255,6 +261,9 @@ importers:
       '@cloudflare/workers-types':
         specifier: ^4
         version: 4.20260331.1
+      '@starter/testing':
+        specifier: workspace:*
+        version: link:../testing
 
   packages/cli:
     devDependencies:

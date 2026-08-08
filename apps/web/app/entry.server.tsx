@@ -46,9 +46,19 @@ export default async function handleRequest(
   const userAgent = request.headers.get("user-agent");
   const requestId: string | undefined = loadContext?.requestId;
 
+  // One nonce for every inline script React Router emits. Passing it to
+  // `ServerRouter` covers the nonce-aware components (`<Scripts>`,
+  // `<ScrollRestoration>`, `<Links>`, `<Meta>`) *and* the stream-transfer
+  // chunks that push loader data — those last two are emitted mid-stream, so
+  // they cannot be nonced from root.tsx and were the ones CSP blocked first.
+  // The option on `renderToReadableStream` covers React's own bootstrap
+  // scripts, which are separate again.
+  const cspNonce: string | undefined = loadContext?.cspNonce;
+
   const body = await renderToReadableStream(
-    <ServerRouter context={routerContext} url={request.url} />,
+    <ServerRouter context={routerContext} url={request.url} nonce={cspNonce} />,
     {
+      nonce: cspNonce,
       signal: request.signal,
       onError(error: unknown) {
         const path = safePath(request);

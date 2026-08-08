@@ -14,12 +14,13 @@ import { Spinner } from "@starter/ui/components/ui/spinner";
 import { listApiTokens } from "@starter/auth";
 import { toast } from "sonner";
 import { ApiTokens } from "~/components/settings/api-tokens";
+import { requireUser } from "~/lib/require-user";
 
 export async function loader({ context, request }: Route.LoaderArgs) {
-  const session = await context.auth.api.getSession({
-    headers: request.headers,
-  });
-  if (!session) return { user: null, tokens: [] };
+  // Redirects rather than returning empty data. This loader reads API tokens,
+  // so an unauthenticated caller must be turned away, not handed a 200 with
+  // nothing in it (audit #10).
+  const session = await requireUser(context, request);
 
   return {
     user: session.user,

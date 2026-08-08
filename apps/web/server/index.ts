@@ -6,7 +6,8 @@ import {
   observabilityMiddleware,
   type ObservabilityEnv,
 } from "@starter/observability/middleware";
-import { apiApp } from "./api";
+import { API_BASE_PATH, apiApp } from "./api";
+import { securityMiddleware } from "./security-headers";
 import { resolveOriginRedirect } from "./origins";
 
 export interface ServerEnv {
@@ -37,6 +38,15 @@ const app = new Hono<ServerEnv>();
 // covered, including failures inside authMiddleware itself.
 app.use(observabilityMiddleware);
 
+// Security response headers, and the CSP nonce that SSR renders with. Mounted
+// above the origin redirect so redirects carry the headers too, and above
+// authMiddleware so a request rejected for a bad env is still answered with
+// them. Sets the nonce on the context before next(), which is what makes it
+// reachable from React Router via load-context.
+// Ordered inside the module, because the order is load-bearing and getting it
+// wrong drops the headers silently — see securityMiddleware.
+app.use(...securityMiddleware);
+
 // Split-origin topology, when configured. Mounted before authMiddleware on
 // purpose: an app path arriving on the marketing origin leaves as a redirect
 // without ever constructing an auth instance there, so the guarantee that auth
@@ -62,10 +72,12 @@ app.on(["GET", "POST"], "/api/auth/**", (c) => {
 
 // Resolve a bearer token or session into a principal for the versioned API.
 // Scoped to /api/v1 so Better Auth's own routes keep owning their credentials.
-app.use("/api/v1/*", principalMiddleware);
+// The CSRF and default-deny guards live on apiApp itself, so they travel with
+// the routes they protect rather than depending on this mount staying correct.
+app.use(`${API_BASE_PATH}/*`, principalMiddleware);
 
 // Mount versioned API routes
-app.route("/api/v1", apiApp);
+app.route(API_BASE_PATH, apiApp);
 
 // Log + report anything that escapes a handler, and answer with the request id
 app.onError(observabilityErrorHandler);
