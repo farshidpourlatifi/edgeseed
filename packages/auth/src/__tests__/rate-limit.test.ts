@@ -17,7 +17,7 @@ import {
  *
  * The vector half is the one that matters. Every part of #4 was a config that
  * looked present and did nothing (`enabled` keyed on an unset `NODE_ENV`,
- * counters in a Map discarded every request), and no assertion on
+ * counters in a Map that no isolate shares with another), and no assertion on
  * `auth.options` would have caught any of it.
  */
 
@@ -80,11 +80,24 @@ describe("rate limit policy", () => {
    * verification became mandatory it *sends a message*, so it belongs in the
    * strictest bucket alongside the explicit resend and reset endpoints.
    */
-  it("counts every unauthenticated way to send mail against the mail class", () => {
+  it("counts every way to make the app send mail against the mail class", () => {
     expect(rateLimitClassFor("/sign-up/email")).toBe("mail");
     expect(rateLimitClassFor("/send-verification-email")).toBe("mail");
     expect(rateLimitClassFor("/request-password-reset")).toBe("mail");
     expect(rateLimitClassFor("/forget-password")).toBe("mail");
+    // Behind a session, and still here: the cost being bounded is the message.
+    expect(rateLimitClassFor("/change-email")).toBe("mail");
+  });
+
+  /**
+   * Every remaining entry in `CLASSIFIERS`, stated independently of the table.
+   * Without these, a classifier can be deleted outright and nothing goes red —
+   * which is how `/change-email` came to be missing from the audit's own
+   * summary of the shipped policy.
+   */
+  it("counts the other credential-bearing endpoints against the credentials class", () => {
+    expect(rateLimitClassFor("/reset-password")).toBe("credentials");
+    expect(rateLimitClassFor("/change-password")).toBe("credentials");
   });
 
   // Not "unlimited": an endpoint a future Better Auth version adds arrives
@@ -251,6 +264,22 @@ describe("rateLimitKey", () => {
     expect(rateLimitKey(headers({ "cf-connecting-ip": "::1" }), "/p")).toBe(
       "0000:0000:0000:0000|/p",
     );
+  });
+
+  /**
+   * The case where `::` sits early and the groups after it reach into the /64.
+   * `2001:db8::1:2:3:4:5` expands to a single zero group, so the fourth group
+   * is `1` and not a zero — get the gap arithmetic wrong and this address
+   * collapses onto every other `2001:db8::` client, handing them one shared
+   * bucket. The obvious inputs (`::1`, `2001:db8:1:2::1`) cannot catch it,
+   * because their zeros run past the fourth group either way.
+   */
+  it("keeps groups that follow :: when they land inside the /64", () => {
+    const withTail = rateLimitKey(headers({ "cf-connecting-ip": "2001:db8::1:2:3:4:5" }), "/p");
+    const allZeros = rateLimitKey(headers({ "cf-connecting-ip": "2001:db8::5" }), "/p");
+
+    expect(withTail).toBe("2001:0db8:0000:0001|/p");
+    expect(withTail).not.toBe(allZeros);
   });
 
   it("keeps different /64s apart", () => {

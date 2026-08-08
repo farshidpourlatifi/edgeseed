@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createFakeEnv } from "@starter/testing/fake-env";
 import { createFakeRateLimiters } from "@starter/testing/fake-rate-limit";
+import { RATE_LIMIT_RULES } from "@starter/auth/rate-limit";
 import { authApp } from "../auth-app";
 
 /**
@@ -115,7 +116,9 @@ describe("MCP /authorize sign-in rate limiting", () => {
 
     const refused = await signInPost(env);
     expect(refused.status).toBe(429);
-    expect(refused.headers.get("retry-after")).toBe("60");
+    // Against the policy table, not a literal — a literal here would just be
+    // the copy of the window that the source no longer keeps.
+    expect(refused.headers.get("retry-after")).toBe(String(RATE_LIMIT_RULES.credentials.window));
   });
 
   it("counts a different client separately", async () => {

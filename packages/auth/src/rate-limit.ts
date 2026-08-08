@@ -9,8 +9,12 @@ import type { BetterAuthRateLimitOptions, RateLimit as RateLimitRecord } from "b
  * 1. Better Auth's default is `enabled: isProduction`, which keys on `NODE_ENV`
  *    — never set on Workers. So `enabled` is pinned `true`, unconditionally.
  *    Do not make it environment-dependent; that is the original defect.
- * 2. Its default `memory` storage is a module-level `Map`, and `createAuth()`
- *    runs per request, so counters were discarded before they could count.
+ * 2. Its default `memory` storage is a module-level `Map` — so it survives
+ *    `createAuth()` being rebuilt per request, but not the isolate. Counts are
+ *    per-isolate and ephemeral: they never aggregate across the isolates
+ *    serving one attacker, and vanish whenever one is evicted. (The audit says
+ *    the per-request rebuild discards them; that was true of better-auth 1.5.6
+ *    and is not true of the pinned 1.6.26. The conclusion is unchanged.)
  * 3. `storage: "database"` needs a `rateLimit` table that does not exist.
  *
  * ## Why a rate-limit binding and not KV
@@ -78,9 +82,11 @@ export const RATE_LIMIT_RULES = {
  * Path prefixes that leave the `default` class, relative to `basePath`
  * (`/api/auth`), matching Better Auth's own normalised pathnames.
  *
- * `mail` covers every endpoint an **unauthenticated** caller can use to make
- * the app send a message. `/sign-up/email` is in that list rather than in
- * `credentials` for exactly that reason — it sends the verification mail.
+ * `mail` covers every endpoint that makes the app send a message. The
+ * **unauthenticated** ones are why the bucket is this strict — `/sign-up/email`
+ * sits here rather than with the credential endpoints for exactly that reason,
+ * since it sends the verification mail. `/change-email` needs a session and is
+ * here anyway: the cost being bounded is the message, not the credential.
  *
  * Order matters: the first matching prefix wins, so a longer path must precede
  * any prefix of it.

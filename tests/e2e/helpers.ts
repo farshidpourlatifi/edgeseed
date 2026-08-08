@@ -33,11 +33,17 @@ export function markEmailVerified(email: string) {
  * `reuseExistingServer` keeps that server across local re-runs. A fixed address
  * would make the second run of the day fail.
  *
- * CGNAT space (RFC 6598), so it cannot be mistaken for a real client.
+ * Drawn from the whole of CGNAT space (RFC 6598 reserves `100.64.0.0/10`, so it
+ * cannot be mistaken for a real client) rather than a single `/24`. That is 4.2
+ * million addresses instead of 65 thousand: with a couple of dozen buckets
+ * alive at once across a run and its predecessor, a collision would surface as
+ * an unrelated spec failing with a 429 — the kind of once-in-a-thousand-runs
+ * flake nobody would connect back to here.
  */
 export function clientIp(): string {
-  const octet = () => Math.floor(Math.random() * 256);
-  return `100.64.${octet()}.${octet()}`;
+  const byte = () => Math.floor(Math.random() * 256);
+  // 100.64.x.x through 100.127.x.x — the /10's full second-octet range.
+  return `100.${64 + Math.floor(Math.random() * 64)}.${byte()}.${byte()}`;
 }
 
 /**

@@ -67,6 +67,7 @@ holds the reasoning, including why KV and `secondaryStorage` were both rejected.
 
 - Helpers are pure or mockable — tested in `src/__tests__/` with a stubbed Hono context
 - **Coverage target: 100% for `src/helpers/` and `src/rate-limit.ts`**; `server.ts`/`middleware.ts`/`client.ts` are thin config wrappers exercised by the e2e auth suite (`tests/e2e/auth.spec.ts`), no unit target
+- **`rate-limit.ts` sits at 88% mutation score, and the remaining survivors were checked by hand — do not chase the number.** Four are the message text inside `unreachable()`; one is `AUTH_RATE_LIMIT_CUSTOM_RULES` being module-level, which per-test coverage cannot attribute; the other six are equivalent mutants in `normalizeIp`, where the redundancy is real but harmless (the IPv4 guard is also reachable through the IPv4-mapped branch, `fill("")` is indistinguishable after `padStart`, and the destructuring defaults only fire on a path that ignores the value). Killing them would mean asserting on error strings or deleting guards that make the code readable
 - **Rate-limit tests drive `auth.handler()`, not `auth.options`.** Every part of audit #4 was configuration that looked present and did nothing, so an assertion on the options object would have passed throughout. A POST with an empty JSON body answers 400 from validation without touching D1, which is what makes a real-handler test possible with no database
 - Every new helper ships with tests for its deny path, not just its allow path
 - Token tests must cover the lifecycle deny paths explicitly: revoked, expired,

@@ -5,7 +5,7 @@ import type { AuthRequest, ClientInfo } from "@cloudflare/workers-oauth-provider
 import type { Context } from "hono";
 import { createDb } from "@starter/db";
 import { createAuth } from "@starter/auth/server";
-import { rateLimitKey, type RateLimiters } from "@starter/auth/rate-limit";
+import { RATE_LIMIT_RULES, rateLimitKey, type RateLimiters } from "@starter/auth/rate-limit";
 import { createEmailSender } from "@starter/email";
 import { createLogger, resolveLogLevel } from "@starter/observability";
 import { mcpEnvSchema, parseEnv } from "@starter/config/env";
@@ -203,8 +203,11 @@ async function refuseIfRateLimited(c: Context<AuthEnv>): Promise<Response | null
   });
   if (success) return null;
 
+  // Derived, not written out: `RATE_LIMIT_RULES` is the canonical policy, and a
+  // literal here would be a fourth copy of the window — one that keeps
+  // answering 60 after the binding moves to 10.
   return c.text("Too many sign-in attempts. Please try again later.", 429, {
-    "Retry-After": "60",
+    "Retry-After": String(RATE_LIMIT_RULES.credentials.window),
   });
 }
 

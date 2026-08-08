@@ -132,7 +132,9 @@ describe("createAuth — rate limiting (audit #4)", () => {
   });
 
   // Reasons 2 and 3 from the finding: the built-in stores cannot work here.
-  // `memory` is a Map on a per-request instance, and `database` wants a
+  // `memory` is a module-level Map, so it outlives the per-request `createAuth`
+  // but not the isolate — counts are per-isolate and ephemeral, never
+  // aggregating across the isolates serving one caller. `database` wants a
   // `rateLimit` table that does not exist in the Drizzle schema.
   it("enforces through the injected storage, not a built-in one", () => {
     expect(rateLimit()?.customStorage?.consume).toBeTypeOf("function");

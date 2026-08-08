@@ -274,6 +274,16 @@ Three independent reasons this leaves sign-in and sign-up freely brute-forceable
 `storage: "database"` would also fail — there is no `rateLimit` table in the
 Drizzle schema.
 
+**Correction 2026-08-09 — reason 3 above is wrong for the version now pinned.**
+It was written against `better-auth@1.5.6`. In the pinned `1.6.26` the memory
+store is a module-level `Map` (`api/rate-limiter/index.mjs:6`) that
+`getRateLimitStorage` closes over, so rebuilding `createAuth()` per request does
+**not** discard counters. Reason 2 is the whole of it: the counts are
+per-isolate and ephemeral, never aggregating across the isolates serving one
+caller and gone whenever one is evicted. Reasons 1 and 2 stand, so the finding
+and its severity are unchanged — but do not repeat reason 3, which was carried
+into the fix's own comments before this was caught in review.
+
 **Fix:** add a KV binding as `secondaryStorage` and set
 `rateLimit: { enabled: true, storage: "secondary-storage" }` with stricter
 `customRules` on `/sign-in/email` and `/sign-up/email`; or add a Cloudflare Rate
@@ -298,8 +308,9 @@ literal. Three enforcement classes, one Workers `[[ratelimits]]` binding each,
 declared in both wrangler files and required by `sharedEnvSchema` — so a Worker
 missing one refuses every request rather than serving an unthrottled auth
 surface. Per IP and path, per 60 seconds: **mail 3** (`/sign-up/email`,
-`/send-verification-email`, `/request-password-reset`, `/forget-password`),
-**credentials 10** (`/sign-in/**`, `/reset-password`, `/change-password`), and
+`/send-verification-email`, `/request-password-reset`, `/forget-password`,
+`/change-email`), **credentials 10** (`/sign-in/**`, `/reset-password`,
+`/change-password`), and
 **default 120** for everything else under `/api/auth`, so an endpoint a future
 Better Auth version adds arrives limited rather than unlimited.
 
