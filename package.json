@@ -27,6 +27,7 @@
     "check:docs-sync": "tsx packages/cli/src/check-docs-sync.ts",
     "check:boot": "tsx packages/cli/src/check-boot.ts",
     "check:release-version": "tsx packages/cli/src/check-release-version.ts",
+    "check:not-downgrade": "tsx packages/cli/src/check-not-downgrade.ts",
     "check:deployed": "tsx packages/cli/src/check-deployed.ts",
     "release:notes": "tsx packages/cli/src/release-notes.ts",
     "version:bump": "tsx packages/cli/src/version-bump.ts",

@@ -104,6 +104,20 @@ export function releaseVersionProblems(input: {
   return problems;
 }
 
+/**
+ * The `routes[].pattern` hostnames declared in a `wrangler.jsonc` source.
+ *
+ * Read by regex rather than parsed: the file is JSON **with comments**, which
+ * `JSON.parse` rejects, and the alternative is carrying a jsonc parser to read
+ * one field. Same approach as the env-schema reader in `docs-sync`.
+ *
+ * This is how the pre-deploy downgrade check finds production without any new
+ * configuration — the hostnames are already declared, so nothing can drift.
+ */
+export function wranglerRoutePatterns(wranglerSource: string): string[] {
+  return [...wranglerSource.matchAll(/"pattern"\s*:\s*"([^"]+)"/g)].map((match) => match[1]);
+}
+
 /** One `type: "deploy"` record from wrangler's structured output. */
 export interface DeployRecord {
   versionId: string;

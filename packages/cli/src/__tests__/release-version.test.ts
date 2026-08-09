@@ -10,7 +10,47 @@ import {
   parseTagVersion,
   releaseVersionProblems,
   smokeUrls,
+  wranglerRoutePatterns,
 } from "../lib/release-version";
+
+describe("wranglerRoutePatterns", () => {
+  // Verbatim shape from apps/web/wrangler.jsonc, comments included — the file
+  // is JSON *with comments*, which JSON.parse rejects.
+  const SOURCE = [
+    "{",
+    '  "main": "worker.ts",',
+    "  // `custom_domain: true` makes `wrangler deploy` create the DNS record.",
+    '  "routes": [',
+    '    { "pattern": "app.edgeseed.dev", "custom_domain": true },',
+    '    { "pattern": "edgeseed.dev", "custom_domain": true },',
+    "  ],",
+    "}",
+  ].join("\n");
+
+  it("should read every declared route pattern", () => {
+    expect(wranglerRoutePatterns(SOURCE)).toEqual(["app.edgeseed.dev", "edgeseed.dev"]);
+  });
+
+  it("should tolerate the comments that make this file unparseable as JSON", () => {
+    expect(wranglerRoutePatterns(SOURCE)).toHaveLength(2);
+  });
+
+  it("should return nothing when no routes are declared", () => {
+    expect(wranglerRoutePatterns('{ "main": "worker.ts" }')).toEqual([]);
+  });
+
+  it("should read a pattern written without spaces after the colon", () => {
+    expect(wranglerRoutePatterns('{"pattern":"a.example.com"}')).toEqual(["a.example.com"]);
+  });
+
+  // Prettier would not write this, but a hand-edited wrangler.jsonc might, and
+  // silently reading no routes here would skip the downgrade guard entirely.
+  it("should read a pattern with whitespace before the colon", () => {
+    expect(wranglerRoutePatterns('{ "pattern" : "spaced.example.com" }')).toEqual([
+      "spaced.example.com",
+    ]);
+  });
+});
 
 describe("compareVersions", () => {
   it("should order by major first", () => {

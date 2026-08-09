@@ -12,15 +12,19 @@ name: release
 # Three jobs on three runners, and the split is the security boundary:
 #
 #   verify   — runs every piece of third-party code (install scripts, eslint
-#              plugins, browsers, the test suite). No credentials exist here.
-#   deploy   — fresh runner, holds the Cloudflare token. Installs and builds,
-#              nothing else, so nothing `verify` did can reach it.
+#              plugins, browsers, the test suite) and produces the build. No
+#              credentials exist here.
+#   deploy   — fresh runner, holds the Cloudflare token. Installs, downloads
+#              the build, uploads it. Never builds, never tests.
 #   release  — fresh runner, holds the only `contents: write` token, for one
 #              step, and never checks the repository out at all.
 #
 # Step-level `env:` is not a substitute for this. Steps in a job share a
 # filesystem, so an earlier step can rewrite package.json, a dependency or the
 # wrangler config and change what the credentialed step later executes.
+#
+# Actions are pinned to commit SHAs rather than tags: a tag is mutable, and the
+# jobs below hold production credentials.
 on:
   push:
     tags: ["v*"]
@@ -34,8 +38,8 @@ concurrency:
   # while the first is deploying *replaces* the second, so that version is
   # never deployed and never released. `max` queues up to 100 instead.
   #
-  # Queue order is still not guaranteed — that is what the downgrade guard in
-  # `check:release-version` is for, since no concurrency setting can order them.
+  # Queue order is still not guaranteed — that is what the two ordering guards
+  # below are for, since no concurrency setting can order them.
   queue: max
   cancel-in-progress: false
 
@@ -43,7 +47,7 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           # Full history: `pnpm verify` runs `gitleaks git`, which scans the log
           # rather than the worktree, and the ancestry check below needs a merge
@@ -55,20 +59,19 @@ jobs:
           # business pushing.
           persist-credentials: false
 
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
-      # Three guards, all before anything is deployed, because none of these
+      # Four guards, all before anything is deployed, because none of these
       # failures is fixable afterwards.
       #
       # The already-released tags come in as arguments, which is what makes this
       # a downgrade guard too: queued tag pushes execute in an order GitHub does
-      # not guarantee, so `v1.2.1` can run *after* `v1.2.2` and quietly take
-      # production backwards. Refusing a non-increasing version is the only fix.
+      # not guarantee, so `v1.2.1` can run *after* `v1.2.2`.
       - name: Tag must match APP_VERSION and be the newest release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -79,6 +82,14 @@ jobs:
           # Unquoted on purpose: the list must expand to separate arguments.
           # shellcheck disable=SC2086
           pnpm check:release-version "$GITHUB_REF_NAME" $released
+
+      # The guard above compares against GitHub Releases, which are created
+      # *last* — so a run that deployed and then failed its smoke check leaves
+      # production ahead of every release. Production itself is the authority,
+      # and it is asked here. Allows the deploy when nothing answers: a broken
+      # Worker has to stay deployable.
+      - name: Production must not already be ahead of this tag
+        run: pnpm check:not-downgrade "$GITHUB_REF_NAME"
 
       # A tag can be pushed from any branch, and it would deploy that branch to
       # production. Only what is on main ships.
@@ -139,6 +150,27 @@ jobs:
           sudo tar -xzf "$archive" -C /usr/local/bin gitleaks
           gitleaks version
 
+      # A scanner that finds nothing passes every scan. Pinning a version and
+      # checksumming the download prove *which* binary ran, not that it works —
+      # and gitleaks has shipped releases that detect nothing
+      # (gitleaks/gitleaks#2170), which would leave the gate silently green.
+      # Prove detection against a known-bad string instead of trusting the pin.
+      #
+      # The token is assembled at run time: a literal here would be a real
+      # finding in this repository's own history, since gitleaks.yml scans it.
+      - name: Prove gitleaks detects a known secret
+        run: |
+          canary="$RUNNER_TEMP/gitleaks-canary"
+          mkdir -p "$canary"
+          prefix='ghp'
+          body='0123456789abcdefghijABCDEFGHIJ012345'
+          printf 'const t = "%s_%s"\n' "$prefix" "$body" > "$canary/leak.ts"
+          if gitleaks dir "$canary" >/dev/null 2>&1; then
+            echo "::error::gitleaks did not flag a known test secret — the secret scan proves nothing"
+            exit 1
+          fi
+          echo "Canary detected: the scanner works."
+
       - run: pnpm exec playwright install --with-deps chromium
 
       # `verify` ends in e2e, which boots the dev server against
@@ -161,6 +193,16 @@ jobs:
           CI: "true"
         run: pnpm verify
 
+      # `verify` runs `pnpm build`, so the bundle already exists. Handing it to
+      # the deploy job means that job never has to build, which is what keeps
+      # build-time dependency code off the runner holding the token.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: web-build
+          path: apps/web/build
+          retention-days: 1
+          if-no-files-found: error
+
   deploy:
     needs: verify
     runs-on: ubuntu-latest
@@ -176,22 +218,28 @@ jobs:
     outputs:
       notes: ${{ steps.notes.outputs.body }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: pnpm
+
+      # Installs wrangler and its dependencies. Residual, stated plainly: this
+      # still executes dependency install scripts on the runner that holds the
+      # token. `--ignore-scripts` would close that, and is not enabled because
+      # it has not been proven safe for esbuild's and workerd's platform binary
+      # resolution — an untested flag on the deploy path is its own risk. What
+      # this job does *not* do is build or test, and it starts from a clean
+      # runner, so nothing `verify` executed persists into it.
       - run: pnpm install --frozen-lockfile
 
-      # `wrangler.jsonc` serves `assets.directory: build/client`, so the bundle
-      # has to exist before the deploy. Built here rather than carried from
-      # `verify` as an artifact: an artifact produced by the job full of
-      # third-party code would hand that code the deploy anyway, which is the
-      # separation this job exists for.
-      - run: pnpm build
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: web-build
+          path: apps/web/build
 
       # `deploy:web:ungated` is the second half of `deploy:web` rather than an
       # inline wrangler call, so CI cannot drift from the local deploy path — in

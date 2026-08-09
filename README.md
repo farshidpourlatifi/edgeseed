@@ -75,6 +75,7 @@ docs/
 | `pnpm api:call <METHOD> <path> [body]`    | Call `/api/v1` with `STARTER_API_TOKEN` (see [API tokens](#api-tokens))          |
 | `pnpm version:bump [major\|minor\|patch]` | Bump version, then print the tag steps that cut a release                        |
 | `pnpm check:release-version <tag>`        | Refuse a release tag that disagrees with `package.json` / `APP_VERSION`          |
+| `pnpm check:not-downgrade <tag>`          | Refuse a tag older than the version production is already serving                |
 | `pnpm check:deployed <output> <version>`  | Assert the deployed origin's `/api/v1/health` reports that version               |
 | `pnpm release:notes <output>`             | Release-note preamble from wrangler's structured deploy output                   |
 | `pnpm init:product <name>`                | Stamp product identity on a fresh clone ([guide](./docs/starter-as-upstream.md)) |

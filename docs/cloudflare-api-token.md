@@ -52,39 +52,55 @@ a policy builder — a search box, thirteen collapsed permission groups
 Use the **search box** rather than expanding groups. The grouping is Cloudflare's
 and it gets reshuffled; the permission names are stable.
 
-This needs **two policies**, because a policy's resource scope decides which
-permissions its search box will even offer.
+The workflow deploys **only the web Worker** and runs no database or KV
+operation. Start with the minimum and add only what a failed deploy proves is
+missing — the burden of proof belongs on granting a permission, not on removing
+one, and this token will sit in CI indefinitely.
 
-The workflow deploys **only the web Worker**. Grant for that, not for the repo
-in general:
-
-**Policy 1 — resource `Entire Account`:**
+**One policy — resource `Entire Account`:**
 
 | Search for         | Level    | Why this repo needs it |
 | ------------------ | -------- | ---------------------- |
 | `Workers Scripts`  | **Edit** | Upload the Worker      |
-| `D1`               | **Edit** | The `DB` binding       |
 | `Account Settings` | **Read** | Resolve the account    |
 
-**Not `Workers KV Storage`.** `apps/web/wrangler.jsonc` declares no
-`kv_namespaces`, and a deploy prints its bindings — `DB`, three rate limits,
-`ENVIRONMENT`, no KV. `OAUTH_KV` belongs to the **MCP** Worker, which this
-workflow does not deploy. Add it only if that changes.
+That is the whole default. Three things deliberately **not** granted:
 
-**Policy 2 — `Add policy`, resource set to the zone —** only if you keep it:
+- **`Workers KV Storage`** — `apps/web/wrangler.jsonc` declares no
+  `kv_namespaces`, and a deploy prints its bindings: `DB`, three rate limits,
+  `ENVIRONMENT`, no KV. `OAUTH_KV` belongs to the **MCP** Worker, which this
+  workflow does not deploy.
+- **`D1`** — the workflow runs no migration (that stays manual, see below).
+  The Worker does declare a `d1_databases` binding, so it is conceivable the
+  upload needs the permission; it has never been shown to. Granting it by
+  default would hand every CI deploy destructive access to the production
+  database on an assumption, which is not a trade worth making silently.
+- **A zone policy** (`Workers Routes`, `Zone: Read`) — `custom_domain: true`
+  routes attach through **`PUT /accounts/{account_id}/workers/domains`**, an
+  _account_-scoped endpoint. The zone-scoped `/zones/{zone_id}/workers/routes`
+  API serves the other route form, `pattern` + `zone_name`.
 
-| Search for       | Level    | Why it might be needed                  |
-| ---------------- | -------- | --------------------------------------- |
-| `Workers Routes` | **Edit** | The `custom_domain` routes              |
-| `Zone`           | **Read** | Resolve the zone those routes belong to |
+**If a deploy fails, the error names the endpoint it was refused.** Add the
+matching permission then, and only then. Cloudflare's reference pages for the
+script-upload and attach-domain endpoints list **no** required permissions at
+all, so nothing here can be settled by citation — the deploy is the only
+oracle, which is exactly why step 6 verifies with a real one.
 
-**Searching for a zone permission inside an account-scoped policy returns "No
-permission groups found."** That is the resource scope filtering the list, not
-the permission being unavailable to account tokens — an easy misread, since the
-message says nothing about scope. Add the second policy first, then search.
+A product using `pattern`/`zone_name` routes rather than custom domains does
+need the zone policy, with no experiment required.
 
-The summary screen confirms it worked: two blocks, one reading
-_"Entire <account>"_ and one _"…zones in <account>"_.
+### If you do need a zone policy
+
+A policy's **resource scope decides which permissions its search box offers**,
+and that trips people up: searching `Workers Routes` inside an account-scoped
+policy returns _"No permission groups found"_, which reads like the permission
+does not exist for account tokens. It does — the scope is filtering the list,
+and the message says nothing about scope.
+
+Click **Add policy**, set that policy's resource to the zone(s), and then
+search. `Workers Routes: Edit` and `Zone: Read` appear. The summary screen
+confirms it worked: two blocks, one reading _"Entire &lt;account&gt;"_ and one
+_"…zones in &lt;account&gt;"_.
 
 **Never `Select all 273 permissions`.** That is an account-takeover credential,
 and it would be sitting in GitHub.
@@ -93,34 +109,16 @@ Name it for the job, not the person: `github-actions-deploy` beats the
 auto-generated `curly-lake-a0cc`. That name is what you read in the audit log a
 year from now, and the random default tells you nothing.
 
-> **Start without policy 2, and add it only if a deploy fails.** `routes` here
-> are `custom_domain: true`, and Workers Custom Domains attach through
-> **`PUT /accounts/{account_id}/workers/domains`** — an _account_-scoped
-> endpoint. The zone-scoped `/zones/{zone_id}/workers/routes` API serves the
-> other route form, `pattern` + `zone_name`.
->
-> Cloudflare's reference page for that endpoint lists **no** required
-> permissions, so "Workers Scripts is enough" cannot be taken on their
-> authority — it is checked, not cited. And a deploy that succeeds with both
-> policies present proves only that the pair works, never which half carried
-> it. One experiment settles it: create the token with policy 1 alone,
-> redeploy, and see whether both custom domains still attach. Redeploying the
-> same commit is harmless, so this is cheap — and least privilege says do it
-> before the token goes anywhere near CI.
->
-> A product using `pattern`/`zone_name` routes needs the zone-scoped API and
-> keeps policy 2 regardless.
-
 ## 3. Scope it down
 
 Every one of these defaults to the wide answer. Check them on the summary screen
 before creating — it spells out what you actually granted.
 
-- **Policy 1 resource** → the account holding these Workers.
-- **Policy 2 resource** → **specific zones**, not `All zones`. The zone picker
-  defaults to all of them, and the summary then reads _"All zones in
-  <account>"_ — a leaked token could repoint every domain on the account, not
-  just this product's. For this repo that is `edgeseed.dev` and nothing else.
+- **Resource** → the account holding these Workers.
+- **A zone policy, if you added one** → **specific zones**, not `All zones`. The
+  zone picker defaults to all of them, and the summary then reads _"All zones in
+  &lt;account&gt;"_ — a leaked token could repoint every domain on the account,
+  not just this product's. For this repo that is `edgeseed.dev` and nothing else.
 - **Token expiration** → defaults to **No expiration**. Change it. `1 year` is
   the pragmatic pick: an expired token fails a deploy loudly, a never-expiring
   one leaks quietly and stays valid forever. Diary the renewal — the failure
@@ -235,17 +233,16 @@ Remote D1 migrations are **not** run by the workflow (see `AGENTS.md` § Schema
 changes: additive migration before the tag, destructive cleanup in a later
 release). You run `wrangler d1 migrations apply --remote` yourself.
 
-Be clear about what enforces that: it is the **workflow**, not the token. With
-`D1: Edit` granted the token could drop a table if a step told it to; the
-boundary is that no step does.
+With `D1: Edit` **not** granted (step 2), that is a permission boundary rather
+than a convention: the release pipeline cannot reach the database even if a
+future step asked it to. A boundary the platform enforces beats one a document
+asserts.
 
-`D1: Edit` is in the table above for the `DB` **binding**, not for migrations —
-the Worker declares `d1_databases`, and the upload carries that binding. Whether
-the upload actually requires the permission is untested, which makes it the same
-kind of question as policy 2, and it settles the same way: drop it, redeploy the
-same commit, and see. If the deploy still succeeds, the release pipeline
-genuinely cannot touch your data, and that is a boundary worth having rather
-than a convention worth documenting.
+If a deploy turns out to need it — the Worker does declare a `d1_databases`
+binding, so it is possible — the failure names the endpoint that was refused.
+Add `D1: Edit` at that point and note here that it was required, so the next
+person is not left re-deriving it. What matters is that the grant follows
+evidence rather than preceding it.
 
-Do not assume either direction because it sounds right — Cloudflare documents no
-permission list for these endpoints, so the deploy is the only oracle.
+Do not assume either direction because it sounds right: Cloudflare documents no
+permission list for these endpoints, so a deploy is the only oracle.

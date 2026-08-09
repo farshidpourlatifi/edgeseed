@@ -668,6 +668,7 @@ pnpm init:product <name>    # Stamp product identity on a fresh clone (docs/star
 pnpm check:docs-sync        # Fail on drift: undocumented root scripts, stale .dev.vars.example
 pnpm check:boot             # Boot each built Worker and prove it serves (after build)
 pnpm check:release-version <tag>   # Refuse a tag disagreeing with package.json / APP_VERSION
+pnpm check:not-downgrade <tag>     # Refuse a tag older than what production serves
 pnpm check:deployed <output> <version>   # Assert the live /health reports that version
 pnpm release:notes <log>    # Version ID preamble for the GitHub Release body
 ```

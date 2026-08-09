@@ -17,18 +17,31 @@ import { readFileSync } from "node:fs";
 
 import { parseDeployOutput } from "./lib/release-version";
 
-const outputPath = process.argv[2];
+/**
+ * Every failure path ends in a note on stdout and exit 0 — including a missing
+ * or unreadable file, which `readFileSync` would otherwise throw on. The header
+ * above promises this and it has to be literally true: the deploy has already
+ * happened by the time this runs, so any non-zero exit here blocks the release
+ * for a Worker that is live.
+ */
+function preamble(outputPath: string | undefined): string {
+  if (!outputPath) {
+    console.error("release:notes: no wrangler output path given.");
+    return "Deployed to Cloudflare Workers — deploy output was not available.";
+  }
 
-if (!outputPath) {
-  console.error("Usage: pnpm release:notes <wrangler-output.ndjson>");
-  process.exit(1);
-}
+  let deploy;
+  try {
+    deploy = parseDeployOutput(readFileSync(outputPath, "utf8"));
+  } catch (error) {
+    console.error(`release:notes: could not read ${outputPath}: ${String(error)}`);
+    return "Deployed to Cloudflare Workers — deploy output could not be read.";
+  }
 
-const deploy = parseDeployOutput(readFileSync(outputPath, "utf8"));
+  if (!deploy) return "Deployed to Cloudflare Workers — no version id in the deploy output.";
 
-if (!deploy) {
-  console.log("Deployed to Cloudflare Workers — no version id in the deploy output.");
-} else {
   const targets = deploy.targets.length > 0 ? ` Targets: ${deploy.targets.join(", ")}.` : "";
-  console.log(`Deployed to Cloudflare Workers — version \`${deploy.versionId}\`.${targets}`);
+  return `Deployed to Cloudflare Workers — version \`${deploy.versionId}\`.${targets}`;
 }
+
+console.log(preamble(process.argv[2]));

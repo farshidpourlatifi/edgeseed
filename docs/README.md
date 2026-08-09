@@ -85,6 +85,7 @@ docs/api          — Generated OpenAPI specs
 | `pnpm deploy:web:ungated`           | Deploy half only — CI use, skips `verify` |
 | `pnpm version:bump [type]`          | Bump version, print the release steps     |
 | `pnpm check:release-version <tag>`  | Guard: tag vs package.json + APP_VERSION  |
+| `pnpm check:not-downgrade <tag>`    | Guard: tag vs the live production version |
 | `pnpm check:deployed <out> <ver>`   | Guard: live /health reports that version  |
 | `pnpm release:notes <out>`          | Version ID preamble for release notes     |
 | `pnpm init:product <name>`          | Stamp product identity (new repo)         |
