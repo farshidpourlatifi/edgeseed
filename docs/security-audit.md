@@ -12,23 +12,23 @@ or a **missing control that fails open as the starter grows**. Because this is a
 starter kit, the fail-open defaults matter more than usual: every fork inherits
 them.
 
-| #   | Severity | Issue                                                                 | Status         |
-| --- | -------- | --------------------------------------------------------------------- | -------------- |
-| 1   | Critical | `better-auth@1.5.6` account-takeover advisories                       | Resolved       |
-| 2   | High     | Account pre-hijacking via unverified signup + implicit OAuth linking  | Resolved       |
-| 3   | High     | `BETTER_AUTH_SECRET` unvalidated; silent fallback to a public default | Resolved       |
-| 4   | High     | No rate limiting on any auth endpoint                                 | Resolved       |
-| 5   | High     | No security response headers anywhere                                 | Resolved       |
-| 6   | High     | Vulnerable `hono`, `drizzle-orm`, `react-router` versions             | Resolved       |
-| 7   | High     | Global `~/.npmrc` uses plaintext HTTP registry with TLS off           | Live (machine) |
-| 8   | Medium   | MCP server has no authentication                                      | Resolved\*     |
-| 9   | Medium   | `BETTER_AUTH_SECRET` committed in `apps/mcp/wrangler.jsonc`           | Resolved       |
-| 10  | Medium   | Dashboard child loaders do not enforce auth themselves                | Resolved       |
-| 11  | Medium   | IP-derived controls trust spoofable `x-forwarded-for`                 | Resolved       |
-| 12  | Medium   | OAuth and verification tokens stored in plaintext, never purged       | Live           |
-| 13  | Medium   | `member`/`invitation` foreign keys do not cascade on delete           | Live           |
-| 14  | Medium   | No `Cache-Control` on authenticated responses                         | Resolved       |
-| 15  | Medium   | No CSRF protection on the `/api/v1` mount                             | Resolved       |
+| #   | Severity | Issue                                                                 | Status     |
+| --- | -------- | --------------------------------------------------------------------- | ---------- |
+| 1   | Critical | `better-auth@1.5.6` account-takeover advisories                       | Resolved   |
+| 2   | High     | Account pre-hijacking via unverified signup + implicit OAuth linking  | Resolved   |
+| 3   | High     | `BETTER_AUTH_SECRET` unvalidated; silent fallback to a public default | Resolved   |
+| 4   | High     | No rate limiting on any auth endpoint                                 | Resolved   |
+| 5   | High     | No security response headers anywhere                                 | Resolved   |
+| 6   | High     | Vulnerable `hono`, `drizzle-orm`, `react-router` versions             | Resolved   |
+| 7   | High     | Global `~/.npmrc` uses plaintext HTTP registry with TLS off           | Resolved   |
+| 8   | Medium   | MCP server has no authentication                                      | Resolved\* |
+| 9   | Medium   | `BETTER_AUTH_SECRET` committed in `apps/mcp/wrangler.jsonc`           | Resolved   |
+| 10  | Medium   | Dashboard child loaders do not enforce auth themselves                | Resolved   |
+| 11  | Medium   | IP-derived controls trust spoofable `x-forwarded-for`                 | Resolved   |
+| 12  | Medium   | OAuth and verification tokens stored in plaintext, never purged       | Live       |
+| 13  | Medium   | `member`/`invitation` foreign keys do not cascade on delete           | Live       |
+| 14  | Medium   | No `Cache-Control` on authenticated responses                         | Resolved   |
+| 15  | Medium   | No CSRF protection on the `/api/v1` mount                             | Resolved   |
 
 Low and informational findings follow the detailed section.
 
@@ -482,6 +482,22 @@ would then be committed as truth.
 
 **Fix:** set `registry=https://registry.npmjs.org/` and delete
 `strict-ssl=false` from `~/.npmrc`. The repo's own `.npmrc` is clean.
+
+**Resolved 2026-08-09** — `~/.npmrc` now carries
+`registry=https://registry.npmjs.org/` and no `strict-ssl` line at all, so npm
+falls back to its secure default rather than an explicit `true` that a later
+edit could flip back unnoticed. Verified with `npm config get registry` (HTTPS)
+and `npm config get strict-ssl` (`true`), then `pnpm install --frozen-lockfile`
+and `npm ping` to prove installs and registry reachability survive the change.
+
+Two things this does **not** do. It does not retroactively clear the existing
+`pnpm-lock.yaml`: every hash in it was resolved under the old configuration, and
+while nothing in the tree resolves over `http://`, the integrity hashes are only
+as trustworthy as the fetches that produced them. Treat a lockfile-wide
+regeneration as a separate decision, not a follow-on to this fix. And it is
+machine-level state — nothing in the repo enforces it, so a fresh clone on
+another machine inherits whatever that machine's `~/.npmrc` says. The repo's own
+`.npmrc` remains the only part of this a commit can guarantee.
 
 ---
 

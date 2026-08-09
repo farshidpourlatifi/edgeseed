@@ -37,7 +37,7 @@ are invalidated (which is the desired outcome — it evicts any forged ones).
 openssl rand -hex 32 | npx wrangler secret put BETTER_AUTH_SECRET
 ```
 
-### 0.2 Fix the machine-level registry configuration — **A7**
+### 0.2 Fix the machine-level registry configuration — **A7** ✅ done 2026-08-09
 
 Every install into this repo currently runs over plaintext HTTP with TLS
 verification off. Edit `~/.npmrc`: set `registry=https://registry.npmjs.org/` and
@@ -45,6 +45,10 @@ delete the `strict-ssl=false` line.
 
 **Test:** `npm config get registry` returns the HTTPS URL, and
 `npm config get strict-ssl` returns `true`.
+
+Both now hold, and `pnpm install --frozen-lockfile` still resolves. This is
+machine state, not repo state — it travels with the developer, not the clone, so
+it is worth re-checking on any new machine before the first install.
 
 ---
 
