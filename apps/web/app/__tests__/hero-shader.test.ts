@@ -12,6 +12,7 @@ import {
   heroSpeed,
   posterFingerprint,
   supportsWebGl2,
+  themeFromDocument,
 } from "../components/landing/hero-shader";
 
 describe("heroColors", () => {
@@ -62,8 +63,17 @@ describe("poster fingerprint", () => {
   it("covers every parameter that changes what the shader draws", () => {
     // A knob missing here is a knob that can drift without failing the test.
     expect(Object.keys(JSON.parse(POSTER_FINGERPRINT)).sort()).toEqual(
-      ["colors", ...Object.keys(HERO_SHADER)].sort(),
+      ["light", "dark", ...Object.keys(HERO_SHADER)].sort(),
     );
+  });
+
+  it("covers both themes, since there is a still per theme", () => {
+    // Fingerprinting only the light colours let a change to the dark base — or a
+    // regeneration that updated one still and not the other — pass CI.
+    const fingerprint = JSON.parse(POSTER_FINGERPRINT);
+    expect(fingerprint.light).toEqual(heroColors("light"));
+    expect(fingerprint.dark).toEqual(heroColors("dark"));
+    expect(fingerprint.light).not.toEqual(fingerprint.dark);
   });
 
   it("keeps the shader on a fixed 16:9 world, which is what makes one poster fit every viewport", () => {
@@ -92,6 +102,35 @@ describe("poster fingerprint", () => {
       "utf8",
     );
     expect(css).toContain(`background-color: ${CF_ORANGE}`);
+  });
+});
+
+/**
+ * The shader's palette must come from the same place the poster's does — the
+ * `dark` class on `documentElement` — or the two disagree during the window
+ * before `ThemeProvider` reconciles its state with the `theme` cookie, and the
+ * canvas mounts in the wrong palette over an already-themed page.
+ */
+describe("themeFromDocument", () => {
+  const root = (...classes: string[]) =>
+    ({ classList: { contains: (name: string) => classes.includes(name) } }) as unknown as Element;
+
+  it("reads dark from the class the theme script sets", () => {
+    expect(themeFromDocument(root("dark"))).toBe("dark");
+  });
+
+  it("reads light from its absence", () => {
+    expect(themeFromDocument(root())).toBe("light");
+  });
+
+  it("is not confused by other classes on the element", () => {
+    expect(themeFromDocument(root("js", "light"))).toBe("light");
+    expect(themeFromDocument(root("js", "dark", "whatever"))).toBe("dark");
+  });
+
+  it("agrees with heroColors, which is the whole point", () => {
+    expect(heroColors(themeFromDocument(root("dark")))).toEqual(heroColors("dark"));
+    expect(heroColors(themeFromDocument(root()))).toEqual(heroColors("light"));
   });
 });
 

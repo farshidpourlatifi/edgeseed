@@ -33,6 +33,23 @@ export function heroColors(mode: ResolvedMode): [string, string] {
 }
 
 /**
+ * The resolved theme as the **document** reports it — the `dark` class on
+ * `documentElement`, which the theme script sets before first paint and which
+ * `hero-poster.css` keys on.
+ *
+ * The shader has to read the theme from the same place the poster does.
+ * `useTheme().resolvedMode` looks equivalent and is not: that state is seeded
+ * from the *system* preference and only reconciled with the saved `theme`
+ * cookie inside an effect. A visitor whose cookie disagrees with their system
+ * preference therefore gets the canvas mounted in the other palette until that
+ * effect runs — orange-on-white over an already-dark page, which is precisely
+ * the flash the frame-0 poster exists to prevent.
+ */
+export function themeFromDocument(root: Pick<Element, "classList">): ResolvedMode {
+  return root.classList.contains("dark") ? "dark" : "light";
+}
+
+/**
  * Everything that decides what the shader draws, in one object.
  *
  * `fit: "cover"` over a fixed 16:9 world is what makes the poster idea work at
@@ -61,11 +78,21 @@ export const HERO_SHADER = {
  * Regenerating: see `docs/design-workflow.md` → "Hero poster".
  */
 export const POSTER_FINGERPRINT =
-  '{"colors":["#ff5e1f","#ffffff"],"distortion":1,"swirl":0.2,"rotation":90,"fit":"cover","worldWidth":1600,"worldHeight":900}';
+  '{"light":["#ff5e1f","#ffffff"],"dark":["#ff5e1f","#000000"],"distortion":1,"swirl":0.2,"rotation":90,"fit":"cover","worldWidth":1600,"worldHeight":900}';
 
-/** The exact input the poster was captured from — light mode, frame 0. */
+/**
+ * The exact inputs the posters were captured from, frame 0.
+ *
+ * **Both themes**, because there is a still per theme: fingerprinting only the
+ * light colours let a change to `DARK_BASE` — or a regeneration that updated
+ * one poster and not the other — pass CI while the dark still was stale.
+ */
 export function posterFingerprint(): string {
-  return JSON.stringify({ colors: heroColors("light"), ...HERO_SHADER });
+  return JSON.stringify({
+    light: heroColors("light"),
+    dark: heroColors("dark"),
+    ...HERO_SHADER,
+  });
 }
 
 /**

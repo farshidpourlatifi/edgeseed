@@ -1,9 +1,13 @@
 import { MeshGradient } from "@paper-design/shaders-react";
 import { Component, useSyncExternalStore, type ReactNode } from "react";
 
-import { useTheme } from "@starter/ui/hooks/use-theme";
-
-import { HERO_SHADER, heroColors, heroSpeed, supportsWebGl2 } from "./hero-shader";
+import {
+  HERO_SHADER,
+  heroColors,
+  heroSpeed,
+  supportsWebGl2,
+  themeFromDocument,
+} from "./hero-shader";
 import "./hero-poster.css";
 
 /** Probed once per page — the answer cannot change, and each probe costs a
@@ -24,6 +28,15 @@ function subscribeReducedMotion(onChange: () => void) {
   return () => query.removeEventListener("change", onChange);
 }
 
+const getDocumentTheme = () => themeFromDocument(document.documentElement);
+
+/** The theme toggle swaps the class on `documentElement`; nothing else does. */
+function subscribeDocumentTheme(onChange: () => void) {
+  const observer = new MutationObserver(onChange);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+  return () => observer.disconnect();
+}
+
 /**
  * Both signals are read with `useSyncExternalStore` rather than an effect: the
  * server snapshot is the conservative one (no shader, no motion), so the server
@@ -33,12 +46,27 @@ function subscribeReducedMotion(onChange: () => void) {
 const useCanRenderShader = () => useSyncExternalStore(neverChanges, getWebGl2Support, () => false);
 const usePrefersReducedMotion = () =>
   useSyncExternalStore(subscribeReducedMotion, getReducedMotion, () => false);
+const useDocumentTheme = () =>
+  useSyncExternalStore(subscribeDocumentTheme, getDocumentTheme, () => "light" as const);
 
 /**
- * Catches a shader that fails after the capability probe passed — a driver that
- * refuses to compile the program, or a canvas that loses out on the browser's
- * per-page WebGL context budget. Without it those escape to the route's error
- * boundary and a decorative background takes down the whole landing page.
+ * Render-phase backstop only. Read this before relying on it.
+ *
+ * It does **not** catch the failure you would expect it to. `shaders-react`
+ * constructs the vanilla mount inside an un-awaited `async` function in an
+ * effect:
+ *
+ *     useEffect(() => { const initShader = async () => { … new ShaderMount(…) … };
+ *                       initShader(); }, [fragmentShader])
+ *
+ * so a throw there is an unhandled rejection, which no error boundary sees. The
+ * constructor also `prepend`s its `<canvas>` *before* calling `getContext`, so a
+ * post-probe failure leaves an empty canvas in the DOM rather than removing it.
+ *
+ * That is survivable — the canvas is transparent and the poster underneath still
+ * shows — but it means `supportsWebGl2` is the real guard, not this. This stays
+ * for synchronous render-phase errors and would start earning its keep if the
+ * library ever caught its own init.
  */
 class ShaderBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -67,7 +95,7 @@ class ShaderBoundary extends Component<{ children: ReactNode }, { failed: boolea
  *    the section to the one below without a visible seam.
  */
 export function HeroBackground() {
-  const { resolvedMode } = useTheme();
+  const resolvedMode = useDocumentTheme();
   const canRenderShader = useCanRenderShader();
   const prefersReducedMotion = usePrefersReducedMotion();
 

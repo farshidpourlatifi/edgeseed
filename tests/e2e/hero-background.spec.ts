@@ -23,7 +23,7 @@ const heroOf = (page: import("@playwright/test").Page) =>
 test("the hero renders whether or not the shader can run", async ({ page }) => {
   await page.goto("/");
 
-  // The guard's deny path: no WebGL2 must degrade to the CSS gradient, never to
+  // The guard's deny path: no WebGL2 must degrade to the poster, never to
   // a thrown constructor that takes the page with it.
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 
