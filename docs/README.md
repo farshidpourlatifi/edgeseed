@@ -10,12 +10,24 @@ For the full V1 scope and design decisions, see [starter-v1-scope.md](./starter-
 
 ```bash
 pnpm install
+
+# Required, not optional. `authMiddleware` validates the env on every request
+# and refuses when it is missing (docs/security-audit.md #3), so without this
+# every page — the landing page included — answers 500.
+cp apps/web/.dev.vars.example apps/web/.dev.vars
+# Then fill in BETTER_AUTH_SECRET (32+ chars) and BETTER_AUTH_URL:
+#   openssl rand -hex 32
+#   BETTER_AUTH_URL=http://localhost:5173
+
 pnpm db:migrate
 pnpm db:seed
 pnpm dev --filter @starter/web
 ```
 
 Open http://localhost:5173. Register an account to access the dashboard.
+
+Working on `apps/mcp` too? It is a separate Worker with its own env, so it
+needs its own `cp apps/mcp/.dev.vars.example apps/mcp/.dev.vars`.
 
 ### Social login (optional)
 
@@ -50,29 +62,34 @@ docs/api          — Generated OpenAPI specs
 
 ## Dev workflow
 
-| Command                             | What it does                             |
-| ----------------------------------- | ---------------------------------------- |
-| `pnpm dev --filter @starter/web`    | Start web dev server on :5173            |
-| `pnpm db:generate`                  | Generate migration from schema changes   |
-| `pnpm db:migrate`                   | Apply migrations to local D1             |
-| `pnpm db:seed`                      | Insert seed data                         |
-| `pnpm db:reset`                     | Drop and re-apply all migrations         |
-| `pnpm api:spec`                     | Regenerate `docs/api/openapi.json`       |
-| `pnpm api:call <METHOD> <path>`     | Call `/api/v1` with an API token         |
-| `pnpm check:boot`                   | Boot each built Worker, assert it serves |
-| `pnpm test`                         | Run Vitest                               |
-| `pnpm test:e2e`                     | Run Playwright e2e tests                 |
-| `pnpm test:coverage`                | Vitest with coverage (`coverage/`)       |
-| `pnpm test:mutation`                | Stryker mutation tests                   |
-| `pnpm lint` / `pnpm lint:fix`       | ESLint check / autofix                   |
-| `pnpm format` / `pnpm format:check` | Prettier write / check                   |
-| `pnpm build`                        | Build every Worker bundle                |
-| `pnpm typecheck`                    | TypeScript check across apps             |
-| `pnpm verify`                       | Full pre-deploy gate                     |
-| `pnpm deploy:web`                   | `verify` + deploy web app                |
-| `pnpm version:bump [type]`          | Bump version + git tag                   |
-| `pnpm init:product <name>`          | Stamp product identity (new repo)        |
-| `pnpm check:docs-sync`              | Docs + .dev.vars.example drift check     |
+| Command                             | What it does                              |
+| ----------------------------------- | ----------------------------------------- |
+| `pnpm dev --filter @starter/web`    | Start web dev server on :5173             |
+| `pnpm db:generate`                  | Generate migration from schema changes    |
+| `pnpm db:migrate`                   | Apply migrations to local D1              |
+| `pnpm db:seed`                      | Insert seed data                          |
+| `pnpm db:reset`                     | Drop and re-apply all migrations          |
+| `pnpm api:spec`                     | Regenerate `docs/api/openapi.json`        |
+| `pnpm api:call <METHOD> <path>`     | Call `/api/v1` with an API token          |
+| `pnpm check:boot`                   | Boot each built Worker, assert it serves  |
+| `pnpm test`                         | Run Vitest                                |
+| `pnpm test:e2e`                     | Run Playwright e2e tests                  |
+| `pnpm test:coverage`                | Vitest with coverage (`coverage/`)        |
+| `pnpm test:mutation`                | Stryker mutation tests                    |
+| `pnpm lint` / `pnpm lint:fix`       | ESLint check / autofix                    |
+| `pnpm format` / `pnpm format:check` | Prettier write / check                    |
+| `pnpm build`                        | Build every Worker bundle                 |
+| `pnpm typecheck`                    | TypeScript check across apps              |
+| `pnpm verify`                       | Full pre-deploy gate                      |
+| `pnpm deploy:web`                   | `verify` + deploy web app                 |
+| `pnpm deploy:web:ungated`           | Deploy half only — CI use, skips `verify` |
+| `pnpm version:bump [type]`          | Bump version, print the release steps     |
+| `pnpm check:release-version <tag>`  | Guard: tag vs package.json + APP_VERSION  |
+| `pnpm check:not-downgrade <tag>`    | Guard: tag vs the live production version |
+| `pnpm check:deployed <out> <ver>`   | Guard: live /health reports that version  |
+| `pnpm release:notes <out>`          | Version ID preamble for release notes     |
+| `pnpm init:product <name>`          | Stamp product identity (new repo)         |
+| `pnpm check:docs-sync`              | Docs + .dev.vars.example drift check      |
 
 ## Adding a new page
 
@@ -99,9 +116,34 @@ The UI uses shadcn/ui components with a single oklch color theme (light/dark/sys
 
 ## Deploying
 
+Production deploys are tag-triggered: pushing a `v*` tag runs
+`.github/workflows/release.yml`, which verifies, deploys, smoke-tests the live
+origin, and only then cuts a GitHub Release naming the Cloudflare Version ID.
+
+```bash
+# Schema change? Apply the additive migration FIRST — old code keeps serving
+# during the rollout, so it must tolerate the new schema.
+cd apps/web && npx wrangler d1 migrations apply edgeseed-db --remote && cd ../..
+
+pnpm version:bump patch                # writes package.json + APP_VERSION
+git commit -am "chore(release): v0.1.1"
+git push origin HEAD
+git tag -a v0.1.1 -m "v0.1.1"          # annotated: --follow-tags skips lightweight tags
+git push origin v0.1.1                 # this is what deploys
+```
+
+Needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` on a **`production`
+GitHub environment** — not repository secrets, so only the deploy job can read
+them ([setup](./cloudflare-api-token.md)). Remote D1 migrations stay a separate
+manual step — the workflow does not run them, and destructive ones belong in a
+later release than the code that stops using the old shape (see AGENTS.md
+§ Schema changes).
+
 ```bash
 # Gated deploy: runs the full verify suite (lint, format check, unit tests,
-# gitleaks history scan, build, typecheck, e2e), then deploys the web app
+# gitleaks history scan, build, typecheck, e2e), then deploys the web app.
+# The workflow above calls this same script; running it by hand deploys without
+# leaving a release behind, so it is the escape hatch, not the normal path.
 pnpm deploy:web
 ```
 
@@ -189,6 +231,7 @@ Don't use `wrangler secret put` for local development. Put the same variables in
 - [Design Workflow](./design-workflow.md) — V0/shadcn generation and integration (product-owned; swap in your own)
 - [Starter as Upstream](./starter-as-upstream.md) — ownership layers, init:product, pulling updates
 - [Secret Scanning with Gitleaks](./secret-scanning.md) — pre-commit hook, CI scan, and how to handle findings
+- [Cloudflare API Token](./cloudflare-api-token.md) — the CI deploy credential: which token type, scoping, rotation
 - [Sentry Setup](./sentry-setup.md) — project topology, `.dev.vars` keys, `wrangler secret put`, verification
 - [Security Audit](./security-audit.md) — findings from the 10-pass review
 - [Security Fix & Test Plan](./security-plan.md) — remediation phases and the standing review pass

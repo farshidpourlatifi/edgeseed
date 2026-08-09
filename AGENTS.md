@@ -654,7 +654,7 @@ pnpm db:seed                # Seed dev data
 pnpm db:reset               # Drop and re-apply all migrations
 pnpm api:spec               # Generate OpenAPI spec
 pnpm api:call GET /me       # Call /api/v1 with STARTER_API_TOKEN (bearer)
-pnpm version:bump [type]    # Bump version (patch/minor/major)
+pnpm version:bump [type]    # Bump version (patch/minor/major), then print the tag steps
 pnpm test                   # Run Vitest
 pnpm test:e2e               # Run Playwright
 pnpm test:coverage          # Vitest with coverage report (coverage/)
@@ -663,9 +663,14 @@ pnpm lint / pnpm lint:fix   # ESLint (flat config in eslint.config.mjs)
 pnpm format / pnpm format:check  # Prettier
 pnpm verify                 # Full gate: lint, format, test, gitleaks, build, typecheck, boot, e2e
 pnpm deploy:web             # verify + wrangler deploy (the gated deploy path)
+pnpm deploy:web:ungated     # the deploy half alone — CI only, see below
 pnpm init:product <name>    # Stamp product identity on a fresh clone (docs/starter-as-upstream.md)
 pnpm check:docs-sync        # Fail on drift: undocumented root scripts, stale .dev.vars.example
 pnpm check:boot             # Boot each built Worker and prove it serves (after build)
+pnpm check:release-version <tag>   # Refuse a tag disagreeing with package.json / APP_VERSION
+pnpm check:not-downgrade <tag>     # Refuse a tag older than what production serves
+pnpm check:deployed <output> <version>   # Assert the live /health reports that version
+pnpm release:notes <log>    # Version ID preamble for the GitHub Release body
 ```
 
 ## Quality gates
@@ -676,6 +681,15 @@ pnpm check:boot             # Boot each built Worker and prove it serves (after 
   (`.github/workflows/gitleaks.yml`). It needs `pull-requests: read`, or the
   action 403s and crashes **before scanning**, which looks like a finding.
 - Deploys go through `pnpm deploy:web`, which refuses to ship unless `pnpm verify` passes.
+  It is `verify && deploy:web:ungated`, and the release workflow runs those two
+  halves as separate steps so CI cannot drift from the local deploy path — in
+  particular the `--var ENVIRONMENT:production` override.
+- **`deploy:web:ungated` is not a shortcut — never run it by hand.** It exists
+  so the workflow can hold Cloudflare credentials for one step instead of the
+  whole job: `verify` runs install scripts, eslint plugins, browsers and the
+  test suite, and none of that third-party code should be able to read a token
+  that deploys to production. Running it directly skips the gate entirely,
+  which is the thing `deploy:web` exists to prevent.
 - **`pnpm check:boot` runs inside `verify` and in CI** (after `build`/`typecheck`).
   It starts each built Worker and asserts it serves an unauthenticated request —
   and, where a target declares `envProbe`, a **second** request that reaches
@@ -736,13 +750,113 @@ wrangler files — the MCP Worker runs its own Better Auth against these users).
 The pre-rename `starter-db` (`510ae3cb-…`) is no longer referenced; delete it
 once you have confirmed nothing needs migrating out of it.
 
-```bash
-# 1. Gated deploy — runs the full verify suite, then deploys
-pnpm deploy:web
+**Production deploys are tag-triggered.** Pushing a `v*` tag runs
+`.github/workflows/release.yml`, which deploys and then cuts a GitHub Release —
+so the release is a record of a deploy that happened rather than a claim made
+next to one. Full flow in "Cutting a release" below.
 
-# 2. Remote migrations (only when schema changes) — or `pnpm db:migrate --remote`
+```bash
+# Remote migrations — BEFORE the deploy that needs them. See "Schema changes"
+# below; the release workflow deliberately does not run these.
 cd apps/web && npx wrangler d1 migrations apply edgeseed-db --remote
+
+# Gated deploy — runs the full verify suite, then deploys.
+# Local escape hatch. It leaves no release behind and runs no smoke check, so
+# the tag flow is the production path; reach for this only when CI is the
+# thing that is broken.
+pnpm deploy:web
 ```
+
+### Schema changes: migrate first, in two releases
+
+**Apply the migration before the code that needs it, never after.** The old code
+must tolerate the new schema, because both run at once — Cloudflare rolls a
+deploy out gradually, and a failed release leaves the old version serving.
+Deploy-then-migrate means every request between the two steps hits code querying
+a column that does not exist yet.
+
+So a schema change is **expand, then contract**, across two releases:
+
+1. **Expand** — apply a migration that only adds (nullable column, new table,
+   new index). Push the tag; the new code reads and writes it.
+2. **Contract** — in a _later_ release, once nothing running still references
+   the old shape, apply the destructive part (drop the column, add the NOT NULL).
+
+Never edit a migration that has reached production; add a new one (concern #10).
+This is why the workflow does not migrate: a destructive migration applied
+automatically on every tag is not something to discover during an incident, and
+the safe ordering cannot be expressed as "one step in the deploy".
+
+### Cutting a release
+
+```bash
+# If this release carries a schema change, apply the (additive) migration first
+# — see "Schema changes" above.
+cd apps/web && npx wrangler d1 migrations apply edgeseed-db --remote && cd ../..
+
+pnpm version:bump patch                      # writes package.json + APP_VERSION
+git commit -am "chore(release): v0.1.1"
+git push origin HEAD
+git tag -a v0.1.1 -m "v0.1.1"
+git push origin v0.1.1                       # this is what deploys
+```
+
+The workflow then, in order: checks the tag against `APP_VERSION`, checks it is
+on `main`, checks it is not already released, runs the full `verify` gate,
+deploys, requests `/api/v1/health` on every deployed origin until one reports
+the tagged version, and only then creates the release.
+
+Six things this shape depends on:
+
+- **The tag must name the commit carrying the bump.** `version:bump` deliberately
+  does not tag — it runs before the bump is committed, so any tag it made would
+  point one commit too early and ship the previous `APP_VERSION` under the new
+  version's name. `check:release-version` refuses that, before deploying.
+- **The tag must be annotated** (`-a`). `git push --follow-tags` skips
+  lightweight tags, so a lightweight one looks pushed and silently never
+  triggers the workflow.
+- **The tag must be on `main`.** A tag pushed from a feature branch would
+  otherwise deploy that branch to production; the workflow checks ancestry and
+  refuses.
+- **A tag is released once.** Re-running a _completed_ release would upload a
+  second Cloudflare version while the existing release still names the first,
+  so the workflow refuses. Re-running a _failed_ run is fine — no release
+  exists yet. To ship again, cut a new version.
+- **A green deploy is not a working deploy.** `wrangler deploy` uploads happily
+  against a Worker whose secrets were never set; that Worker then 500s on every
+  request (concern #2). `check:deployed` asserts the live `/api/v1/health`
+  reports the tagged version — not merely a 200, since the _previous_ deploy
+  answers 200 too. If it fails, the Worker is live and broken and there is no
+  release: fix forward, or roll back to the previous Version ID in the
+  Cloudflare dashboard.
+- **The release names the Cloudflare Version ID**, not just the commit — that is
+  the identifier Cloudflare's rollback UI takes, so it is the field you need
+  when a release turns out to be the bad one. It comes from wrangler's
+  structured output (`WRANGLER_OUTPUT_FILE_PATH`), not from scraping the
+  console, which is not a contract.
+
+**Required secrets, on a `production` GitHub environment** (Settings →
+Environments → `production`), **not on the repository**. A repository secret is
+readable by every workflow in the repo; an environment secret is readable only
+by a job declaring `environment: production`, which is the `deploy` job alone.
+Restrict that environment's deployment branches and tags to `v*` as well.
+Without these the workflow fails at the deploy step, after `verify` has passed —
+the tag is already pushed by then, so fix the secret and re-run the job rather
+than cutting a new version:
+
+| Secret                  | What                                                          |
+| ----------------------- | ------------------------------------------------------------- |
+| `CLOUDFLARE_API_TOKEN`  | Account token, minimum scope — `docs/cloudflare-api-token.md` |
+| `CLOUDFLARE_ACCOUNT_ID` | The account the Workers live in                               |
+
+Neither is in scope during `verify`. That step runs install scripts, eslint
+plugins, browsers and the test suite; the credentials appear one step later, on
+the deploy alone. `GITHUB_TOKEN` is likewise scoped to the two steps that use
+it, and only the separate `release` job holds `contents: write`.
+
+These are the only credentials the workflow holds — Worker secrets
+(`BETTER_AUTH_SECRET`, provider keys, `RESEND_API_KEY`) live in Cloudflare and
+ship through a separate channel, so `wrangler deploy` never sees or needs them.
 
 **Always pass `--local` or `--remote` explicitly to any `wrangler d1` command.**
 Wrangler defaults to **local** when neither is given, so an omitted flag does

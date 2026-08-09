@@ -13,6 +13,11 @@ A minimal, reusable base for Cloudflare-native product experiments.
 # Install dependencies
 pnpm install
 
+# Local env — required. Without it every request answers 500, because the env
+# is validated on each one and fails closed. Fill in BETTER_AUTH_SECRET
+# (`openssl rand -hex 32`) and BETTER_AUTH_URL=http://localhost:5173
+cp apps/web/.dev.vars.example apps/web/.dev.vars
+
 # Apply database migrations (local D1)
 pnpm db:migrate
 
@@ -61,13 +66,18 @@ docs/
 | `pnpm format` / `pnpm format:check`       | Prettier write / check                                                           |
 | `pnpm verify`                             | Full gate: lint, format, tests, gitleaks, build, typecheck, e2e                  |
 | `pnpm deploy:web`                         | Run `verify`, then deploy the web app to Cloudflare                              |
+| `pnpm deploy:web:ungated`                 | The deploy half alone — CI uses it to scope credentials; never run by hand       |
 | `pnpm db:generate`                        | Generate Drizzle migration from schema changes                                   |
 | `pnpm db:migrate`                         | Apply pending migrations (local D1)                                              |
 | `pnpm db:seed`                            | Seed development data                                                            |
 | `pnpm db:reset`                           | Drop and re-apply all migrations locally                                         |
 | `pnpm api:spec`                           | Regenerate OpenAPI spec to `docs/api/openapi.json`                               |
 | `pnpm api:call <METHOD> <path> [body]`    | Call `/api/v1` with `STARTER_API_TOKEN` (see [API tokens](#api-tokens))          |
-| `pnpm version:bump [major\|minor\|patch]` | Bump version and create git tag                                                  |
+| `pnpm version:bump [major\|minor\|patch]` | Bump version, then print the tag steps that cut a release                        |
+| `pnpm check:release-version <tag>`        | Refuse a release tag that disagrees with `package.json` / `APP_VERSION`          |
+| `pnpm check:not-downgrade <tag>`          | Refuse a tag older than the version production is already serving                |
+| `pnpm check:deployed <output> <version>`  | Assert the deployed origin's `/api/v1/health` reports that version               |
+| `pnpm release:notes <output>`             | Release-note preamble from wrangler's structured deploy output                   |
 | `pnpm init:product <name>`                | Stamp product identity on a fresh clone ([guide](./docs/starter-as-upstream.md)) |
 | `pnpm check:docs-sync`                    | Fail on drift: undocumented scripts, stale `.dev.vars.example`                   |
 | `pnpm check:boot`                         | Start each **built** Worker and prove it serves a request (run after `build`)    |
@@ -94,6 +104,9 @@ docs/
   a full-history gitleaks scan, and drift checks (OpenAPI spec, docs-vs-scripts); a weekly
   cron rerun catches rot between commits
 - **Deploys are gated** — `pnpm deploy:web` refuses to ship unless `pnpm verify` passes
+- **Releases are the deploy** — pushing a `v*` tag runs the same gate, deploys, and
+  then cuts a GitHub Release naming the live Cloudflare Version ID (see
+  [Deploying](#deploying))
 
 ## API tokens
 
@@ -201,9 +214,31 @@ checklist.
 
 ## Deploying
 
+Production deploys are **tag-triggered**. Pushing a `v*` tag runs
+`.github/workflows/release.yml`, which verifies the tag against `APP_VERSION`,
+runs the full `pnpm verify` gate, deploys, requests the live `/api/v1/health`
+until it reports the tagged version, and only then creates the GitHub Release —
+so a release records a deploy that actually happened _and works_.
+
+```bash
+# Schema change? Apply the additive migration first (see AGENTS.md).
+pnpm version:bump patch                # writes package.json + APP_VERSION
+git commit -am "chore(release): v0.1.1"
+git push origin HEAD
+git tag -a v0.1.1 -m "v0.1.1"          # annotated: --follow-tags skips lightweight tags
+git push origin v0.1.1                 # this is what deploys
+```
+
+Needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` as GitHub Actions
+secrets — step-by-step in
+[Cloudflare API token](./docs/cloudflare-api-token.md). `pnpm deploy:web` still deploys from a laptop, but leaves no release
+behind — it is the escape hatch for when CI is the broken thing.
+
 See [Deploying in docs/README.md](./docs/README.md#deploying) for build/deploy
 commands and how to obtain and set the production secrets (`BETTER_AUTH_SECRET`,
-GitHub/Google OAuth credentials).
+GitHub/Google OAuth credentials), and
+[AGENTS.md § Cutting a release](./AGENTS.md#cutting-a-release) for what each
+guard in the workflow is protecting against.
 
 ## Architecture
 
