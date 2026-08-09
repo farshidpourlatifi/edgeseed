@@ -544,8 +544,9 @@ Verified end to end: unauthenticated `/mcp` → `401` with
 → `401`.
 
 **\* The resolution is narrower than "authentication added".** Review of the
-original fix (2026-08-05) found three auth defects in it, all since fixed and
-verified against a running Worker, plus one item still open:
+original fix (2026-08-05) found three auth defects in it, all since fixed — the
+first two verified against a running Worker, the third pinned by deny-path
+tests — plus one item still open:
 
 - **Login CSRF (fixed).** The consent flow called `auth.api.signInEmail` without
   `request`, and better-auth's `formCsrfMiddleware` opens with
