@@ -131,3 +131,59 @@ Use this corrected theme for all future generations in this project.
   `architecture-diagram.tsx` to `request-flow-diagram.tsx` and flattened 287
   readable lines into one 5,005-character line — identical `viewBox` and
   `aria-label`, no new content. Keep the original.
+
+## Hero poster
+
+The landing hero paints a still of the shader's **frame 0** before the canvas
+mounts (`apps/web/app/components/landing/hero-poster.css`), so the server render
+and the first animated frame are the same image and there is no pop on hydration.
+It is also the only composition a browser without WebGL2 ever sees.
+
+The stills are captures of specific shader parameters, so they go stale silently
+— a stale poster still looks like a plausible gradient. `POSTER_FINGERPRINT` in
+`hero-shader.ts` is asserted against the live parameters by
+`hero-shader.test.ts`, so **CI fails when a colour, `distortion`, `swirl`,
+`rotation`, `fit` or the world box changes** and the poster was not regenerated.
+That test is the only automatic guard: comparing pixels needs WebGL2, which
+neither vitest nor Playwright's headless Chromium has (`tests/e2e/CLAUDE.md`).
+
+### Regenerating
+
+Frame 0 is `u_time = 0` regardless of `speed`, so freezing the shader is enough.
+
+1. In `hero-background.tsx`, temporarily replace the `speed` prop with
+   `speed={0} frame={0} webGlContextAttributes={{ preserveDrawingBuffer: true }}`
+   — without `preserveDrawingBuffer` the buffer is cleared before you can read
+   it — and set the style to `{{ width: 1600, height: 900 }}` so the canvas is
+   exactly 16:9 and shows the **whole** world rather than a cover-crop of it.
+2. Load `/` in a browser that has WebGL2 and is **visible** — the library sizes
+   its canvas from a `ResizeObserver`, which does not deliver in a hidden tab, so
+   a background tab leaves the canvas at 0x0.
+3. Capture each theme (toggle via the `theme` cookie, then open a fresh tab —
+   a hard reload can leave the fixed-size canvas at 0x0):
+
+   ```js
+   const canvas = document.querySelector('[data-testid="hero-background"] canvas');
+   const out = Object.assign(document.createElement("canvas"), { width: 640, height: 360 });
+   out.getContext("2d").drawImage(canvas, 0, 0, out.width, out.height);
+   out.toDataURL("image/webp", 0.92);
+   ```
+
+4. Paste each data URI into `hero-poster.css`, revert the temporary props, and
+   update `POSTER_FINGERPRINT`.
+
+### What "matches" means
+
+Measured against the live shader at frame 0 by mean absolute channel difference:
+
+| Viewport             | Mean  | Max |
+| -------------------- | ----- | --- |
+| 1280x720 (near 16:9) | 0.52  | 9   |
+| 375x812 (portrait)   | 11.44 | 186 |
+
+The framing is exact at every aspect ratio — the shader cover-crops a 16:9 world
+and `background-size: cover` crops a 16:9 still by the same rule, confirmed by
+the same measurement against `contain` scoring 135.74. The residual at portrait
+is the still being upscaled ~4x into a narrow crop, which softens the diagonal
+edge; the composition does not move, and the two are indistinguishable
+side by side. Raise the stored resolution above 640x360 if that ever matters.

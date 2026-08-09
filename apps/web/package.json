@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@hono/zod-openapi": "^1.5.1",
+    "@paper-design/shaders-react": "0.0.79",
     "@react-router/node": "^7.18.2",
     "@sentry/cloudflare": "^10.69.0",
     "@starter/auth": "workspace:*",
@@ -31,9 +32,9 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1",
     "@cloudflare/workers-types": "^4",
-    "@starter/testing": "workspace:*",
     "@hono/vite-dev-server": "^0.19",
     "@react-router/dev": "^7.18.2",
+    "@starter/testing": "workspace:*",
     "@tailwindcss/vite": "^4",
     "@types/react": "^19",
     "@types/react-dom": "^19",

@@ -83,3 +83,19 @@ checking for a 302, or merely "not 200", passes without proving anything.
 
 Both were verified by removing the guard in a throwaway worktree and confirming
 the suite goes red; a guard test that has never been seen to fail is a guess.
+
+## The headless browser has no WebGL
+
+Playwright's headless Chromium returns `null` for **both** `getContext("webgl2")`
+and `getContext("webgl")`. Anything drawing to a GPU canvas therefore runs its
+unsupported path in every CI run, never its happy path — so a spec asserting
+"the canvas mounted" fails here while being perfectly correct in a real browser.
+
+That is useful rather than annoying: it means the landing page's shader
+background (`apps/web/app/components/landing/hero-background.tsx`) gets its
+fallback exercised on every run, and a regression that dropped the capability
+check would turn the whole hero into an error boundary here first.
+
+Branch on support rather than assuming it — `hero-background.spec.ts` probes
+`getContext("webgl2")` in the page and asserts the canvas is absent when the
+answer is no.
