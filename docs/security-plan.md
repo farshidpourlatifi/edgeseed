@@ -324,8 +324,12 @@ shape is what keeps the guarantee true for routes that don't exist yet.
   did for the web app.
 - Broaden `.gitignore` to `.dev.vars*` and `.env*`, re-including `.env.example`.
 - Add an `env.production` block setting `ENVIRONMENT: "production"`.
-- Replace the real workers.dev URL and D1 database ID in CLAUDE.md with
-  placeholders before publishing the starter.
+- ~~Replace the real workers.dev URL and D1 database ID in CLAUDE.md with
+  placeholders before publishing the starter.~~ **Settled 2026-08-09.** The
+  workers.dev URL is gone (PR #12). The D1 id stays, as an accepted decision —
+  it is unusable without an account API token, it must match across both
+  wrangler files by design, and `pnpm init:product` localises it in every clone.
+  Rationale in `security-audit.md`, "Real account identifiers".
 - Narrow `load-context.ts` to pass a specific env subset rather than spreading
   everything including secrets into every loader.
 
@@ -371,28 +375,45 @@ shell string is ever built from SQL.
 
 ---
 
-## Phase 4 — MCP server (do not deploy before this) — **A8**
+## Phase 4 — MCP server (do not deploy before this) — **A8** — 3 of 4 done, item 3 OPEN
 
-The MCP worker is currently unbuildable, and **that broken build is the only
-thing keeping its unauthenticated endpoints off the internet.** It is an
-accidental control. Whoever fixes the build removes it.
+**Original framing (2026-08-04), kept for the record:** the MCP worker was
+unbuildable, and **that broken build was the only thing keeping its
+unauthenticated endpoints off the internet.** An accidental control — whoever
+fixed the build would remove it. So all of this was to land in the _same_ change
+that made the worker buildable.
 
-So: land all of this in the _same_ change that makes the worker buildable.
+**Status 2026-08-09.** The worker builds, boots under `pnpm check:boot`, and is
+OAuth-gated. Three of the four items are done; item 3 is untouched. Do not read
+the phase as closed.
 
-1. Add the missing `agents` dependency, the Durable Object binding, and the
-   migration that `McpAgent` requires; replace `database_id: "local"`.
-2. Gate `fetch` before `serve()` — `workers-oauth-provider`, a bearer token, or
-   Cloudflare Access.
-3. Validate the `Origin` header against an allowlist (the MCP spec requires this
-   on HTTP transports as DNS-rebinding protection) and pass explicit
-   `corsOptions` rather than inheriting SDK defaults.
-4. Thread the authenticated principal into `ToolContext` so tools can scope
-   queries by user and organization, and note in
-   `apps/mcp/src/tools/index.ts` that no tool may query D1 without a resolved
-   principal.
+1. ✅ **done** — `agents@^0.20.1` is a dependency, the `MCP_OBJECT` Durable
+   Object binding and the `v1` `new_sqlite_classes` migration are in
+   `apps/mcp/wrangler.jsonc`, and `database_id` is the real
+   `639d0b4e-…`, matching `apps/web`. (`OAUTH_KV` is still `id: "local"` — a
+   known pre-deploy checklist item, tracked in `apps/mcp/CLAUDE.md` and
+   concern #9, not part of this item.)
+2. ✅ **done** — `OAuthProvider` wraps the whole worker in `src/index.ts` with
+   `/mcp` as the only `apiRoute`, so an unauthenticated request gets 401 plus
+   the `WWW-Authenticate` challenge. PKCE and scope validity are enforced ahead
+   of consent in `auth-app.ts` (`rejectUnacceptable`), and `enforceSessionOwner`
+   binds an `mcp-session-id` to its principal.
+3. ❌ **OPEN** — nothing validates the `Origin` header against an allowlist, and
+   no `corsOptions` is passed anywhere in `apps/mcp/src`, so `McpAgent.serve`
+   still inherits the SDK default of `Access-Control-Allow-Origin: *`. The
+   bearer-token requirement blocks the practical DNS-rebinding attack, which is
+   why this is not urgent — but the MCP spec asks for the header check on HTTP
+   transports regardless. This is the one gap `security-audit.md` #8 still names.
+4. ✅ **done** — `ToolContext.user` carries the OAuth grant's principal
+   (`McpProps`), sourced from `ctx.props` rather than tool arguments, and
+   `apps/mcp/src/tools/index.ts` documents on the field itself that it is always
+   present and every query must be scoped by it.
 
-**Test:** `curl` both `/sse` and `/mcp` with no credentials and assert 401; with
-a valid token assert the handshake succeeds; with a foreign `Origin` assert 403.
+**Test:** `curl /mcp` with no credentials and assert 401 (there is no `/sse` —
+the route never actually served SSE and was removed; see the comment in
+`index.ts`); with a valid token assert the handshake succeeds; with a foreign
+`Origin` assert 403. **The `Origin` case is the one still unwritten**, because
+item 3 is unimplemented — it is the deny-path test that ships with the fix.
 
 ---
 
