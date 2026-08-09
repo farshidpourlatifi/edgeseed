@@ -201,7 +201,9 @@ Must include:
 - `db:seed` — seed dev data
 - `db:reset` — drop and re-apply all migrations locally
 - `api:spec` — regenerate OpenAPI spec to `docs/api/openapi.json`
-- `version:bump` — bump semver in root `package.json` and create git tag
+- `version:bump` — bump semver in root `package.json` and `APP_VERSION`, then
+  print the tag steps. It deliberately does **not** tag: it runs before the bump
+  is committed, so any tag it created would point one commit too early
 - `test` / `test:e2e` — run Vitest / Playwright
 
 Convention:
@@ -329,8 +331,12 @@ What to skip in v1:
 - use semver: `MAJOR.MINOR.PATCH`
 - version lives in root `package.json`
 - tag releases in git: `v1.0.0`
-- `cli version:bump` helper for patch/minor/major (updates `package.json` and creates git tag)
-- no changelog automation in v1 — write release notes manually when needed
+- `cli version:bump` helper for patch/minor/major (updates `package.json` and
+  `APP_VERSION`, then prints the tag steps — it does not tag; see above)
+- pushing a `v*` tag is the deploy: `.github/workflows/release.yml` verifies,
+  deploys, smoke-tests the live origin and creates the GitHub Release
+- release notes are generated (`--generate-notes`) with the Cloudflare Version
+  ID prepended; no hand-written changelog file in v1
 
 ## Deferred to V2
 

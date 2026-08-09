@@ -1,0 +1,260 @@
+name: release
+
+# Pushing a `v*` tag is the deploy. Nothing else deploys production, so the
+# GitHub Release this creates is a record of a deploy that actually happened,
+# was smoke-tested, and reported the tagged version back.
+#
+#   pnpm version:bump patch     # writes package.json + APP_VERSION
+#   git commit -am "chore(release): v0.1.1"
+#   git push origin HEAD
+#   git tag -a v0.1.1 -m "v0.1.1" && git push origin v0.1.1
+#
+# Three jobs on three runners, and the split is the security boundary:
+#
+#   verify   — runs every piece of third-party code (install scripts, eslint
+#              plugins, browsers, the test suite). No credentials exist here.
+#   deploy   — fresh runner, holds the Cloudflare token. Installs and builds,
+#              nothing else, so nothing `verify` did can reach it.
+#   release  — fresh runner, holds the only `contents: write` token, for one
+#              step, and never checks the repository out at all.
+#
+# Step-level `env:` is not a substitute for this. Steps in a job share a
+# filesystem, so an earlier step can rewrite package.json, a dependency or the
+# wrangler config and change what the credentialed step later executes.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  # `queue: single` (the default) keeps one pending run: a third tag pushed
+  # while the first is deploying *replaces* the second, so that version is
+  # never deployed and never released. `max` queues up to 100 instead.
+  #
+  # Queue order is still not guaranteed — that is what the downgrade guard in
+  # `check:release-version` is for, since no concurrency setting can order them.
+  queue: max
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: `pnpm verify` runs `gitleaks git`, which scans the log
+          # rather than the worktree, and the ancestry check below needs a merge
+          # base. This also fetches every branch, so `origin/main` resolves
+          # without a second authenticated fetch.
+          fetch-depth: 0
+          # Do not leave a reusable git credential in `.git/config`. Everything
+          # after this step runs in this workspace, and none of it has any
+          # business pushing.
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Three guards, all before anything is deployed, because none of these
+      # failures is fixable afterwards.
+      #
+      # The already-released tags come in as arguments, which is what makes this
+      # a downgrade guard too: queued tag pushes execute in an order GitHub does
+      # not guarantee, so `v1.2.1` can run *after* `v1.2.2` and quietly take
+      # production backwards. Refusing a non-increasing version is the only fix.
+      - name: Tag must match APP_VERSION and be the newest release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -o pipefail
+          released=$(gh release list --limit 200 --json tagName --jq '.[].tagName' | tr '\n' ' ')
+          # Unquoted on purpose: the list must expand to separate arguments.
+          # shellcheck disable=SC2086
+          pnpm check:release-version "$GITHUB_REF_NAME" $released
+
+      # A tag can be pushed from any branch, and it would deploy that branch to
+      # production. Only what is on main ships.
+      - name: Tag must be on main
+        run: |
+          if ! git rev-parse --verify --quiet origin/main >/dev/null; then
+            echo "::error::origin/main not fetched — cannot prove $GITHUB_REF_NAME is on main"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::$GITHUB_REF_NAME is not an ancestor of main — refusing to deploy"
+            exit 1
+          fi
+
+      # Re-running a *completed* release would upload a second Cloudflare
+      # version while the existing release still names the first. Re-runs of a
+      # *failed* run are unaffected: no release exists yet.
+      #
+      # Fails closed. `gh` exits non-zero for "not found", for an auth failure,
+      # for a rate limit and for a GitHub outage alike — treating every non-zero
+      # as "no release, go ahead" would deploy during an API incident and only
+      # discover the conflict afterwards. Only a definite 404 proceeds.
+      - name: Tag must not already be released
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if out=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$GITHUB_REF_NAME" 2>&1); then
+            echo "::error::$GITHUB_REF_NAME is already released — cut a new version instead of re-running"
+            exit 1
+          elif grep -q "HTTP 404" <<<"$out"; then
+            echo "No release for $GITHUB_REF_NAME yet — proceeding."
+          else
+            echo "::error::Could not determine whether $GITHUB_REF_NAME is released: $out"
+            exit 1
+          fi
+
+      # `pnpm verify` shells out to a `gitleaks` binary. The runner has none:
+      # gitleaks.yml uses the action, which scans on its own rather than
+      # installing one. Pinned — an unpinned `latest` makes the gate's contents
+      # change without a commit.
+      #
+      # Downloaded to disk and checksummed before extraction, rather than piped
+      # into tar. A pipe executes whatever arrives — a compromised release asset
+      # or a hijacked redirect would be unpacked into a directory on `PATH`
+      # before anything could object.
+      - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          # From gitleaks_8.30.1_checksums.txt, confirmed against the asset.
+          # Bump both together — a stale hash fails the download, loudly.
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          archive="$RUNNER_TEMP/gitleaks.tar.gz"
+          curl -sSfL --retry 3 \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            -o "$archive"
+          echo "${GITLEAKS_SHA256}  ${archive}" | sha256sum -c -
+          sudo tar -xzf "$archive" -C /usr/local/bin gitleaks
+          gitleaks version
+
+      - run: pnpm exec playwright install --with-deps chromium
+
+      # `verify` ends in e2e, which boots the dev server against
+      # apps/web/.dev.vars — gitignored, so absent here, and authMiddleware
+      # refuses every request without it (docs/security-audit.md #3).
+      #
+      # Throwaway values, and they must stay that way: they prove the app runs,
+      # not that a deployment is configured. The deploy job reads none of
+      # them — the Worker's real secrets live in Cloudflare and ship through a
+      # separate channel from the code.
+      - name: Write throwaway dev vars for the e2e server
+        run: |
+          cat > apps/web/.dev.vars <<'VARS'
+          BETTER_AUTH_SECRET=e2e-throwaway-secret-not-for-any-real-use
+          BETTER_AUTH_URL=http://localhost:5173
+          VARS
+      - run: pnpm db:migrate
+      - name: Verify
+        env:
+          CI: "true"
+        run: pnpm verify
+
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    # Cloudflare credentials live on this environment, not on the repository, so
+    # only this job can read them. Protect it in Settings → Environments: limit
+    # deployment branches and tags to `v*`, and add required reviewers if a
+    # release should need a second pair of eyes.
+    environment: production
+    env:
+      # wrangler appends one NDJSON record per action here. Parsing that beats
+      # scraping the console: the human-readable output is not a contract.
+      WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.ndjson
+    outputs:
+      notes: ${{ steps.notes.outputs.body }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # `wrangler.jsonc` serves `assets.directory: build/client`, so the bundle
+      # has to exist before the deploy. Built here rather than carried from
+      # `verify` as an artifact: an artifact produced by the job full of
+      # third-party code would hand that code the deploy anyway, which is the
+      # separation this job exists for.
+      - run: pnpm build
+
+      # `deploy:web:ungated` is the second half of `deploy:web` rather than an
+      # inline wrangler call, so CI cannot drift from the local deploy path — in
+      # particular the `--var ENVIRONMENT:production` override, without which
+      # every production Sentry event is tagged `development`.
+      #
+      # `--message` stamps the release onto the Cloudflare version, so the
+      # dashboard and `wrangler deployments list` answer "which release is
+      # this?" on their own; without it every version reads `Message: -`, and a
+      # token-authenticated deploy also reports `Author: undefined`.
+      #
+      # No `--` before the flag. pnpm 9 passes a literal `--` straight through,
+      # and wrangler then reads everything after it as positional, silently
+      # ignoring the flags — a failure that still deploys, just wrongly.
+      #
+      # This does NOT apply remote D1 migrations. Backward-compatible ones are
+      # applied *before* the tag is pushed; see AGENTS.md § Cutting a release.
+      - name: Deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm deploy:web:ungated --message "$GITHUB_REF_NAME ($GITHUB_SHA)"
+
+      # A clean `wrangler deploy` only means the bundle uploaded. A Worker whose
+      # secrets were never set deploys fine and 500s on every request, so
+      # without this the release would announce a dead deploy. Checks every
+      # target, asserts the *version* rather than a 200 (the previous deploy
+      # answers 200 too), and retries within a deadline so propagation delay
+      # does not read as failure.
+      - name: Prove the tagged version is live
+        run: pnpm check:deployed "$WRANGLER_OUTPUT_FILE_PATH" "${GITHUB_REF_NAME#v}"
+
+      - name: Compose the release notes
+        id: notes
+        run: |
+          {
+            echo "body<<RELEASE_NOTES_EOF"
+            pnpm -s release:notes "$WRANGLER_OUTPUT_FILE_PATH"
+            echo "RELEASE_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+  # Separate job so the write-scoped token exists for one step in a workspace
+  # with no third-party code in it — this job never checks out the repo.
+  release:
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # `--verify-tag` because the tag push is what got us here: if it is
+      # somehow absent, `gh` would invent one from the default branch and the
+      # release would name the wrong commit.
+      #
+      # GITHUB_TOKEN, not the `gh auth token --user` prefix AGENTS.md requires
+      # locally — that rule is about which of two logged-in accounts a laptop
+      # picks, which has no analogue on a runner.
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          NOTES: ${{ needs.deploy.outputs.notes }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --verify-tag \
+            --generate-notes \
+            --notes "$NOTES"

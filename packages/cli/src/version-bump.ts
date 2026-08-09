@@ -1,5 +1,4 @@
 import { readFileSync, writeFileSync } from "node:fs";
-import { execSync } from "node:child_process";
 
 const level = (process.argv[2] || "patch") as "major" | "minor" | "patch";
 
@@ -31,6 +30,19 @@ writeFileSync(
 
 console.log(`Bumped version to ${newVersion}`);
 
-// Create git tag
-execSync(`git tag v${newVersion}`, { stdio: "inherit" });
-console.log(`Created tag v${newVersion}`);
+// Deliberately does not tag. At this point the bump is an *uncommitted*
+// working-tree change, so a tag created here would point at the commit before
+// it — and pushing that tag is what deploys, so it would ship the previous
+// APP_VERSION under this version's name. `check:release-version` refuses that,
+// which is a confusing way to learn the tag was made one commit too early.
+//
+// Annotated (`-a`) on purpose: `git push --follow-tags` ignores lightweight
+// tags, so a lightweight one looks pushed and never triggers the release.
+console.log(`
+Next — the tag must name the commit that carries this bump:
+
+  git commit -am "chore(release): v${newVersion}"
+  git push origin HEAD
+  git tag -a v${newVersion} -m "v${newVersion}"
+  git push origin v${newVersion}     # this is what deploys and cuts the release
+`);

@@ -18,11 +18,24 @@ them.
 
 - `src/db-*.ts` — wrap `wrangler d1` / `drizzle-kit` for the local database lifecycle
 - `src/api-spec.ts` — renders the OpenAPI spec from `apps/web/server/api.ts` into `docs/api/openapi.json`
-- `src/version-bump.ts` — bumps `packages/config/src/version.ts` + package versions, creates git tag
+- `src/version-bump.ts` — bumps `packages/config/src/version.ts` + package versions, then prints the tag steps
+- `src/check-release-version.ts` — refuses a release tag that disagrees with `package.json` / `APP_VERSION`
+- `src/check-deployed.ts` — post-deploy smoke check: the live `/api/v1/health` must report the tagged version
+- `src/release-notes.ts` — turns wrangler's structured deploy output into the release-note preamble
 
 ## Rules
 
 - Scripts must stay idempotent and safe to re-run; destructive ones (`db-reset`) are local-only by design — never add `--remote` to them
+- **Read wrangler's structured output, never its console text.** `release-notes`
+  and `check-deployed` both parse the NDJSON at `WRANGLER_OUTPUT_FILE_PATH`
+  (`{ type: "deploy", version_id, targets }`). The human-readable output is not
+  a contract. Take the **last** deploy record: wrangler appends, and
+  `deploy:web` runs the whole verify gate — which drives wrangler — first.
+- **`version-bump.ts` must never create the tag.** It runs before the bump is
+  committed, so any tag it made would point at the previous commit — and a
+  pushed tag is what deploys (`.github/workflows/release.yml`), so that tag
+  ships the old `APP_VERSION` under the new version's name. It prints the
+  steps instead.
 
 ## Testing
 
