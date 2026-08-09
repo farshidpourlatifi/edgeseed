@@ -544,7 +544,7 @@ Verified end to end: unauthenticated `/mcp` → `401` with
 → `401`.
 
 **\* The resolution is narrower than "authentication added".** Review of the
-original fix (2026-08-05) found two auth defects in it, both since fixed and
+original fix (2026-08-05) found three auth defects in it, all since fixed and
 verified against a running Worker, plus one item still open:
 
 - **Login CSRF (fixed).** The consent flow called `auth.api.signInEmail` without
@@ -561,16 +561,29 @@ verified against a running Worker, plus one item still open:
   resolve to the victim's `userId`. Now rejected with
   `403 session_principal_mismatch`; verified with two real users holding
   legitimate tokens.
-- **PKCE is not actually required (open).** The `OAuth 2.1` label overstates it:
-  the library mandates PKCE only when `tokenEndpointAuthMethod === "none"`, and
-  dynamic registrations default to `client_secret_basic`. A missing
-  `code_challenge` should be rejected alongside the scope check.
-- **`Origin` validation (open).** Requiring a bearer token blocks the practical
-  DNS-rebinding attack, but the MCP spec asks for the header check on HTTP
-  transports regardless, and the Agents SDK answers
-  `Access-Control-Allow-Origin: *`.
+- **PKCE not actually required (fixed 2026-08-09).** The `OAuth 2.1` label
+  overstated it: the library mandates PKCE only when
+  `tokenEndpointAuthMethod === "none"`, and dynamic registrations default to
+  `client_secret_basic`. `pkceProblem` in `auth-app.ts` now rejects a missing
+  `code_challenge` outright, and a `code_challenge_method` other than `S256`;
+  `rejectUnacceptable` runs it alongside the scope check on **both** the GET and
+  the POST `/authorize` paths, before a user is ever shown consent. Refusal is a
+  spec-shaped `invalid_request` redirect carrying `iss`, not a dead end.
+  The method branch is defence in depth rather than load-bearing: `parseAuthRequest`
+  was verified to 400 both an explicit `plain` and an omitted method, so only a
+  missing challenge reaches the guard today. It is kept so a library change
+  cannot silently reintroduce a downgrade to `plain`. Deny path covered by
+  `src/__tests__/auth-app.test.ts`.
+- **`Origin` validation (OPEN — re-verified 2026-08-09).** Requiring a bearer
+  token blocks the practical DNS-rebinding attack, but the MCP spec asks for the
+  header check on HTTP transports regardless, and the Agents SDK answers
+  `Access-Control-Allow-Origin: *`. Still unfixed: `apps/mcp/src` passes no
+  `corsOptions` anywhere, so `McpAgent.serve` falls back to that default, and
+  nothing validates the `Origin` header against an allowlist. Tracked as
+  `security-plan.md` Phase 4 item 3.
 
-Treat this entry as "authenticated, with two known gaps" rather than closed.
+Treat this entry as "authenticated, with one known gap" rather than closed —
+`Origin` validation, above.
 
 ### 9. `BETTER_AUTH_SECRET` committed in the MCP worker config
 
@@ -894,12 +907,24 @@ routes that do not exist yet.
   `BETTER_AUTH_SECRET` and OAuth client secrets — to every loader. Server-side
   only and no route reads it today, but one careless `return context.cloudflare.env`
   serializes secrets into client-visible JSON. Consider passing a narrowed object.
-- **Real account identifiers committed to a public-facing starter.**
-  CLAUDE.md:120-121 and `apps/web/wrangler.jsonc:14` carry the production
-  workers.dev URL and D1 database ID. Not exploitable without an API token, but
-  together they identify the Cloudflare account and name a concrete production
-  target for the unauthenticated surfaces above. Replace with placeholders before
-  publishing.
+- **Real account identifiers committed to a public-facing starter.
+  Half fixed, half accepted 2026-08-09.** As written this cited
+  `CLAUDE.md:120-121` and `apps/web/wrangler.jsonc:14` for a production
+  workers.dev URL and D1 database ID; both line refs are now stale — `CLAUDE.md`
+  is 46 lines and delegates to `AGENTS.md`, and `wrangler.jsonc:14` is a comment
+  about `custom_domain`.
+  - The **workers.dev URL is gone** (PR #12). Every remaining `workers.dev`
+    string in the tree is a placeholder (`<your-mcp-worker>`, `your-app`,
+    `example.workers.dev`) or a comment.
+  - The **D1 database ID stays** — `apps/web/wrangler.jsonc:62` and the matching
+    line in `apps/mcp/wrangler.jsonc`, plus the Deployment section of
+    `AGENTS.md`. **Accepted, not deferred.** It is unusable without an account
+    API token; it must match across both wrangler files for the MCP Worker to
+    reach the same users, so a placeholder would break the invariant the
+    comments exist to protect; and `AGENTS.md` documents that every clone mints
+    its own identity through `pnpm init:product`, which localises `database_id`
+    and strips `routes`. Revisit only if the threat model gains an attack that
+    an account-scoped id enables on its own.
 - **Seed SQL is interpolated into a shell command.**
   `packages/cli/src/db-seed.ts:15-17` builds a double-quoted `execSync` string
   from `seedSQL`. That constant is static today, so it is not exploitable, but

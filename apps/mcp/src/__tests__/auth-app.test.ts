@@ -170,6 +170,112 @@ describe("MCP /authorize sign-in rate limiting", () => {
   });
 });
 
+/**
+ * Audit #8's PKCE gap, at the boundary.
+ *
+ * `OAuthProvider` mandates a code challenge only when
+ * `tokenEndpointAuthMethod === "none"`, and dynamic registration defaults to
+ * `client_secret_basic` — so without `pkceProblem` a client could register its
+ * way out of PKCE entirely. The guard is only worth anything if it refuses, so
+ * that is what these assert; the allow path is already covered by every other
+ * `/authorize` test in this file, which all pass a valid S256 challenge.
+ *
+ * Both verbs, because the query string is caller-supplied on every request and
+ * a GET-only check would be bypassed by posting straight to `/authorize`.
+ */
+describe("MCP /authorize PKCE enforcement", () => {
+  const CALLBACK = "https://client.test/callback";
+
+  /** An authorize request with whatever PKCE fields the case is testing. */
+  function pkceEnv(pkce: { codeChallenge?: string; codeChallengeMethod?: string }) {
+    return mcpEnv({
+      OAUTH_PROVIDER: {
+        parseAuthRequest: async () => ({
+          clientId: "client-1",
+          redirectUri: CALLBACK,
+          scope: ["mcp"],
+          state: "state-1",
+          issuer: "http://mcp.test",
+          ...pkce,
+        }),
+        lookupClient: async () => ({ clientId: "client-1", clientName: "Test Client" }),
+      },
+    });
+  }
+
+  function authorize(env: Record<string, unknown>, method: "GET" | "POST") {
+    return authApp.request(
+      "http://mcp.test/authorize?client_id=client-1",
+      method === "GET"
+        ? {}
+        : {
+            method: "POST",
+            headers: { "content-type": "application/x-www-form-urlencoded" },
+            body: "intent=approve",
+          },
+      env,
+    );
+  }
+
+  /** The redirect a rejection must produce, parsed back out of `location`. */
+  function errorParams(res: Response) {
+    return new URL(res.headers.get("location") ?? "").searchParams;
+  }
+
+  for (const method of ["GET", "POST"] as const) {
+    it(`refuses a ${method} authorize request carrying no code_challenge`, async () => {
+      const res = await authorize(pkceEnv({}), method);
+
+      expect(res.status).toBe(302);
+      const params = errorParams(res);
+      expect(params.get("error")).toBe("invalid_request");
+      expect(params.get("error_description")).toContain("code_challenge is required");
+      // RFC 9207: the provider advertises `authorization_response_iss_parameter_supported`,
+      // so a conforming client may reject an error response that omits `iss`.
+      expect(params.get("iss")).toBe("http://mcp.test");
+      expect(params.get("state")).toBe("state-1");
+    });
+
+    /**
+     * Defence in depth, not load-bearing today — `parseAuthRequest` already 400s
+     * an explicit `plain`. Pinned so a library change cannot silently
+     * reintroduce the downgrade without this failing.
+     */
+    it(`refuses a ${method} authorize request whose challenge method is not S256`, async () => {
+      const env = pkceEnv({ codeChallenge: "challenge", codeChallengeMethod: "plain" });
+      const res = await authorize(env, method);
+
+      expect(res.status).toBe(302);
+      expect(errorParams(res).get("error")).toBe("invalid_request");
+      expect(errorParams(res).get("error_description")).toContain("must be S256");
+    });
+  }
+
+  /** Rejected before consent is rendered — never ask a user to approve this. */
+  it("does not render the consent or login screen for a PKCE-less request", async () => {
+    const res = await authorize(pkceEnv({}), "GET");
+
+    expect(res.status).toBe(302);
+    expect(await res.text()).toBe("");
+  });
+
+  /**
+   * The positive control, and the reason the cases above are not vacuous.
+   *
+   * An identical request differing only in carrying a valid S256 challenge
+   * reaches the login screen instead of the error redirect — so the 302s above
+   * are produced by `pkceProblem` and not by some other refusal on the path.
+   * Delete this and a guard that stopped rejecting would still look tested.
+   */
+  it("admits an otherwise identical request that carries a valid S256 challenge", async () => {
+    const env = pkceEnv({ codeChallenge: "challenge", codeChallengeMethod: "S256" });
+    const res = await authorize(env, "GET");
+
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain("<form");
+  });
+});
+
 describe("MCP discovery endpoint", () => {
   /**
    * Deliberately unaffected by the env: `/` serves only this server's name,

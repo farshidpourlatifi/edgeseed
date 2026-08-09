@@ -65,6 +65,13 @@ unauthenticated `/mcp` → 401 + `WWW-Authenticate`; discovery → dynamic regis
 - `BETTER_AUTH_SECRET` is no longer in `wrangler.jsonc` `vars` (audit #9 resolved) —
   set it locally in `.dev.vars` (start from `.dev.vars.example`) and in production
   via `wrangler secret put`, mirroring the web app
+- **No `Origin` allowlist, and no explicit `corsOptions`** — so `McpAgent.serve`
+  inherits the SDK default of `Access-Control-Allow-Origin: *`. Requiring a bearer
+  token blocks the practical DNS-rebinding attack, which is why this is not
+  urgent, but the MCP spec asks for the header check on HTTP transports
+  regardless. This is the **one remaining gap** in `docs/security-audit.md` #8
+  (`security-plan.md` Phase 4 item 3); the foreign-`Origin` deny test ships with
+  the fix
 - The consent POST relies on Better Auth's `SameSite=Lax` session cookie rather than
   an explicit CSRF token; add one if the consent screen ever grants more than `mcp`
 - Tool surface is `health_check` + `whoami`, which is parity with `/api/v1` today
