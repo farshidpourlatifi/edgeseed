@@ -214,7 +214,14 @@ jobs:
     env:
       # wrangler appends one NDJSON record per action here. Parsing that beats
       # scraping the console: the human-readable output is not a contract.
-      WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.ndjson
+      #
+      # `github.workspace`, not `runner.temp`. The `runner` context is not
+      # available in `jobs.<job_id>.env` — only in step-level `env` and `run` —
+      # and referencing it there makes the whole file invalid, which GitHub
+      # reports as a failed run on *every* push rather than as a syntax error.
+      # The workflow then also appears in the Actions list by file path instead
+      # of by `name`, which is the visible tell.
+      WRANGLER_OUTPUT_FILE_PATH: ${{ github.workspace }}/wrangler-output.ndjson
     outputs:
       notes: ${{ steps.notes.outputs.body }}
     steps:
