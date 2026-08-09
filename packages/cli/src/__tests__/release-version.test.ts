@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import {
   backoffMs,
   compareVersions,
+  downgradeProblem,
   healthProblem,
   releaseOrderProblem,
   parseAppVersion,
@@ -114,6 +115,49 @@ describe("releaseOrderProblem", () => {
 
   it("should compare numerically across a version-10 boundary", () => {
     expect(releaseOrderProblem("v0.9.0", ["v0.10.0"])).toContain("backwards");
+  });
+});
+
+describe("downgradeProblem", () => {
+  it("should allow a tag ahead of what production serves", () => {
+    expect(downgradeProblem("v1.2.3", ["1.2.2"])).toBeNull();
+  });
+
+  it("should refuse a tag behind production", () => {
+    expect(downgradeProblem("v1.2.1", ["1.2.2"])).toContain("backwards");
+  });
+
+  it("should refuse redeploying the version already live", () => {
+    expect(downgradeProblem("v1.2.3", ["1.2.3"])).toContain("backwards");
+  });
+
+  // Split origins can report the same version twice; the message should not.
+  it("should not repeat a version reported by more than one origin", () => {
+    const problem = downgradeProblem("v1.0.0", ["1.2.2", "1.2.2"]);
+    expect(problem?.match(/1\.2\.2/g)).toHaveLength(1);
+  });
+
+  it("should refuse when any origin is ahead, even if another is behind", () => {
+    expect(downgradeProblem("v1.2.0", ["1.1.0", "1.3.0"])).toContain("1.3.0");
+  });
+
+  // Split origins can disagree, and the message has to stay readable when they
+  // do — a bare concatenation would read "1.2.01.3.0".
+  it("should separate multiple blocking versions", () => {
+    expect(downgradeProblem("v1.0.0", ["1.2.0", "1.3.0"])).toContain("1.2.0, 1.3.0");
+  });
+
+  // Nothing answered: a Worker that is down has to stay deployable.
+  it("should allow the deploy when production reported nothing", () => {
+    expect(downgradeProblem("v1.2.3", [])).toBeNull();
+  });
+
+  it("should refuse a tag it cannot parse", () => {
+    expect(downgradeProblem("nightly", ["1.0.0"])).toContain("not a vMAJOR.MINOR.PATCH");
+  });
+
+  it("should compare numerically across a version-10 boundary", () => {
+    expect(downgradeProblem("v0.9.0", ["0.10.0"])).toContain("backwards");
   });
 });
 
@@ -275,6 +319,25 @@ describe("parseDeployOutput", () => {
       deployLine,
     ].join("\n");
     expect(parseDeployOutput(ndjson)?.versionId).toBe("9f1c2d3e-4a5b-6c7d-8e9f-0a1b2c3d4e5f");
+  });
+
+  // `null` parses fine, and reading `.type` off it throws — which would crash
+  // the release path on a line this function promises to skip.
+  it("should skip a bare null line without throwing", () => {
+    expect(() => parseDeployOutput("null")).not.toThrow();
+    expect(parseDeployOutput(`null\n${deployLine}`)?.versionId).toBe(
+      "9f1c2d3e-4a5b-6c7d-8e9f-0a1b2c3d4e5f",
+    );
+  });
+
+  it("should skip valid JSON that is not an object", () => {
+    expect(parseDeployOutput(`7\n"text"\ntrue\n${deployLine}`)?.versionId).toBe(
+      "9f1c2d3e-4a5b-6c7d-8e9f-0a1b2c3d4e5f",
+    );
+  });
+
+  it("should return null when every line is valid JSON but none is a record", () => {
+    expect(parseDeployOutput('null\n7\n"text"')).toBeNull();
   });
 
   it("should skip malformed lines rather than throwing on them", () => {

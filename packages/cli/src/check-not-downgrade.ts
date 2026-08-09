@@ -22,7 +22,7 @@
 import { readFileSync } from "node:fs";
 
 import {
-  compareVersions,
+  downgradeProblem,
   parseTagVersion,
   smokeUrls,
   wranglerRoutePatterns,
@@ -47,8 +47,20 @@ if (version === null) {
 
 const origins = smokeUrls(wranglerRoutePatterns(readFileSync(wranglerPath, "utf8")));
 
+// A clone deploying to `workers.dev` has no `routes` — `init:product` strips
+// them, and `docs/domains.md` documents that as a supported shape. There is no
+// hostname to ask, and the account's workers.dev subdomain is not in the repo.
+//
+// Say so rather than exiting quietly: in this configuration the only ordering
+// protection is `check:release-version`, which compares against GitHub
+// Releases and therefore cannot see a version that deployed but never got one.
 if (origins.length === 0) {
-  console.log(`No routes declared in ${wranglerPath} — nothing deployed to compare against.`);
+  console.log(
+    `No routes declared in ${wranglerPath}, so production has no known hostname to ask.\n` +
+      "Skipping the live check — ordering rests on the GitHub Releases guard alone,\n" +
+      "which cannot see a version that deployed but whose release never completed.\n" +
+      "Declare a custom domain, or treat a failed release run as needing a new version.",
+  );
   process.exit(0);
 }
 
@@ -79,13 +91,10 @@ if (live.length === 0) {
   process.exit(0);
 }
 
-const blocking = live.filter((reported) => compareVersions(reported, version) >= 0);
+const problem = downgradeProblem(tag, live);
 
-if (blocking.length > 0) {
-  console.error(
-    `Refusing to deploy ${tag}: production is already serving ` +
-      `${[...new Set(blocking)].join(", ")}. Deploying would take it backwards.`,
-  );
+if (problem) {
+  console.error(`Refusing to deploy ${tag}: ${problem}.`);
   console.error(
     "\nThis usually means a newer tag deployed but its release never completed. " +
       "Cut a version above the live one rather than re-running this tag.",

@@ -59,12 +59,16 @@ one, and this token will sit in CI indefinitely.
 
 **One policy — resource `Entire Account`:**
 
-| Search for         | Level    | Why this repo needs it |
-| ------------------ | -------- | ---------------------- |
-| `Workers Scripts`  | **Edit** | Upload the Worker      |
-| `Account Settings` | **Read** | Resolve the account    |
+| Search for        | Level    | Why this repo needs it |
+| ----------------- | -------- | ---------------------- |
+| `Workers Scripts` | **Edit** | Upload the Worker      |
 
-That is the whole default. Three things deliberately **not** granted:
+That is the whole default — one permission. Four things deliberately **not**
+granted:
+
+- **`Account Settings: Read`** — wrangler needs it to _discover_ which account
+  to use, and the workflow tells it directly via `CLOUDFLARE_ACCOUNT_ID`. If a
+  deploy complains about resolving the account, this is the first thing to add.
 
 - **`Workers KV Storage`** — `apps/web/wrangler.jsonc` declares no
   `kv_namespaces`, and a deploy prints its bindings: `DB`, three rate limits,
@@ -81,10 +85,15 @@ That is the whole default. Three things deliberately **not** granted:
   API serves the other route form, `pattern` + `zone_name`.
 
 **If a deploy fails, the error names the endpoint it was refused.** Add the
-matching permission then, and only then. Cloudflare's reference pages for the
-script-upload and attach-domain endpoints list **no** required permissions at
-all, so nothing here can be settled by citation — the deploy is the only
-oracle, which is exactly why step 6 verifies with a real one.
+matching permission then, and only then.
+
+That workflow is not laziness, it is the only reliable method available:
+Cloudflare's API reference pages for the script-upload and attach-domain
+endpoints carry no "required permissions" section — checked repeatedly against
+the rendered pages, most recently on 2026-08-09. If that changes, prefer their
+list over this one and update this file. Until then the deploy is the only
+oracle, which is why step 6 verifies with a real one before the token reaches
+CI.
 
 A product using `pattern`/`zone_name` routes rather than custom domains does
 need the zone policy, with no experiment required.

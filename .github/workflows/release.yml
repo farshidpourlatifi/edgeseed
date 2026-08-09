@@ -151,10 +151,16 @@ jobs:
           gitleaks version
 
       # A scanner that finds nothing passes every scan. Pinning a version and
-      # checksumming the download prove *which* binary ran, not that it works —
-      # and gitleaks has shipped releases that detect nothing
-      # (gitleaks/gitleaks#2170), which would leave the gate silently green.
-      # Prove detection against a known-bad string instead of trusting the pin.
+      # checksumming the download prove *which* binary ran, never that it still
+      # detects anything — a rule change, a bad build or a config default could
+      # leave this gate silently green.
+      #
+      # The canary is not hypothetical care. gitleaks carries global stopwords,
+      # and a token built from one (`abcdefghijklmnopqrstuvwxyz`) is skipped by
+      # design — which is what a widely-cited "8.30.1 detects nothing" report
+      # turned out to be. A canary the scanner ignores would assert the
+      # opposite of what it looks like it asserts, so this string is one the
+      # installed binary was confirmed to flag.
       #
       # The token is assembled at run time: a literal here would be a real
       # finding in this repository's own history, since gitleaks.yml scans it.

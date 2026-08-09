@@ -150,8 +150,14 @@ export function parseDeployOutput(ndjson: string): DeployRecord | null {
     try {
       entry = JSON.parse(line);
     } catch {
-      continue;
+      // Left unset; the guard below skips it. A `continue` here would be dead
+      // code — `undefined` fails the same check.
     }
+    // `null`, `7` and `"text"` are all valid JSON, so parsing them succeeds —
+    // and reading a property off `null` throws, which would crash the release
+    // path on a line this function promises to skip.
+    if (typeof entry !== "object" || entry === null) continue;
+
     const record = entry as { type?: unknown; version_id?: unknown; targets?: unknown };
     if (record.type !== "deploy" || typeof record.version_id !== "string") continue;
 
@@ -208,6 +214,28 @@ export function smokeUrls(targets: string[]): string[] {
     .map((host) => `https://${host}`);
 
   return [...new Set(origins)];
+}
+
+/**
+ * Why this tag must not deploy over what production is currently serving, or
+ * `null` when it moves production forward.
+ *
+ * Separate from `releaseOrderProblem`, which compares against GitHub Releases.
+ * Releases are created *last*, so a run that deployed and then failed leaves
+ * production ahead of every release; only production can report that.
+ *
+ * An empty `liveVersions` means nothing answered, and that is deliberately
+ * **allowed** — a Worker that is down has to stay deployable, and this guard
+ * exists to stop a downgrade rather than a recovery.
+ */
+export function downgradeProblem(tag: string, liveVersions: string[]): string | null {
+  const version = parseTagVersion(tag);
+  if (version === null) return `"${tag}" is not a vMAJOR.MINOR.PATCH release tag`;
+
+  const blocking = [...new Set(liveVersions.filter((live) => compareVersions(live, version) >= 0))];
+  if (blocking.length === 0) return null;
+
+  return `production is already serving ${blocking.join(", ")}; ${tag} would take it backwards`;
 }
 
 /**
