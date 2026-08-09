@@ -83,7 +83,7 @@ docs/api          — Generated OpenAPI specs
 | `pnpm verify`                       | Full pre-deploy gate                      |
 | `pnpm deploy:web`                   | `verify` + deploy web app                 |
 | `pnpm deploy:web:ungated`           | Deploy half only — CI use, skips `verify` |
-| `pnpm version:bump [type]`          | Bump version, print the release steps     |
+| `pnpm version:bump [type]`          | Bump version + API spec, print the steps  |
 | `pnpm check:release-version <tag>`  | Guard: tag vs package.json + APP_VERSION  |
 | `pnpm check:not-downgrade <tag>`    | Guard: tag vs the live production version |
 | `pnpm check:deployed <out> <ver>`   | Guard: live /health reports that version  |
@@ -125,7 +125,7 @@ origin, and only then cuts a GitHub Release naming the Cloudflare Version ID.
 # during the rollout, so it must tolerate the new schema.
 cd apps/web && npx wrangler d1 migrations apply edgeseed-db --remote && cd ../..
 
-pnpm version:bump patch                # writes package.json + APP_VERSION
+pnpm version:bump patch                # package.json + APP_VERSION + openapi.json
 git commit -am "chore(release): v0.1.1"
 git push origin HEAD
 git tag -a v0.1.1 -m "v0.1.1"          # annotated: --follow-tags skips lightweight tags

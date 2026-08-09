@@ -52,35 +52,35 @@ docs/
 
 ## CLI Commands
 
-| Command                                   | Description                                                                      |
-| ----------------------------------------- | -------------------------------------------------------------------------------- |
-| `pnpm dev --filter @starter/web`          | Start web dev server                                                             |
-| `pnpm dev --filter @starter/mcp`          | Start MCP server                                                                 |
-| `pnpm build`                              | Build all workspaces                                                             |
-| `pnpm typecheck`                          | Type check all workspaces                                                        |
-| `pnpm test`                               | Run unit/integration tests                                                       |
-| `pnpm test:e2e`                           | Run end-to-end tests                                                             |
-| `pnpm test:coverage`                      | Unit tests with coverage report (`coverage/`)                                    |
-| `pnpm test:mutation`                      | Stryker mutation tests (`reports/mutation/`)                                     |
-| `pnpm lint` / `pnpm lint:fix`             | ESLint check / autofix                                                           |
-| `pnpm format` / `pnpm format:check`       | Prettier write / check                                                           |
-| `pnpm verify`                             | Full gate: lint, format, tests, gitleaks, build, typecheck, e2e                  |
-| `pnpm deploy:web`                         | Run `verify`, then deploy the web app to Cloudflare                              |
-| `pnpm deploy:web:ungated`                 | The deploy half alone — CI uses it to scope credentials; never run by hand       |
-| `pnpm db:generate`                        | Generate Drizzle migration from schema changes                                   |
-| `pnpm db:migrate`                         | Apply pending migrations (local D1)                                              |
-| `pnpm db:seed`                            | Seed development data                                                            |
-| `pnpm db:reset`                           | Drop and re-apply all migrations locally                                         |
-| `pnpm api:spec`                           | Regenerate OpenAPI spec to `docs/api/openapi.json`                               |
-| `pnpm api:call <METHOD> <path> [body]`    | Call `/api/v1` with `STARTER_API_TOKEN` (see [API tokens](#api-tokens))          |
-| `pnpm version:bump [major\|minor\|patch]` | Bump version, then print the tag steps that cut a release                        |
-| `pnpm check:release-version <tag>`        | Refuse a release tag that disagrees with `package.json` / `APP_VERSION`          |
-| `pnpm check:not-downgrade <tag>`          | Refuse a tag older than the version production is already serving                |
-| `pnpm check:deployed <output> <version>`  | Assert the deployed origin's `/api/v1/health` reports that version               |
-| `pnpm release:notes <output>`             | Release-note preamble from wrangler's structured deploy output                   |
-| `pnpm init:product <name>`                | Stamp product identity on a fresh clone ([guide](./docs/starter-as-upstream.md)) |
-| `pnpm check:docs-sync`                    | Fail on drift: undocumented scripts, stale `.dev.vars.example`                   |
-| `pnpm check:boot`                         | Start each **built** Worker and prove it serves a request (run after `build`)    |
+| Command                                   | Description                                                                         |
+| ----------------------------------------- | ----------------------------------------------------------------------------------- |
+| `pnpm dev --filter @starter/web`          | Start web dev server                                                                |
+| `pnpm dev --filter @starter/mcp`          | Start MCP server                                                                    |
+| `pnpm build`                              | Build all workspaces                                                                |
+| `pnpm typecheck`                          | Type check all workspaces                                                           |
+| `pnpm test`                               | Run unit/integration tests                                                          |
+| `pnpm test:e2e`                           | Run end-to-end tests                                                                |
+| `pnpm test:coverage`                      | Unit tests with coverage report (`coverage/`)                                       |
+| `pnpm test:mutation`                      | Stryker mutation tests (`reports/mutation/`)                                        |
+| `pnpm lint` / `pnpm lint:fix`             | ESLint check / autofix                                                              |
+| `pnpm format` / `pnpm format:check`       | Prettier write / check                                                              |
+| `pnpm verify`                             | Full gate: lint, format, tests, gitleaks, build, typecheck, e2e                     |
+| `pnpm deploy:web`                         | Run `verify`, then deploy the web app to Cloudflare                                 |
+| `pnpm deploy:web:ungated`                 | The deploy half alone — CI uses it to scope credentials; never run by hand          |
+| `pnpm db:generate`                        | Generate Drizzle migration from schema changes                                      |
+| `pnpm db:migrate`                         | Apply pending migrations (local D1)                                                 |
+| `pnpm db:seed`                            | Seed development data                                                               |
+| `pnpm db:reset`                           | Drop and re-apply all migrations locally                                            |
+| `pnpm api:spec`                           | Regenerate OpenAPI spec to `docs/api/openapi.json`                                  |
+| `pnpm api:call <METHOD> <path> [body]`    | Call `/api/v1` with `STARTER_API_TOKEN` (see [API tokens](#api-tokens))             |
+| `pnpm version:bump [major\|minor\|patch]` | Bump version + regenerate the API spec, then print the tag steps that cut a release |
+| `pnpm check:release-version <tag>`        | Refuse a release tag that disagrees with `package.json` / `APP_VERSION`             |
+| `pnpm check:not-downgrade <tag>`          | Refuse a tag older than the version production is already serving                   |
+| `pnpm check:deployed <output> <version>`  | Assert the deployed origin's `/api/v1/health` reports that version                  |
+| `pnpm release:notes <output>`             | Release-note preamble from wrangler's structured deploy output                      |
+| `pnpm init:product <name>`                | Stamp product identity on a fresh clone ([guide](./docs/starter-as-upstream.md))    |
+| `pnpm check:docs-sync`                    | Fail on drift: undocumented scripts, stale `.dev.vars.example`                      |
+| `pnpm check:boot`                         | Start each **built** Worker and prove it serves a request (run after `build`)       |
 
 ## Key Conventions
 
@@ -222,7 +222,7 @@ so a release records a deploy that actually happened _and works_.
 
 ```bash
 # Schema change? Apply the additive migration first (see AGENTS.md).
-pnpm version:bump patch                # writes package.json + APP_VERSION
+pnpm version:bump patch                # package.json + APP_VERSION + openapi.json
 git commit -am "chore(release): v0.1.1"
 git push origin HEAD
 git tag -a v0.1.1 -m "v0.1.1"          # annotated: --follow-tags skips lightweight tags

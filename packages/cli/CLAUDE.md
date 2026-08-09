@@ -18,7 +18,7 @@ them.
 
 - `src/db-*.ts` — wrap `wrangler d1` / `drizzle-kit` for the local database lifecycle
 - `src/api-spec.ts` — renders the OpenAPI spec from `apps/web/server/api.ts` into `docs/api/openapi.json`
-- `src/version-bump.ts` — bumps `packages/config/src/version.ts` + package versions, then prints the tag steps
+- `src/version-bump.ts` — bumps `packages/config/src/version.ts` + package versions, regenerates the OpenAPI spec (whose `info.version` is `APP_VERSION`), then prints the tag steps
 - `src/check-release-version.ts` — refuses a release tag that disagrees with `package.json` / `APP_VERSION`
 - `src/check-deployed.ts` — post-deploy smoke check: the live `/api/v1/health` must report the tagged version
 - `src/release-notes.ts` — turns wrangler's structured deploy output into the release-note preamble

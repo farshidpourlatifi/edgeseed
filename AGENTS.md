@@ -654,7 +654,7 @@ pnpm db:seed                # Seed dev data
 pnpm db:reset               # Drop and re-apply all migrations
 pnpm api:spec               # Generate OpenAPI spec
 pnpm api:call GET /me       # Call /api/v1 with STARTER_API_TOKEN (bearer)
-pnpm version:bump [type]    # Bump version (patch/minor/major), then print the tag steps
+pnpm version:bump [type]    # Bump version + regenerate openapi.json, then print the tag steps
 pnpm test                   # Run Vitest
 pnpm test:e2e               # Run Playwright
 pnpm test:coverage          # Vitest with coverage report (coverage/)
@@ -785,7 +785,7 @@ the safe ordering cannot be expressed as "one step in the deploy".
 # — see "Schema changes" above.
 cd apps/web && npx wrangler d1 migrations apply edgeseed-db --remote && cd ../..
 
-pnpm version:bump patch                      # writes package.json + APP_VERSION
+pnpm version:bump patch                      # package.json + APP_VERSION + openapi.json
 git commit -am "chore(release): v0.1.1"
 git push origin HEAD
 git tag -a v0.1.1 -m "v0.1.1"

@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 
 const level = (process.argv[2] || "patch") as "major" | "minor" | "patch";
@@ -29,6 +30,14 @@ writeFileSync(
 );
 
 console.log(`Bumped version to ${newVersion}`);
+
+// `docs/api/openapi.json` stamps `info.version` from `APP_VERSION`, so the bump
+// staled it and the `drift` CI job failed on the next PR opened — not on the
+// release itself, which is what made v0.1.1's miss easy to walk past. Regenerate
+// here so the spec rides in the release commit. A separate process on purpose:
+// `api-spec.ts` reads `APP_VERSION` through an import, and this one has already
+// been resolved with the old value in *this* process.
+execSync("pnpm api:spec", { stdio: "inherit", cwd: process.cwd() });
 
 // Deliberately does not tag. At this point the bump is an *uncommitted*
 // working-tree change, so a tag created here would point at the commit before
