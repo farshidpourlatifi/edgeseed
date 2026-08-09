@@ -9,7 +9,13 @@
        where thin strokes on transparent do not.
 
        Colors track the OS/browser theme via prefers-color-scheme, matching the
-       light/dark --primary pairs in app.css (sky-700/sky-50, sky-500/sky-950). -->
+       light/dark `primary` custom property pairs in app.css (sky-700/sky-50,
+       sky-500/sky-950).
+
+       That token is named without its leading dashes on purpose: an XML comment
+       may not contain a double hyphen, and SVG is parsed as strict XML. Writing
+       it in full made this whole file un-decodable, so browsers dropped the
+       icon and fell back to the default with no error anywhere. -->
   <style>
     .bg { fill: #0369a1; }
     .mark { stroke: #f0f9ff; }
