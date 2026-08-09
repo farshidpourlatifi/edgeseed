@@ -5,11 +5,15 @@ import { Badge } from "@starter/ui/components/ui/badge";
 import { Button } from "@starter/ui/components/ui/button";
 import { CopyCommand } from "./copy-command";
 import { GithubIcon } from "./github-icon";
+import { HeroBackground } from "./hero-background";
 import { GITHUB_URL } from "./site";
 
 export function Hero() {
   return (
-    <section className="border-b">
+    // `isolate` keeps the background's negative z-index inside this section
+    // rather than sliding it behind the page background.
+    <section className="relative isolate border-b">
+      <HeroBackground />
       <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-8 px-4 py-20 text-center sm:px-6 md:py-28">
         <Badge variant="secondary" className="gap-2 rounded-full px-3 py-1.5">
           <Star className="size-3.5" aria-hidden="true" />
@@ -20,7 +24,10 @@ export function Hero() {
           <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl md:text-6xl">
             Ship SaaS products on Cloudflare in hours, not weeks
           </h1>
-          <p className="mx-auto max-w-2xl text-base leading-relaxed text-muted-foreground text-pretty sm:text-lg">
+          {/* Not `text-muted-foreground` like the other sections: that token sits
+              below the 4.5:1 body threshold over much of the hero's gradient, and
+              how far below depends on where the wash happens to be. */}
+          <p className="text-foreground/90 mx-auto max-w-2xl text-base leading-relaxed text-pretty sm:text-lg">
             A Cloudflare-native starter kit with Workers, React Router v7 + Hono, Better Auth,
             Drizzle on D1 and a shadcn/ui design system — wired together with tests, quality gates
             and gated deploys.
