@@ -24,8 +24,12 @@ const getReducedMotion = () => getReducedMotionQuery().matches;
 
 function subscribeReducedMotion(onChange: () => void) {
   const query = getReducedMotionQuery();
-  query.addEventListener("change", onChange);
-  return () => query.removeEventListener("change", onChange);
+  // Optional: `MediaQueryList` only gained `addEventListener` in Safari 14, and
+  // this subscribe runs for every visitor, not just the ones who get a canvas.
+  // An older browser would throw here during commit and take the page with it;
+  // degrading to "the preference is read once, not watched" costs nothing.
+  query.addEventListener?.("change", onChange);
+  return () => query.removeEventListener?.("change", onChange);
 }
 
 const getDocumentTheme = () => themeFromDocument(document.documentElement);
@@ -95,7 +99,7 @@ class ShaderBoundary extends Component<{ children: ReactNode }, { failed: boolea
  *    the section to the one below without a visible seam.
  */
 export function HeroBackground() {
-  const resolvedMode = useDocumentTheme();
+  const documentTheme = useDocumentTheme();
   const canRenderShader = useCanRenderShader();
   const prefersReducedMotion = usePrefersReducedMotion();
 
@@ -108,16 +112,17 @@ export function HeroBackground() {
       className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
     >
       {/* Frame 0 of the shader below, captured as a still. Which theme's poster
-          shows is decided in CSS, never from `resolvedMode` — the theme resolves
-          client-side, so a JS-driven choice renders the light one on the server
-          and the dark one on the client, a hydration mismatch React will not
-          patch up. */}
+          shows is decided in CSS, never from `useTheme().resolvedMode` — that
+          state is seeded from the system preference and reconciled with the
+          `theme` cookie only in an effect, so it would render the light poster
+          on the server and the dark one on the client. The shader reads the same
+          source through `useDocumentTheme`, so the two can never disagree. */}
       <div className="hero-poster absolute inset-0" />
 
       {canRenderShader && (
         <ShaderBoundary>
           <MeshGradient
-            colors={heroColors(resolvedMode)}
+            colors={heroColors(documentTheme)}
             {...HERO_SHADER}
             speed={heroSpeed(prefersReducedMotion)}
             /* This shader is very low-frequency, so rendering it below device

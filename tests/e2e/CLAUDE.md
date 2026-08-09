@@ -94,7 +94,14 @@ unsupported path in every CI run, never its happy path — so a spec asserting
 That is useful rather than annoying: it means the landing page's shader
 background (`apps/web/app/components/landing/hero-background.tsx`) gets its
 fallback exercised on every run, and a regression that dropped the capability
-check would turn the whole hero into an error boundary here first.
+check shows up here first.
+
+It does **not** show up as an error, though. `shaders-react` constructs its mount
+inside an un-awaited `async` effect, so the library's throw becomes an unhandled
+rejection that no error boundary catches, and its constructor has already
+inserted the `<canvas>` by then. Dropping the guard therefore leaves a stranded
+empty canvas and a green suite unless something asserts on the DOM — which is
+why the spec counts canvases rather than trusting the absence of failures.
 
 Branch on support rather than assuming it — `hero-background.spec.ts` probes
 `getContext("webgl2")` in the page and asserts the canvas is absent when the

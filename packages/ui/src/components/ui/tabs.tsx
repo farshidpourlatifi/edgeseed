@@ -26,7 +26,11 @@ function Tabs({
   return (
     <TabsPrimitive.Root
       data-slot="tabs"
-      data-orientation={orientation}
+      // Forwarded, not just stamped as `data-orientation`. Radix drives roving
+      // focus from this prop — arrow-key navigation stays horizontal if it only
+      // sees the default — and emits the matching `data-orientation` itself,
+      // which is what the styling below keys on.
+      orientation={orientation}
       className={cn("group/tabs flex gap-2 data-[orientation=horizontal]:flex-col", className)}
       {...props}
     />

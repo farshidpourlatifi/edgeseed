@@ -9,9 +9,12 @@ import { test, expect } from "@playwright/test";
  *
  * **Playwright's headless Chromium has no WebGL2** (no WebGL1 either), so this
  * suite runs the *deny* path of `supportsWebGl2` on every CI run. That is the
- * point: without the guard, the library would throw here and the landing page
- * would render its error boundary instead of the hero. The branch below keeps
- * the spec honest on a headed browser too.
+ * point: without the guard the library throws, and because it does so inside an
+ * un-awaited `async` effect that throw is an unhandled rejection — no error
+ * boundary sees it, nothing fails, and the only visible symptom is an empty
+ * canvas stranded over the poster. Precisely the kind of silent wrong that needs
+ * a test measuring the DOM. The branch below keeps the spec honest on a headed
+ * browser too.
  *
  * `apps/web/app/__tests__/hero-shader.test.ts` covers the colour, speed and
  * support decisions; this covers them reaching the screen.
@@ -23,8 +26,8 @@ const heroOf = (page: import("@playwright/test").Page) =>
 test("the hero renders whether or not the shader can run", async ({ page }) => {
   await page.goto("/");
 
-  // The guard's deny path: no WebGL2 must degrade to the poster, never to
-  // a thrown constructor that takes the page with it.
+  // The guard's deny path: no WebGL2 must degrade to the poster, with the hero's
+  // own content intact rather than a half-mounted shader over it.
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 
   const background = page.getByTestId("hero-background");
