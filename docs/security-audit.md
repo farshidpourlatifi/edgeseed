@@ -877,6 +877,16 @@ routes that do not exist yet.
   `apps/web/wrangler.jsonc:18-19` sets it with no `env.production` override and
   no `workers_dev: false`. Harmless today since nothing branches on it, but any
   future "relax X in development" logic will silently apply in production.
+  **Update:** both halves are closed. `deploy:web` overrides `ENVIRONMENT` with
+  `--var ENVIRONMENT:production`, and the missing `workers_dev: false` was a
+  misreading — wrangler resolves the absent key to `routes.length === 0` and
+  points `preview_urls` at the same value, so the two `custom_domain` routes
+  already turn both off. Writing it out was tried and reverted: `init:product`
+  strips `routes` and nothing else, so a clone would inherit an explicit `false`
+  with no routes to justify it and deploy a Worker with no public hostname. The
+  inference is documented above the `routes` block instead. Since issue #6, a
+  hostname that neither origin variable names is refused in split mode anyway,
+  which covers either being switched back on.
 - **OpenAPI spec and version are publicly exposed.** `apps/web/server/api.ts:30`
   serves `/api/v1/doc` unconditionally, and `/health` returns `APP_VERSION`
   (line 26) — free reconnaissance and deployment fingerprinting as the API grows.
@@ -978,7 +988,11 @@ don't re-litigate them.
 - **`trustedOrigins`** — unset, which safely defaults to the `baseURL` origin.
   No wildcard anywhere. (Adding a custom domain alongside workers.dev will break
   auth until this is set explicitly — document rather than reaching for a
-  wildcard.)
+  wildcard.) **Update, issue #6:** in split-origin mode `server/origins.ts` now
+  refuses any host that is neither `BETTER_AUTH_URL` nor `MARKETING_URL`, so the
+  workers.dev hostname 404s before auth constructs rather than serving an auth
+  surface `trustedOrigins` does not cover. Single-origin deploys are unchanged
+  and this note still applies to them.
 - **Secrets in git history** — a value-by-value `git grep` across every commit in
   `git rev-list --all` confirms the real GitHub, Google, and Better Auth secrets
   in `apps/web/.dev.vars` have **never** entered git. No `.env`/`.dev.vars`/key

@@ -17,6 +17,18 @@
   // see docs/domains.md. A single-origin product declares one pattern here and
   // leaves MARKETING_URL unset.
   //
+  // Declaring these also turns OFF the workers.dev hostname and the per-version
+  // preview URLs. Wrangler resolves an absent `workers_dev` to
+  // `routes.length === 0` and points `preview_urls` at the same value, so the
+  // schema's static "defaults to true" describes the field, not what this
+  // config deploys. Two reviewers read it the other way; hence this note.
+  //
+  // Do NOT write `"workers_dev": false` out to say so. It is a no-op here and a
+  // regression downstream: `init:product` strips the `routes` block below and
+  // nothing else, so a clone would keep the explicit `false` with no routes to
+  // justify it and deploy a Worker with no public hostname at all. The same
+  // trap waits for any key whose correct value depends on `routes` existing.
+  //
   // `init:product` strips this block from a clone: inheriting these hostnames
   // would make a fresh clone's first deploy try to claim a zone it does not own.
   "routes": [

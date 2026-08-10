@@ -8,7 +8,7 @@ import {
 } from "@starter/observability/middleware";
 import { API_BASE_PATH, apiApp } from "./api";
 import { securityMiddleware } from "./security-headers";
-import { resolveOriginRedirect } from "./origins";
+import { resolveOriginRequest } from "./origins";
 
 export interface ServerEnv {
   Bindings: ObservabilityEnv["Bindings"] & {
@@ -48,17 +48,29 @@ app.use(observabilityMiddleware);
 app.use(...securityMiddleware);
 
 // Split-origin topology, when configured. Mounted before authMiddleware on
-// purpose: an app path arriving on the marketing origin leaves as a redirect
-// without ever constructing an auth instance there, so the guarantee that auth
-// only runs on one origin is structural rather than a convention. No-op unless
-// MARKETING_URL is set — see docs/domains.md.
+// purpose: a request that belongs on another origin — or on no origin this
+// Worker was configured for — leaves without ever constructing an auth instance
+// here, so the guarantee that auth only runs on the app origin is structural
+// rather than a convention. No-op unless MARKETING_URL is set — see
+// docs/domains.md.
 app.use(async (c, next) => {
-  const target = resolveOriginRedirect({
+  const decision = resolveOriginRequest({
     marketingUrl: c.env.MARKETING_URL,
     appUrl: c.env.BETTER_AUTH_URL,
     requestUrl: c.req.url,
   });
-  if (target) return c.redirect(target, 302);
+
+  if (decision.action === "refuse") {
+    // 404, not 421 Misdirected Request: 421 invites an HTTP/2 client to retry
+    // the same request on a fresh connection, which can only produce the same
+    // answer. The log line is the signal — an unconfigured origin answering at
+    // all is a DNS or routes mistake somebody needs to see.
+    c.get("logger").warn("origin.refused", { host: new URL(c.req.url).host, path: c.req.path });
+    return c.text("Not Found", 404);
+  }
+
+  if (decision.action === "redirect") return c.redirect(decision.url, 302);
+
   await next();
 });
 

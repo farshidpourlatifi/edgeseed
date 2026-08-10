@@ -172,7 +172,10 @@ wrangler secret put MARKETING_URL
 ```
 
 Without it the split never activates and both hostnames serve the app's auth
-routes. See [Domain Topology](./domains.md).
+routes. Setting it also closes the set: any other hostname the Worker is
+reachable on — a third route, a dashboard zone route, an enabled `workers.dev`
+or preview URL — answers 404 instead of serving auth. Check that list before you
+set it. See [Domain Topology](./domains.md).
 
 **Optional — GitHub social login.** Create an OAuth app at
 https://github.com/settings/developers with the callback URL
