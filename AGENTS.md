@@ -523,9 +523,11 @@ and a coverage target. Read it before working in that directory.
 - Then `app.use(...securityMiddleware)` — response headers, the CSP nonce, and
   `no-store` for cookie-bearing requests. Mounted as one ordered unit; see
   "Security standards"
-- Then the origin redirect (no-op unless `MARKETING_URL` is set), which sits
-  **below** the headers so redirects carry them and **above** `authMiddleware`
-  so auth never constructs on the marketing origin
+- Then the origin resolver (no-op unless `MARKETING_URL` is set), which
+  redirects across the split and **404s a hostname that is neither origin**. It
+  sits **below** the headers so redirects and refusals carry them, and **above**
+  `authMiddleware` so auth never constructs on the marketing origin or on an
+  origin nobody declared
 - Then `authMiddleware` — validates the env through `parseEnv` and refuses the
   request if it fails, then builds db + auth per request
 - Mounts Better Auth at `/api/auth/**`
@@ -882,10 +884,30 @@ that is deliberate starter surface.
 - **Split origin** is opt-in via `MARKETING_URL`. Set it and `server/origins.ts`
   moves `/login`, `/register`, `/dashboard` and `/api` to `BETTER_AUTH_URL`'s
   origin, while `/` on the app origin bounces back to marketing.
+- **Setting it also closes the set of hostnames.** One that is neither
+  `BETTER_AUTH_URL` nor `MARKETING_URL` gets a 404 and an `origin.refused` warn.
+  What it is defending against: `routes` and these two variables are
+  **independent lists that nothing reconciles** — a third `custom_domain`, a
+  zone route added in the dashboard, an explicitly enabled
+  `workers_dev`/`preview_urls` (both off by inference here, since wrangler
+  resolves `workers_dev` to `routes.length === 0`), a legacy record, or a
+  configured host on an alternate Cloudflare HTTPS port. Unset, nothing is
+  refused, because a Worker cannot read its own `routes` list and so cannot tell
+  single-origin from unconfigured-split. The match is hostname **and port**, not
+  scheme — plaintext is Cloudflare's Always Use HTTPS to solve, before the
+  Worker runs.
+- **It closes what the Worker serves, not what the hostname serves.** Static
+  assets are matched ahead of the Worker (`run_worker_first` defaults to
+  `false`), so `/assets/*` and the favicons still answer 200 on a refused host.
+  Public bytes, no auth surface — say that rather than claiming the hostname
+  goes dark.
 - The middleware sits **before** `authMiddleware`, so auth cannot execute on the
   marketing origin. That guarantee is structural — do not reorder it.
 - If both variables name the same host the resolver falls back to single-origin
-  rather than looping. Tested; check it first if a split silently does nothing.
+  rather than looping, and that fallback is **whole**: it refuses nothing
+  either, because a marketing apex still in `routes` matches neither origin in
+  that state and 404ing the landing page over one copy-pasted secret is worse
+  than the hole. Tested; check it first if a split silently does nothing.
 
 Hostnames are declared as `custom_domain` routes in `apps/web/wrangler.jsonc`,
 so `wrangler deploy` creates the DNS records itself — never pre-create an
@@ -937,8 +959,11 @@ and neither declares nor reads the variable.
 `MARKETING_URL`. The split is driven by the variable, not by the route list, so
 declaring both hostnames without setting it deploys a Worker that answers
 `/login`, `/register`, `/dashboard` and `/api/auth` on **both** — `origins.ts`
-returns `null` for every request and the "auth never constructs on the
-marketing origin" guarantee silently does not hold.
+serves every request where it arrived and the "auth never constructs on the
+marketing origin" guarantee silently does not hold. This is the one half the
+code cannot catch, since a Worker cannot read its own `routes` list; setting the
+variable is what declares the topology, and everything `origins.ts` enforces
+follows from it.
 
 ```bash
 wrangler secret put MARKETING_URL   # https://edgeseed.dev
@@ -947,8 +972,15 @@ wrangler secret put MARKETING_URL   # https://edgeseed.dev
 Do **not** put it in `vars`: that block is shared with local dev, so the value
 would reach `pnpm dev` and bounce `localhost:5173/` to the production marketing
 host. Same reason `ENVIRONMENT` is corrected with `--var` at deploy time rather
-than committed. Nothing enforces this yet — the structural fix is to refuse to
-serve a host that is neither origin, tracked in issue #6.
+than committed.
+
+Setting it has one consequence to know in advance: the Worker stops answering on
+every hostname neither variable names. Before setting it, list every hostname
+that reaches the Worker — `routes`, dashboard zone routes, `workers_dev` and
+`preview_urls` if either is on — and move any uptime monitor or smoke target off
+the leftovers. `check:deployed` requests `/api/v1/health` on every target
+`wrangler deploy` reports, so a leftover one fails the release on `HTTP 404`
+_after_ the deploy has landed (`docs/domains.md`).
 
 Optional (social login): `GITHUB_CLIENT_ID`/`SECRET`, `GOOGLE_CLIENT_ID`/`SECRET`.
 

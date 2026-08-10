@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { createFakeEnv } from "@starter/testing/fake-env";
 import app from "../index";
 
@@ -66,5 +66,78 @@ describe("the web server chain", () => {
   it("still answers 401 for an anonymous API caller when the env is valid", async () => {
     const res = await app.request(`${APP}/api/v1/me`, {}, splitEnv());
     expect(res.status).toBe(401);
+  });
+});
+
+describe("the web server chain — an unconfigured origin (issue #6)", () => {
+  const STRAY = "https://edgeseed-web.someone.workers.dev";
+
+  it("refuses a hostname that is neither origin", async () => {
+    const res = await app.request(`${STRAY}/login`, {}, splitEnv());
+
+    expect(res.status).toBe(404);
+    // Not the login page with a 404 status on it.
+    expect(await res.text()).toBe("Not Found");
+  });
+
+  // The origin is taken from the request URL — which on Workers is the Host
+  // Cloudflare routed on — never from a header a client can write. Same
+  // reasoning as `ipAddressHeaders` being one entry long: a forwarding header
+  // is attacker-controlled, and this one would hand back the whole auth surface.
+  it.each(["x-forwarded-host", "host", "x-forwarded-server"])(
+    "still refuses when %s claims the app origin",
+    async (header) => {
+      const res = await app.request(
+        `${STRAY}/api/auth/sign-in/email`,
+        { method: "POST", headers: { [header]: "app.test" } },
+        splitEnv(),
+      );
+
+      expect(res.status).toBe(404);
+    },
+  );
+
+  it("logs the refusal, which is the signal an operator acts on", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await app.request(`${STRAY}/login`, {}, splitEnv());
+
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        msg: "origin.refused",
+        host: "edgeseed-web.someone.workers.dev",
+        path: "/login",
+      }),
+    );
+    warn.mockRestore();
+  });
+
+  // The same ordering assertion as the redirect above, at the guard that
+  // matters most: the auth surface must not construct on a hostname nobody
+  // declared. A deliberately broken secret proves which middleware ran first —
+  // authMiddleware would answer 500.
+  it("refuses without constructing auth", async () => {
+    const env = { ...splitEnv(), BETTER_AUTH_SECRET: undefined };
+    const res = await app.request(`${STRAY}/api/auth/sign-in/email`, { method: "POST" }, env);
+
+    expect(res.status).toBe(404);
+  });
+
+  it("carries the security headers on the refusal", async () => {
+    const res = await app.request(`${STRAY}/dashboard`, {}, splitEnv());
+
+    expect(res.headers.get("x-frame-options")).toBe("DENY");
+  });
+
+  it("serves that same hostname in single-origin mode", async () => {
+    // The guard enforces a declared topology. Without MARKETING_URL there is
+    // none, and refusing would break `pnpm dev` and every one-hostname deploy.
+    const res = await app.request(
+      `${STRAY}/api/v1/health`,
+      {},
+      createFakeEnv({ BETTER_AUTH_URL: APP }) as Record<string, unknown>,
+    );
+
+    expect(res.status).toBe(200);
   });
 });
