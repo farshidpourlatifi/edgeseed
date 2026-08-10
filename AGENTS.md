@@ -913,7 +913,14 @@ Hostnames are declared as `custom_domain` routes in `apps/web/wrangler.jsonc`,
 so `wrangler deploy` creates the DNS records itself — never pre-create an
 A/CNAME for them, and the zone must be on this same Cloudflare account.
 `init:product` **strips** `routes` from a clone alongside localising
-`database_id`, since they name hostnames the clone does not own.
+`database_id`, since they name hostnames the clone does not own. It strips that
+block and nothing else, so **never write out a key whose correct value depends
+on `routes` existing** — the key survives into a clone that no longer has the
+routes justifying it. `workers_dev` is the live example: absent, wrangler
+resolves it to `routes.length === 0` and it is correct in both repos; written
+out as `false` to document that, it would leave a stripped clone with no custom
+domain _and_ no workers.dev, i.e. a Worker with no public hostname at all.
+Document the inference in a comment above `routes`, which gets stripped with it.
 
 This repo runs split: `edgeseed.dev` marketing, `app.edgeseed.dev` app.
 

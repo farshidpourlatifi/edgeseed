@@ -17,23 +17,24 @@
   // see docs/domains.md. A single-origin product declares one pattern here and
   // leaves MARKETING_URL unset.
   //
+  // Declaring these also turns OFF the workers.dev hostname and the per-version
+  // preview URLs. Wrangler resolves an absent `workers_dev` to
+  // `routes.length === 0` and points `preview_urls` at the same value, so the
+  // schema's static "defaults to true" describes the field, not what this
+  // config deploys. Two reviewers read it the other way; hence this note.
+  //
+  // Do NOT write `"workers_dev": false` out to say so. It is a no-op here and a
+  // regression downstream: `init:product` strips the `routes` block below and
+  // nothing else, so a clone would keep the explicit `false` with no routes to
+  // justify it and deploy a Worker with no public hostname at all. The same
+  // trap waits for any key whose correct value depends on `routes` existing.
+  //
   // `init:product` strips this block from a clone: inheriting these hostnames
   // would make a fresh clone's first deploy try to claim a zone it does not own.
   "routes": [
     { "pattern": "app.edgeseed.dev", "custom_domain": true },
     { "pattern": "edgeseed.dev", "custom_domain": true },
   ],
-  // A no-op that states intent. Wrangler resolves an absent `workers_dev` to
-  // `routes.length === 0`, so the two routes above already turn it — and
-  // `preview_urls`, which follows it — off. Written out because that inference
-  // is invisible in the file: reviewers twice read the schema's static
-  // "defaults to true" and concluded the workers.dev hostname was live.
-  //
-  // It is also the one hostname `server/origins.ts` cannot see coming. In split
-  // mode that guard 404s any host neither BETTER_AUTH_URL nor MARKETING_URL
-  // names, so turning this back on publishes an origin that answers nothing —
-  // set it with that in mind, not by reflex.
-  "workers_dev": false,
   // Auth rate limiting (docs/security-audit.md #4). One binding per enforcement
   // class, because a binding carries exactly one limit/period pair; which paths
   // map to which class lives in `packages/auth/src/rate-limit.ts`, and the

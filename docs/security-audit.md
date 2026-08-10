@@ -878,12 +878,15 @@ routes that do not exist yet.
   no `workers_dev: false`. Harmless today since nothing branches on it, but any
   future "relax X in development" logic will silently apply in production.
   **Update:** both halves are closed. `deploy:web` overrides `ENVIRONMENT` with
-  `--var ENVIRONMENT:production`, and `workers_dev: false` is now written out in
-  `apps/web/wrangler.jsonc` — a no-op, since wrangler already resolved the
-  absent key to `routes.length === 0` and `preview_urls` follows it, but the
-  inference is invisible in the file and was misread twice. Since issue #6 a
-  hostname neither origin variable names is refused in split mode anyway, which
-  covers either being switched back on.
+  `--var ENVIRONMENT:production`, and the missing `workers_dev: false` was a
+  misreading — wrangler resolves the absent key to `routes.length === 0` and
+  points `preview_urls` at the same value, so the two `custom_domain` routes
+  already turn both off. Writing it out was tried and reverted: `init:product`
+  strips `routes` and nothing else, so a clone would inherit an explicit `false`
+  with no routes to justify it and deploy a Worker with no public hostname. The
+  inference is documented above the `routes` block instead. Since issue #6, a
+  hostname that neither origin variable names is refused in split mode anyway,
+  which covers either being switched back on.
 - **OpenAPI spec and version are publicly exposed.** `apps/web/server/api.ts:30`
   serves `/api/v1/doc` unconditionally, and `/health` returns `APP_VERSION`
   (line 26) — free reconnaissance and deployment fingerprinting as the API grows.
