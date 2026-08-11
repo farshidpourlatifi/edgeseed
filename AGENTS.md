@@ -261,19 +261,29 @@ and this list, or the stale copy will be trusted.
    a security boundary (children run in parallel and can be fetched directly),
    so a new page guards itself. Ask the standing-pass review questions of every
    diff that adds a route, loader, table, or tool. (`security-plan.md`)
-6. **OAuth tokens sit in plaintext and tenant rows do not cascade.** Any D1
-   export exposes usable Google/GitHub access tokens; expired `verification`
-   rows are never purged; `member`/`invitation` foreign keys have no
-   `onDelete`, so deleting a user or org fails or strands rows — and retained
-   invitee emails are a GDPR-deletion problem. (`security-audit.md` #12, #13)
+6. **OAuth tokens sit in plaintext and expired rows are never purged.** Any D1
+   export exposes usable Google/GitHub access tokens, and `verification` holds
+   raw email-verification and password-reset values that nothing cleans up, so
+   the exposure only grows. (`security-audit.md` #12 — still open.) The
+   **referential-integrity half of this concern is closed**: as of
+   2026-08-12 every tenant foreign key cascades and
+   `session.activeOrganizationId` nulls out, so deleting a user or org can no
+   longer fail or strand rows (#13). One GDPR residue survives that fix and no
+   constraint can reach it — `invitation.email` has no foreign key to `user`,
+   so an invitation addressed to a deleted user's address needs an
+   application-level sweep in whatever finally adds an account-deletion
+   surface.
 7. **A leaked secret is rotated first, cleaned second.** Once committed, the
    credential is compromised even if never pushed — revoke it at the provider,
    then rewrite history. Rewriting without rotation is theater.
    (`secret-scanning.md`)
 8. **D1 bills rows scanned, not rows returned — and writes are the expensive
    metric.** An unindexed filter reads the whole table; deletes count as
-   writes; the hot missing index is `member(userId)`, scanned on every
-   dashboard navigation. Free-plan limits fail closed (errors, not bills);
+   writes. The auth-path indexes ship as of 2026-08-12, `member(userId)`
+   among them — the rule was **every foreign-key child column** (so no cascade
+   scans) **plus the named non-key lookups**, and `schema.test.ts` asserts that
+   set exactly, so a new index needs a stated consumer and a missing one fails.
+   Keep new tables to it. Free-plan limits fail closed (errors, not bills);
    Paid has no hard cap — budget alerts inform, they do not stop usage.
    Paginate every list. (`costs-and-limits.md`)
 9. **Every clone mints its own identity before deploying.** Create a new D1
@@ -780,6 +790,28 @@ Never edit a migration that has reached production; add a new one (concern #10).
 This is why the workflow does not migrate: a destructive migration applied
 automatically on every tag is not something to discover during an incident, and
 the safe ordering cannot be expressed as "one step in the deploy".
+
+**A foreign-key change is a whole-table rebuild, and the generated SQL is not
+D1-safe until `db:generate` rewrites it.** SQLite cannot `ALTER` a constraint,
+so drizzle-kit emits `CREATE __new_x` → `INSERT … SELECT` → `DROP x` →
+`RENAME`, wrapped in `PRAGMA foreign_keys=OFF` / `…=ON`. **D1 rejects that
+pragma** — it enforces foreign keys and exposes only `PRAGMA
+defer_foreign_keys`. Local `db:migrate` runs against miniflare's SQLite, which
+accepts it, so the whole verify gate goes green and the **remote** migration is
+what fails. `db-generate.ts` therefore strips the pragma from files it creates
+and says so in its output (`packages/cli/src/lib/d1-sql.ts` explains why
+removing it is safe rather than merely expedient). Two consequences:
+
+- Migrations under `packages/db/migrations/` are generated **and then
+  rewritten** — do not "restore" a stripped pragma, and do not hand-write one.
+- The rebuild's `INSERT … SELECT` re-validates every existing row against the
+  new constraints. Rows that already violate them fail the migration loudly,
+  which is correct — orphans are the defect. Check before applying to a real
+  database rather than discovering it mid-release:
+
+```bash
+npx wrangler d1 execute edgeseed-db --remote --command "SELECT COUNT(*) FROM member m LEFT JOIN organization o ON o.id = m.organizationId WHERE o.id IS NULL;"
+```
 
 ### Cutting a release
 

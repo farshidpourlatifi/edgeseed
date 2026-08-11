@@ -15,6 +15,13 @@
       "when": 1785854283670,
       "tag": "0001_sloppy_photon",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1786482493317,
+      "tag": "0002_flippant_namora",
+      "breakpoints": true
     }
   ]
 }

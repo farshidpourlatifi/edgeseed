@@ -188,6 +188,14 @@ workflow still passes, so a green run is not evidence.
   pagination, and tenant scoping with D1 costs in mind. Require migration-before-
   code ordering and expand-then-contract across two releases for destructive or
   compatibility-sensitive changes.
+- Reject `PRAGMA foreign_keys=OFF`/`ON` in any migration. D1 rejects it, while
+  miniflare accepts it, so a green local run and a green verify gate prove
+  nothing — the remote apply is what breaks. `db:generate` strips it; its
+  reappearance means someone restored it or hand-wrote the file.
+- Every new foreign key states an `onDelete`, and every foreign-key child column
+  gets an index — an unindexed child scans on each cascade delete, and deletes
+  bill as writes. `packages/db/src/__tests__/schema.test.ts` asserts both sets
+  exactly; a diff that adds a column without touching it is suspect.
 - Keep API and MCP capabilities in parity. Register each new tool separately,
   source tool identity from `ctx.user`, and align schemas and response fields
   with the API counterpart.
