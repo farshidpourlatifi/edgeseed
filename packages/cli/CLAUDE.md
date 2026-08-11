@@ -16,7 +16,7 @@ them.
 
 ## Layout
 
-- `src/db-*.ts` — wrap `wrangler d1` / `drizzle-kit` for the local database lifecycle
+- `src/db-*.ts` — wrap `wrangler d1` / `drizzle-kit` for the local database lifecycle. `db-generate.ts` also rewrites the migrations it creates through `lib/d1-sql.ts`, which strips the `PRAGMA foreign_keys` that drizzle-kit emits around a foreign-key table rebuild and D1 rejects — miniflare accepts it, so nothing local catches the failure. It only touches files that run created; an applied migration is immutable.
 - `src/api-spec.ts` — renders the OpenAPI spec from `apps/web/server/api.ts` into `docs/api/openapi.json`
 - `src/version-bump.ts` — bumps `packages/config/src/version.ts` + package versions, regenerates the OpenAPI spec (whose `info.version` is `APP_VERSION`), then prints the tag steps
 - `src/check-release-version.ts` — refuses a release tag that disagrees with `package.json` / `APP_VERSION`

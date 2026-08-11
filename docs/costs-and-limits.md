@@ -169,19 +169,32 @@ Existing useful indexes are:
 - unique `session.token`;
 - unique `organization.slug`.
 
-Likely high-value missing indexes, to validate against generated Better Auth SQL, are:
+As of 2026-08-12 (`0002_flippant_namora.sql`) these ship as well:
 
-- `member(userId)` for the dashboard's `listOrganizations` call;
-- `member(organizationId)` and preferably a unique `(organizationId, userId)` pair;
-- `account(userId)` and a provider/account lookup index such as `(providerId, accountId)`;
-- `session(userId)` and `session(expiresAt)` for user-session and cleanup operations;
-- `verification(identifier)` and possibly `verification(expiresAt)`;
-- `invitation(organizationId)`, `invitation(email)`, and possibly `invitation(expiresAt)`.
+- `member(userId)` for the dashboard's `listOrganizations` call — this was the most immediate
+  risk, since the dashboard loader lists organizations on every navigation and the query
+  scanned the whole membership table;
+- `member(organizationId)`, `invitation(organizationId)`, `invitation(inviterId)`;
+- `account(userId)` and the composite `account(providerId, accountId)` provider lookup;
+- `session(userId)`;
+- `verification(identifier)`;
+- `invitation(email)`;
+- `apiToken(userId)` and `apiToken(organizationId)`.
 
-The most immediate risk is `member(userId)`: the dashboard loader lists organizations on each
-dashboard navigation, and without an index that query can scan the membership table. Add indexes
-based on observed queries rather than indexing every column—indexes reduce reads but add storage
-and row writes.
+The rule applied was **every foreign-key child column** — an unindexed child makes each cascade
+delete scan, and deletes bill as writes — **plus the named non-key lookups**. `schema.test.ts`
+asserts that set exactly, so an index without a stated consumer fails as loudly as a missing one.
+That is the discipline to keep: add indexes based on observed queries rather than indexing every
+column, because indexes reduce reads but add storage and row writes.
+
+Deliberately still absent, and worth revisiting only with evidence:
+
+- `session(activeOrganizationId)` — would serve only its own `set null` on organization deletion,
+  which is rare, while `session` takes a write on every sign-in;
+- `session(expiresAt)`, `verification(expiresAt)`, `invitation(expiresAt)` — no cleanup job reads
+  them yet. Add one alongside the scheduled purge, not before;
+- a unique `member(organizationId, userId)` pair — sound integrity, but it changes what writes
+  Better Auth can make, so it wants its own change rather than riding along with an index pass.
 
 ## Monthly estimates
 
