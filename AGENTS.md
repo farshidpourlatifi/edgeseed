@@ -96,8 +96,9 @@ and compare names against the example, never values.
   a server holding the dropped D1 file makes every auth call fail with
   `SQLITE_CANTOPEN`, and an orphaned dev server bound IPv6-only produces
   `ERR_CONNECTION_REFUSED`. Both look like code regressions and are not.
-- When you invalidate a claim in one file, **grep for its other homes**. Docs
-  that contradict the code are worse than missing docs, because they are trusted.
+- When you invalidate a claim in one file, **grep for its other homes**. Include
+  `.github/skills/code-review/SKILL.md` when the claim is a review rule. Docs that
+  contradict the code are worse than missing docs, because they are trusted.
 - Do not read live project files as test fixtures. `pnpm init:product` rewrites
   `wrangler.jsonc` and `packages/config/src/product.ts` in every downstream
   clone, so a test asserting on their current contents fails permanently there.
@@ -476,8 +477,8 @@ arguments.
   Better Auth through `auth.api.*` rather than HTTP, does it limit itself?
 - New inline script — nonce or hash, and which, and is it tested?
 - Invalidated a claim in a doc — did you grep for its other homes? The audit,
-  `security-plan.md`, this file and the per-package `CLAUDE.md` files all repeat
-  each other, and a stale copy is trusted.
+  `security-plan.md`, this file, `.github/skills/code-review/SKILL.md` and the
+  per-package `CLAUDE.md` files all repeat each other, and a stale copy is trusted.
 
 ---
 
