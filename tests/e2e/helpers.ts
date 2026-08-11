@@ -20,6 +20,33 @@ export function markEmailVerified(email: string) {
 }
 
 /**
+ * Give `email` an organization it owns, directly in the local D1.
+ *
+ * The app has no way to create one — that is the whole point of issue #16, and
+ * building it is the Organizations epic (#24). But `OrganizationSwitcher`
+ * renders nothing until the user has at least one org, so without this seam
+ * the switcher and its disabled "Create organization" item are unreachable
+ * from a browser and cannot be tested at all.
+ *
+ * Mirrors the shape `packages/cli/src/db-seed.ts` writes, and is `--local`
+ * only for the same reason.
+ */
+export function giveOrganization(email: string, slug: string, name: string) {
+  const orgId = `e2e-org-${slug}`;
+  const sql = [
+    `INSERT OR IGNORE INTO organization (id, name, slug, createdAt) ` +
+      `VALUES ('${orgId}', '${name}', '${slug}', unixepoch());`,
+    `INSERT OR IGNORE INTO member (id, organizationId, userId, role, createdAt) ` +
+      `SELECT '${orgId}-member', '${orgId}', id, 'owner', unixepoch() FROM user WHERE email = '${email}';`,
+  ].join(" ");
+
+  execSync(
+    `pnpm --filter @starter/web exec wrangler d1 execute edgeseed-db --local --command "${sql}"`,
+    { stdio: "pipe" },
+  );
+}
+
+/**
  * A client address unique to this call, for `cf-connecting-ip`.
  *
  * Auth rate limiting keys on that header (audit #4, #11), and nothing sets it
