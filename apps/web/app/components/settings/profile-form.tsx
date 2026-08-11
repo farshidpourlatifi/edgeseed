@@ -42,6 +42,13 @@ export function ProfileForm({ user }: { user: { name: string; email: string } })
         return;
       }
 
+      // What was stored is the trimmed name, so that is what the field has to
+      // show. `useState` seeds from the prop once and never re-syncs, so
+      // without this the input keeps the user's padding while the sidebar
+      // renders the trimmed value — the form claiming an account detail the
+      // account does not hold.
+      setName(trimmed);
+
       // The sidebar and topbar read the name from the dashboard *layout*
       // loader, so the write is invisible until every loader re-runs. Awaiting
       // it also means the success toast only fires once the new name is the

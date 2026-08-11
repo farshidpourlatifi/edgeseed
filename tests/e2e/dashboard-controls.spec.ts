@@ -111,13 +111,17 @@ test.describe("dashboard controls", () => {
     await page.reload();
     await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(USER.name);
 
-    // --- The happy path. ---
+    // --- The happy path, typed with padding the save has to strip. ---
     const reloadedName = page.getByRole("textbox", { name: "Name", exact: true });
     await waitForHydration(reloadedName);
-    await reloadedName.fill(USER.renamed);
+    await reloadedName.fill(`  ${USER.renamed}  `);
     await page.getByRole("button", { name: "Save Changes" }).click();
 
     await expect(page.getByText("Profile saved")).toBeVisible({ timeout: 15000 });
+
+    // The field shows what was stored, not what was typed — before any reload
+    // papers over the difference.
+    await expect(reloadedName).toHaveValue(USER.renamed);
 
     // Persisted, not merely echoed back: a full reload re-reads it from D1, and
     // the sidebar renders it from a *different* loader.
