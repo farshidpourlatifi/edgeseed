@@ -26,7 +26,7 @@ them.
 | 10  | Medium   | Dashboard child loaders do not enforce auth themselves                | Resolved   |
 | 11  | Medium   | IP-derived controls trust spoofable `x-forwarded-for`                 | Resolved   |
 | 12  | Medium   | OAuth and verification tokens stored in plaintext, never purged       | Live       |
-| 13  | Medium   | `member`/`invitation` foreign keys do not cascade on delete           | Resolved   |
+| 13  | Medium   | `member`/`invitation` foreign keys do not cascade on delete           | Live       |
 | 14  | Medium   | No `Cache-Control` on authenticated responses                         | Resolved   |
 | 15  | Medium   | No CSRF protection on the `/api/v1` mount                             | Resolved   |
 
@@ -737,29 +737,6 @@ residual-data leak and a GDPR-deletion problem.
 `invitation.organizationId`; decide cascade versus set-null for
 `invitation.inviterId`.
 
-**RESOLVED 2026-08-12** — migration `0002_flippant_namora.sql`. All four
-foreign keys cascade, and `session.activeOrganizationId` — which had no
-constraint at all — gained one with `ON DELETE set null`, so a deleted
-organization can no longer leave a ghost id for `principal.ts` to hand
-`/api/v1` as the caller's `organizationId`.
-
-`invitation.inviterId` was decided as **cascade**. Set-null is the better
-semantic — an invitation belongs to the organization, not to whoever sent
-it — but it needs a nullable column and Better Auth's organization plugin
-expects this one NOT NULL. Deleting an admin therefore voids the invitations
-they sent; the organization can re-issue them. Revisit if the column becomes
-nullable upstream.
-
-`schema.test.ts` asserts the complete foreign-key set as one list, so a new
-foreign key added without a delete behavior fails there rather than shipping.
-
-**One half of the GDPR concern above is still open, and no constraint can
-close it:** `invitation.email` is plain text with no foreign key to `user`, so
-a pending invitation addressed to a deleted user's address survives every
-cascade here. That needs an application-level sweep in the account-deletion
-path — which does not exist yet (there is no delete-user or delete-organization
-surface in the app today). It belongs with the work that adds one.
-
 ### 14. No `Cache-Control` on authenticated responses
 
 `apps/web/app/entry.server.tsx:28-33` sets only `Content-Type`, and
@@ -896,16 +873,6 @@ routes that do not exist yet.
   `invitation(email, organizationId)`. `docs/costs-and-limits.md:167-174` already
   lists these as a cost concern; the security angle is read amplification on
   every sign-in as the table grows, and full scans during cascade deletes.
-  **RESOLVED 2026-08-12** alongside #13 — all of the above ship in
-  `0002_flippant_namora.sql`, plus `apiToken(userId)` and
-  `apiToken(organizationId)`. The rule applied was: index every foreign-key
-  child column (so no cascade scans) plus the named non-key lookups
-  (`verification(identifier)`, `invitation(email)`, and the composite
-  `account(providerId, accountId)`). `session(activeOrganizationId)` is
-  deliberately absent — it would serve only that column's set-null, and the
-  table takes a write on every sign-in. `schema.test.ts` asserts the index set
-  exactly, so an index without a stated consumer fails as loudly as a missing
-  one.
 - **Production deploys report `ENVIRONMENT: "development"`.**
   `apps/web/wrangler.jsonc:18-19` sets it with no `env.production` override and
   no `workers_dev: false`. Harmless today since nothing branches on it, but any

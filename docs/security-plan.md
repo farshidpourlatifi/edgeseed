@@ -338,17 +338,12 @@ returns nothing. Add this to the standing pass below.
 
 ### 3.2 Database schema corrections — **A12, A13**
 
-- ~~Add `onDelete: "cascade"` to `member.organizationId`, `member.userId`, and
+- Add `onDelete: "cascade"` to `member.organizationId`, `member.userId`, and
   `invitation.organizationId`; decide cascade vs set-null for
-  `invitation.inviterId`.~~ **Done 2026-08-12** (`0002_flippant_namora.sql`) —
-  all four cascade; `inviterId` was decided as cascade because set-null needs a
-  nullable column and Better Auth expects it NOT NULL. `session.activeOrganizationId`
-  gained a `set null` foreign key it never had. **A13 is closed; A12 is not.**
-- ~~Add indexes on `verification(identifier)`, `account(userId)`,
+  `invitation.inviterId`.
+- Add indexes on `verification(identifier)`, `account(userId)`,
   `account(providerId, accountId)`, `session(userId)`, `member(userId)`, and
-  `invitation(email)`.~~ **Done 2026-08-12** — those plus
-  `member(organizationId)`, `invitation(organizationId)`,
-  `invitation(inviterId)`, `apiToken(userId)` and `apiToken(organizationId)`.
+  `invitation(email)`.
 - Add a scheduled purge of expired `verification` rows (a Cron Trigger).
 - Document the plaintext storage of OAuth tokens and verification values, or
   encrypt them via Better Auth database hooks.
