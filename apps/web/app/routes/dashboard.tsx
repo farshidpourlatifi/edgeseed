@@ -29,7 +29,6 @@ import {
   PanelLeft,
   LogOut,
   User,
-  Bell,
   Menu,
   Building2,
   ChevronsUpDown,
@@ -92,10 +91,6 @@ function OrganizationSwitcher({
     window.location.reload();
   }
 
-  async function createOrg() {
-    toast.info("Create organization coming soon");
-  }
-
   if (!activeOrg && organizations.length === 0) {
     return null;
   }
@@ -143,9 +138,21 @@ function OrganizationSwitcher({
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={createOrg} className="cursor-pointer">
-          <Plus className="mr-2 h-4 w-4" />
-          Create Organization
+        {/*
+          Disabled rather than wired up or removed. Creating an organization is
+          the first workstream of the Organizations epic (#24) — slug handling,
+          the creator's membership row and active-org selection all come with
+          it — so the honest state until then is a control that says why it
+          cannot be used, not one that reports a success nothing performed.
+        */}
+        <DropdownMenuItem disabled className="flex-col items-start gap-1">
+          <span className="flex items-center">
+            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+            Create organization
+          </span>
+          <span className="text-xs text-muted-foreground">
+            Not available yet — organization management is still being built.
+          </span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -340,8 +347,6 @@ function Topbar({
 }: {
   sidebarCollapsed: boolean;
   user: { name: string; email: string };
-  organizations: Array<{ id: string; name: string; slug: string }>;
-  activeOrganizationId: string | null;
 }) {
   const location = useLocation();
   const initials = user.name
@@ -426,15 +431,11 @@ function Topbar({
       <div className="flex items-center gap-2">
         <ThemeToggle />
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="relative h-11 w-11"
-          aria-label="View notifications"
-        >
-          <Bell className="h-5 w-5" aria-hidden="true" />
-          <span className="sr-only">Notifications</span>
-        </Button>
+        {/*
+          No notification bell here. There is no notification consumer to send
+          a user to, and an icon button that opens nothing is indistinguishable
+          from one that is broken. It comes back with the feature.
+        */}
 
         {/* Mobile user avatar */}
         <DropdownMenu>
@@ -484,12 +485,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           activeOrganizationId={activeOrganizationId}
         />
       </div>
-      <Topbar
-        sidebarCollapsed={sidebarCollapsed}
-        user={user}
-        organizations={organizations}
-        activeOrganizationId={activeOrganizationId}
-      />
+      <Topbar sidebarCollapsed={sidebarCollapsed} user={user} />
       <main
         className={cn(
           "min-h-[calc(100vh-4rem)] p-4 transition-all duration-300 md:p-6",

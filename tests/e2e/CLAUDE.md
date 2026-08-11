@@ -67,6 +67,15 @@ the dev server's memory, `db:reset` does not clear them, and
 would make the second run of the day fail for reasons that look nothing like the
 cause.
 
+## Seeding an organization
+
+`giveOrganization(email, slug, name)` writes `organization` + `member` rows into
+the local D1 directly, the same way `markEmailVerified` flips a column. It is not
+a shortcut around a UI flow — **there is no flow**: nothing in the app creates an
+organization, and `OrganizationSwitcher` renders `null` until the user owns one,
+so without this seam the switcher and everything inside it are unreachable from a
+browser. Delete it when the Organizations epic (#24) lands a real creation path.
+
 ## Testing a loader guard
 
 **Use `?_routes=` to reach a child loader on its own.** Single fetch resolves
