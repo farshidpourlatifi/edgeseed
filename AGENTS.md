@@ -61,6 +61,37 @@ The point is not ceremony. These are the actions where being wrong is expensive
 and hard to walk back, so asking costs far less than assuming. If unsure whether
 an approval still applies: it does not. Ask.
 
+### A new branch must never inherit `main` as its upstream
+
+`git checkout -b <name> origin/main` **sets the new branch's upstream to
+`origin/main`**, because git tracks whatever ref you branched from. A later bare
+`git push` then writes straight to `main` — no warning, no prompt, and every
+branch protection the repo relies on is simply not consulted, because nothing
+ever addressed the feature branch. The commit lands on `main` and cannot be
+walked back without rewriting pushed history, which the rule above forbids.
+
+This has happened here (`feat/org-referential-integrity`, 2026-08-12): the
+branch was created that way, the work was reported as "one push from a PR", and
+the human's `git push` put it on `main` instead. Git announces the tracking in
+its own output — `branch '<name>' set up to track 'origin/main'` — and it was
+not read.
+
+So, when creating a branch:
+
+```bash
+git checkout -b <name> --no-track origin/main   # or: git switch -c <name> --no-track origin/main
+```
+
+- **Verify before reporting anything as pushable.** `git rev-parse --abbrev-ref
+--symbolic-full-name @{u}` must print `origin/<name>`, or fail with "no
+  upstream" — never `origin/main`. A branch with no upstream is the safe state:
+  a bare `git push` refuses and tells the human what to run.
+- **Never hand over a bare `git push`.** Give the explicit form, which is
+  correct regardless of how the branch was wired: `git push -u origin <name>`.
+- **`git checkout -b <name> main` is not the fix.** Branching from the _local_
+  `main` copies main's upstream too. `--no-track` is what breaks the
+  inheritance; `-u` on first push is what sets the right one.
+
 ### GitHub CLI
 
 This repo belongs to a personal account while a work account may also be logged

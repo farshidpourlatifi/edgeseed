@@ -44,3 +44,24 @@ mean rewriting references inside `docs/security-audit.md` and
 Claude Code resolves `@AGENTS.md` above at session start. If `AGENTS.md` content
 is not present in context, the import did not resolve — say so rather than
 working from this file alone, since it deliberately holds almost nothing.
+
+### Before reporting a branch as ready to push
+
+The rule lives in `AGENTS.md`, "A new branch must never inherit `main` as its
+upstream" — read it there; it is not restated here, because two copies drift and
+the wrong one gets trusted. What belongs here is the habit it demands of a
+session that just created a branch and is about to hand work back:
+
+```bash
+git rev-parse --abbrev-ref --symbolic-full-name @{u}
+```
+
+Run it before saying the words "ready to push". `origin/main` is the failure —
+it means a bare `git push` will write to `main`, and it is how
+`feat/org-referential-integrity` landed on `main` on 2026-08-12. "no upstream"
+is fine and is the safer state.
+
+Read the output of `git checkout -b` rather than skimming it. Git prints
+`branch '<name>' set up to track '<ref>'` and that line is the whole answer;
+that failure was announced in plain text and went unread. Hand the human
+`git push -u origin <name>`, never a bare `git push`.
