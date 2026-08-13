@@ -103,8 +103,14 @@ same-named secret at deploy time, so never set both.)
 - everything else is served where it arrived
 
 App paths are an allowlist — `APP_PATH_PREFIXES` in that file, currently
-`/login`, `/register`, `/dashboard`, `/api`. Add to it when you add a route
-that belongs to the product rather than the marketing site.
+`/login`, `/register`, `/forgot-password`, `/reset-password`, `/dashboard`,
+`/api`. Add to it when you add a route that belongs to the product rather than
+the marketing site.
+
+Forgetting is not a cosmetic bug. An app route missing from this list is
+**served** on the marketing origin instead of redirected, and the page's own
+`POST /api/auth/...` then takes a 302 across the split — which downgrades to
+GET and drops the body, so the form silently does nothing.
 
 An **allowlist of things to move**, deliberately, not a denylist of things to
 keep: the landing page's assets (`/assets/*`, favicons, images) are never

@@ -116,6 +116,11 @@ following whenever the diff touches the relevant surface.
 - Preserve email verification before session creation, empty
   `accountLinking.trustedProviders`, and `POST_VERIFICATION_REDIRECT` on every
   verification-link flow.
+- Keep password reset enumeration-safe: the request screen must not reveal
+  whether an address has an account, and must not report a failed send as
+  success-adjacent detail. Keep `revokeSessionsOnPasswordReset` enabled, and
+  treat "a reset marks the address verified" as a change to the verification
+  gate — it needs its own argument, not a passing edit.
 - Keep rate limiting unconditionally enabled. Classify unauthenticated mail
   operations as `mail`, and explicitly limit direct `auth.api.*` calls.
 - Keep rate-limit policy synchronized with both Workers' `wrangler.jsonc` files.

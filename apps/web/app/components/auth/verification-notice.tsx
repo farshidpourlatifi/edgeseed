@@ -1,10 +1,12 @@
 import { useState } from "react";
-import { authClient, POST_VERIFICATION_REDIRECT } from "~/lib/auth-client";
+import { authClient } from "~/lib/auth-client";
+import { POST_VERIFICATION_REDIRECT } from "~/lib/auth-redirects";
 import { Button } from "@starter/ui/components/ui/button";
 import { Alert, AlertDescription } from "@starter/ui/components/ui/alert";
 import { Spinner } from "@starter/ui/components/ui/spinner";
 import { MailCheck, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { AuthNotice } from "./auth-notice";
 
 interface VerificationNoticeProps {
   /** Where the link was sent. Shown back to the reader so a typo is obvious. */
@@ -41,20 +43,17 @@ export function VerificationNotice({ email }: VerificationNoticeProps) {
   }
 
   return (
-    <div className="space-y-6 text-center">
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-        <MailCheck className="h-6 w-6 text-primary" aria-hidden="true" />
-      </div>
-
-      <div className="space-y-2">
-        <h2 className="text-lg font-semibold">Check your email</h2>
-        <p className="text-sm text-muted-foreground">
+    <AuthNotice
+      icon={MailCheck}
+      title="Check your email"
+      description={
+        <>
           We sent a verification link to{" "}
           <span className="font-medium text-foreground">{email}</span>. Follow it to finish signing
           in.
-        </p>
-      </div>
-
+        </>
+      }
+    >
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -72,6 +71,6 @@ export function VerificationNotice({ email }: VerificationNoticeProps) {
           "Resend verification email"
         )}
       </Button>
-    </div>
+    </AuthNotice>
   );
 }

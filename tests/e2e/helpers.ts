@@ -20,6 +20,55 @@ export function markEmailVerified(email: string) {
 }
 
 /**
+ * Read the pending password-reset token for `email` out of the local D1.
+ *
+ * Same seam as `markEmailVerified`, for the same reason: the reset link is
+ * delivered by email, and with no `RESEND_API_KEY` in CI the message only
+ * reaches the dev server's log. Without this the whole second half of the
+ * journey — follow the link, set a password, sign in with it — is unreachable
+ * from a browser.
+ *
+ * It reads rather than writes, which matters: the test then drives the **real**
+ * `GET /api/auth/reset-password/:token` and lets better-auth mint the redirect,
+ * so the origin it resolves against and the token's single-use behaviour are
+ * exercised rather than simulated. The callback the spec sends comes from
+ * `PASSWORD_RESET_REDIRECT` itself — hard-coding it there would let the
+ * constant drift away from `routes.ts` with the suite still green.
+ *
+ * `verification.identifier` is `reset-password:<token>` and `value` is the
+ * user id (better-auth `api/routes/password.mjs`), so the row is found by
+ * joining back to `user`. Newest first, since nothing purges consumed or
+ * expired rows (`docs/security-audit.md` #12) and an address can have several.
+ */
+export function readPasswordResetToken(email: string): string {
+  const sql =
+    `SELECT identifier FROM verification ` +
+    `WHERE value = (SELECT id FROM user WHERE email = '${email}') ` +
+    `AND identifier LIKE 'reset-password:%' ` +
+    `ORDER BY expiresAt DESC LIMIT 1`;
+
+  const output = execSync(
+    `pnpm --filter @starter/web exec wrangler d1 execute edgeseed-db --local ` +
+      `--json --command "${sql}"`,
+    { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] },
+  );
+
+  // wrangler prefixes the JSON with human-readable lines, so parse from the
+  // first bracket rather than trusting the whole of stdout to be JSON.
+  const parsed = JSON.parse(output.slice(output.indexOf("[")));
+  const identifier: string | undefined = parsed?.[0]?.results?.[0]?.identifier;
+
+  if (!identifier) {
+    throw new Error(
+      `No pending password-reset token for ${email}. The request either never ` +
+        `reached better-auth or the address does not exist in the local D1.`,
+    );
+  }
+
+  return identifier.replace("reset-password:", "");
+}
+
+/**
  * Give `email` an organization it owns, directly in the local D1.
  *
  * The app has no way to create one — that is the whole point of issue #16, and

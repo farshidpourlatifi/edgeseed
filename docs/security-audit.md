@@ -151,10 +151,30 @@ Deny paths are covered in `packages/auth/src/__tests__/auth-config.test.ts` and
 `tests/e2e/auth.spec.ts` (sign-up grants no session; correct credentials are
 refused while unverified).
 
-**Still open from the related gap:** `sendResetPassword` is now wired and
-functional, but there is no forgot-password **UI** — no link on
-`apps/web/app/routes/login.tsx` and no reset route. Reset is reachable only via
-the API.
+**Related gap CLOSED 2026-08-13** (issue #20). `/login` links to
+`/forgot-password`, and `/reset-password` completes the flow. Three properties
+were built in deliberately and each has a test that fails if it is dropped:
+
+- **Enumeration-safe.** Better Auth answers `/request-password-reset` 200 with
+  the same body either way and simulates the token work to level the timing, so
+  the UI was the only place left that could leak. The notice is worded "if an
+  account exists for …" and never claims mail was sent.
+- **Sessions are revoked on reset** (`revokeSessionsOnPasswordReset`, which
+  better-auth defaults to `false`). Without it, someone resetting _because_
+  another person is in their account changes the password and nothing else —
+  the intruder's cookie lives out its full lifetime.
+- **A reset is not proof of the address.** It does **not** set `emailVerified`,
+  so the gate this finding is about keeps its meaning; an unverified user who
+  resets is refused at sign-in and gets the verification notice. Widening this
+  is a security decision, not a papercut to smooth over.
+
+The token's failure modes — expired, forged, already spent, absent — all reach
+the same dead-link screen, because better-auth cannot distinguish them either
+once the row is consumed. Covered in `tests/e2e/password-reset.spec.ts` and
+`apps/web/app/__tests__/reset-password-link.test.ts`.
+
+**Still open:** the `verification` rows behind these links are still stored raw
+and never purged — that is #12, not this finding.
 
 ### 3. A missing `BETTER_AUTH_SECRET` silently signs sessions with a publicly-known default
 

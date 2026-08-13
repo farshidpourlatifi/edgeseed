@@ -243,8 +243,13 @@ and this list, or the stale copy will be trusted.
    the UI says "check your email" regardless — the resend path is the one that
    reports failure. Every call minting a verification link must pass
    `POST_VERIFICATION_REDIRECT` as `callbackURL`; the default is `/`, which in
-   split-origin mode strands a just-verified user on the marketing host. Still
-   missing: a forgot-password UI (reset works only via the API).
+   split-origin mode strands a just-verified user on the marketing host. The
+   forgot-password UI ships as of 2026-08-13 (`/forgot-password`,
+   `/reset-password`, linked from `/login`), and a reset **revokes every
+   existing session** — but deliberately does **not** mark the address
+   verified, so an unverified user who resets still lands on the verification
+   notice. Do not "fix" that without deciding it: it widens what satisfies the
+   gate this concern rests on.
    (`docs/adr/003-transactional-email.md`)
 2. **The env is validated at request time — do not route around it.**
    `authMiddleware` and the MCP Worker's `authFor` both call `parseEnv` before
@@ -635,6 +640,9 @@ Defined in `apps/web/app/routes.ts` (explicit route config, not file-based routi
 - `/` — landing page
 - `/login` — email/password + GitHub/Google social login
 - `/register` — with confirm password validation
+- `/forgot-password` — requests a reset link; enumeration-safe notice
+- `/reset-password` — spends the link; dead-link state when the token is absent,
+  expired, or already used
 - `/dashboard` — layout with sidebar, topbar, auth guard
 - `/dashboard/settings` — profile, plus API token management
 
@@ -946,8 +954,10 @@ that is deliberate starter surface.
 - **Default is one origin**: landing page and app share a hostname. Nothing to
   configure, and it is what `pnpm dev` does on localhost.
 - **Split origin** is opt-in via `MARKETING_URL`. Set it and `server/origins.ts`
-  moves `/login`, `/register`, `/dashboard` and `/api` to `BETTER_AUTH_URL`'s
-  origin, while `/` on the app origin bounces back to marketing.
+  moves `/login`, `/register`, `/forgot-password`, `/reset-password`,
+  `/dashboard` and `/api` to `BETTER_AUTH_URL`'s origin, while `/` on the app
+  origin bounces back to marketing. `APP_PATH_PREFIXES` is the canonical list —
+  this one is a copy, so add a new product route to the code first.
 - **Setting it also closes the set of hostnames.** One that is neither
   `BETTER_AUTH_URL` nor `MARKETING_URL` gets a 404 and an `origin.refused` warn.
   What it is defending against: `routes` and these two variables are
@@ -1029,7 +1039,8 @@ and neither declares nor reads the variable.
 **Required whenever `routes` declares more than one hostname:**
 `MARKETING_URL`. The split is driven by the variable, not by the route list, so
 declaring both hostnames without setting it deploys a Worker that answers
-`/login`, `/register`, `/dashboard` and `/api/auth` on **both** — `origins.ts`
+the whole auth surface — `/login`, `/register`, `/forgot-password`,
+`/reset-password`, `/dashboard`, `/api/auth` — on **both** — `origins.ts`
 serves every request where it arrived and the "auth never constructs on the
 marketing origin" guarantee silently does not hold. This is the one half the
 code cannot catch, since a Worker cannot read its own `routes` list; setting the

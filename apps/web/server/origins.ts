@@ -20,7 +20,14 @@
  * favicons, images) are not enumerated here, so they can never be redirected
  * out from under the landing page by something nobody thought to exclude.
  */
-export const APP_PATH_PREFIXES = ["/login", "/register", "/dashboard", "/api"] as const;
+export const APP_PATH_PREFIXES = [
+  "/login",
+  "/register",
+  "/forgot-password",
+  "/reset-password",
+  "/dashboard",
+  "/api",
+] as const;
 
 export interface ResolveOriginRequestInput {
   /** `MARKETING_URL`. Undefined/empty ⇒ single-origin mode. */

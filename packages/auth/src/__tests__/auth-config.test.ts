@@ -95,6 +95,30 @@ describe("createAuth — email verification", () => {
   });
 });
 
+describe("createAuth — password reset", () => {
+  /**
+   * Better Auth defaults this to `false`. A reset is what someone reaches for
+   * when they think another person is in their account, so a cookie minted
+   * with the old password outliving it defeats the whole flow.
+   */
+  it("should revoke every existing session when the password is reset", () => {
+    expect(build().options.emailAndPassword?.revokeSessionsOnPasswordReset).toBe(true);
+  });
+
+  /**
+   * Pins the deliberate half of the same decision: completing a reset proves
+   * inbox control but does NOT satisfy `requireEmailVerification`, which is
+   * audit #2's gate. An unverified user who resets is refused at sign-in and
+   * gets the verification notice instead — see the e2e cohort test in
+   * `tests/e2e/password-reset.spec.ts`. Widening what counts as verified is a
+   * security decision, so this fails if someone wires it up in passing.
+   */
+  it("should not treat a completed reset as proof of the address", () => {
+    expect(build().options.emailAndPassword?.onPasswordReset).toBeUndefined();
+    expect(build().options.emailAndPassword?.requireEmailVerification).toBe(true);
+  });
+});
+
 describe("createAuth — account linking (audit #2)", () => {
   const linking = () => build().options.account?.accountLinking;
 

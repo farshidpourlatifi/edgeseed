@@ -131,7 +131,20 @@ explicitly because the whole defence rests on it.
 
 - **The MCP Worker wires a sender it never uses.** It has no signup or reset
   screen, but `createAuth` requires a transport and the env schema is shared.
-- Audit #2 is closed. Password reset is functional at the API level; the
-  forgot-password **UI** is still unbuilt — no link on `/login`, no reset route.
-  Tracked in `docs/security-audit.md` #2 under "Still open from the related gap",
-  which stays the single home for it.
+- Audit #2 is closed, and its related gap closed with it on 2026-08-13 (issue
+  #20): `/forgot-password` and `/reset-password` ship, linked from `/login`.
+  `docs/security-audit.md` #2 stays the single home for the reasoning.
+- **A failed reset send is swallowed, exactly like signup.**
+  `/request-password-reset` wraps `sendResetPassword` in
+  `runInBackgroundOrAwait`, which with no `advanced.backgroundTasks.handler`
+  configured awaits the promise inside a `try/catch` that only logs
+  (`better-auth/dist/context/create-context.mjs`). So the endpoint answers 200
+  whether Resend accepted the message, rejected it, or was never configured —
+  and `/forgot-password` shows its notice regardless. **No UI change can fix
+  this**; the screen is not lied to, it is told nothing.
+
+  That makes the logging fallback more dangerous here than at signup: an unset
+  `RESEND_API_KEY`/`EMAIL_FROM` leaves a signed-out person locked out with no
+  way back in, and the only signal is one `warn` per attempt. Concern #1's
+  "verify both are set in production" covers reset too, and there is no resend
+  path here that reports failure the way `/send-verification-email` does.
