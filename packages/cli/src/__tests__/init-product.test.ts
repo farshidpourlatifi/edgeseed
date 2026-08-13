@@ -195,6 +195,19 @@ describe("stampWranglerConfig", () => {
     }
   });
 
+  /**
+   * A `wrangler d1` command addressing an existing database by name — the shape
+   * that breaks a clone, since `init:product` stamps the name to `<slug>-db`.
+   *
+   * Quotes are optional in the match because they are optional in the shell:
+   * without `["']?` the guard passes on `wrangler d1 execute "acme-db"`, which
+   * is exactly the regression it exists to catch, written slightly differently.
+   *
+   * `create` is excluded because it *names* a database that does not exist yet
+   * and so has no binding to address — `init:product` prints one on purpose.
+   */
+  const NAME_LITERAL_D1_COMMAND = /wrangler d1 (?!create\b)\S+(?: \S+)* ["']?[a-z][a-z0-9-]*-db\b/;
+
   // The other half of that fix, asserted here because this is the file that
   // knows why: the name is only safe to stamp while nothing resolves the
   // database by it. A script reverting to a name literal fails this.
@@ -208,8 +221,30 @@ describe("stampWranglerConfig", () => {
     const source = readFileSync(join(repoRoot, path), "utf8");
 
     expect(source).toContain("D1_BINDING");
-    // Any `wrangler d1 <cmd> <something>-db` — the shape that breaks a clone.
-    expect(source).not.toMatch(/wrangler d1 \S+(?: \S+)* [a-z][a-z0-9-]*-db\b/);
+    expect(source).not.toMatch(NAME_LITERAL_D1_COMMAND);
+  });
+
+  // The guard above is only worth what its pattern catches, and the first
+  // version silently missed a quoted name — a green test that proved nothing.
+  describe("the name-literal guard itself", () => {
+    it.each([
+      "wrangler d1 execute acme-db --local",
+      'wrangler d1 execute "acme-db" --local',
+      "wrangler d1 execute 'acme-db' --local",
+      "wrangler d1 migrations apply edgeseed-db --remote",
+    ])("catches %s", (command) => {
+      expect(command).toMatch(NAME_LITERAL_D1_COMMAND);
+    });
+
+    it.each([
+      "wrangler d1 execute DB --local",
+      "wrangler d1 migrations apply DB --remote",
+      // `create` names a database that does not exist yet; there is no binding
+      // to address, and `init:product` prints exactly this.
+      "cd apps/web && npx wrangler d1 create acme-db",
+    ])("allows %s", (command) => {
+      expect(command).not.toMatch(NAME_LITERAL_D1_COMMAND);
+    });
   });
 
   // Same class of bug as the database id, different currency: a clone that

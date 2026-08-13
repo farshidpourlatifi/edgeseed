@@ -947,10 +947,12 @@ Either answer `DB` at the prompt, or decline and edit `database_id` by hand in
 Changing `database_id` gives you a **fresh local database** too — wrangler keys
 its sqlite state by id, not name. Re-run `pnpm db:reset && pnpm db:seed`.
 
-**Never address D1 by `database_name` when shelling out to wrangler — use the
-`DB` binding.** `wrangler d1` accepts either, and the name is the one a clone
-renames: `init:product` stamps it to `<slug>-db`, so a script naming this
-repo's database resolves to nothing downstream. It shipped that way and the
+**Never address an existing D1 by `database_name` when shelling out to
+wrangler — use the `DB` binding.** `wrangler d1` accepts either, and the name is
+the one a clone renames: `init:product` stamps it to `<slug>-db`, so a script
+naming this repo's database resolves to nothing downstream. `wrangler d1 create`
+is the one exception — it names a database that does not exist yet, so there is
+no binding to address. It shipped that way and the
 #17 clean-clone exercise caught it — worse, `d1 migrations apply` reports the
 miss as "No migrations present at apps/web/migrations", sending the reader to
 look for their migrations instead of their database. The constant and the

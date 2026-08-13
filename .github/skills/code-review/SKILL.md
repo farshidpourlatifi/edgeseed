@@ -158,13 +158,17 @@ following whenever the diff touches the relevant surface.
   `@hono/zod-openapi` as one compatibility review; their supported versions move
   together and a mismatch can compile but fail at Worker boot.
 - Require every `wrangler d1` command to pass `--local` or `--remote` explicitly.
-- Require every `wrangler d1` command — in scripts, tests **and documentation** —
-  to address the database by the `DB` binding, never by `database_name`.
+- Require every `wrangler d1` command that addresses an **existing** database —
+  `execute`, `migrations apply`, `info`, `export`, in scripts, tests **and
+  documentation** — to use the `DB` binding, never `database_name`.
   `init:product` stamps the name to `<slug>-db`, so a name literal resolves to
   nothing in a clone, and `d1 migrations apply` misreports the miss as "No
-  migrations present". A docs-only violation is the dangerous one: it cannot
-  fail in this repo, where the literal is still correct, so `pnpm verify` is
-  green while the documented path is broken for every downstream reader.
+  migrations present". `wrangler d1 create` is the exception: it names a
+  database that does not exist yet, so there is no binding to address, and
+  `init:product` prints one on purpose. A docs-only violation is the dangerous
+  one: it cannot fail in this repo, where the literal is still correct, so
+  `pnpm verify` is green while the documented path is broken for every
+  downstream reader.
 
 ### Continuous integration and release
 
