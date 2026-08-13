@@ -1,6 +1,7 @@
 import { execSync } from "node:child_process";
 import { rmSync } from "node:fs";
 import { join } from "node:path";
+import { D1_BINDING } from "./lib/d1-binding";
 
 console.log("Resetting local D1 database...");
 
@@ -15,7 +16,7 @@ try {
 
 // Re-apply all migrations
 console.log("Re-applying migrations...");
-execSync("pnpm --filter @starter/web exec wrangler d1 migrations apply edgeseed-db --local", {
+execSync(`pnpm --filter @starter/web exec wrangler d1 migrations apply ${D1_BINDING} --local`, {
   stdio: "inherit",
   cwd: process.cwd(),
 });

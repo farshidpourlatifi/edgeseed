@@ -123,7 +123,7 @@ origin, and only then cuts a GitHub Release naming the Cloudflare Version ID.
 ```bash
 # Schema change? Apply the additive migration FIRST — old code keeps serving
 # during the rollout, so it must tolerate the new schema.
-cd apps/web && npx wrangler d1 migrations apply edgeseed-db --remote && cd ../..
+pnpm db:migrate --remote
 
 pnpm version:bump patch                # package.json + APP_VERSION + openapi.json
 git commit -am "chore(release): v0.1.1"

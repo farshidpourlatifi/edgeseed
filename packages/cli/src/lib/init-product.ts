@@ -59,21 +59,37 @@ export function stampProductIdentity(
 }
 
 /**
- * Rewrite a `wrangler.jsonc`: rename the Worker, drop the database binding back
- * to `local`, and remove any custom domain.
+ * Rewrite a `wrangler.jsonc`: rename the Worker, localise the database name and
+ * id, and remove any custom domain.
  *
  * Both Workers must land on the SAME database — apps/mcp runs its own Better
  * Auth instance against apps/web's users. Localising only one would leave a
  * clone with its other Worker still bound to the *starter's* D1 id: not merely
  * a broken shared login, but a cross-product data boundary.
  *
+ * `database_name` is stamped here rather than left as a printed instruction.
+ * It used to be manual, and following that instruction *broke the clone*: the
+ * `db:*` scripts addressed D1 by name, so renaming it to `<slug>-db` made
+ * `db:migrate`, `db:seed`, `db:reset` and the e2e helpers resolve nothing.
+ * They now address the `DB` binding instead (`lib/d1-binding.ts`), which is
+ * what makes stamping the name safe — fix both halves or neither.
+ *
  * `routes` goes for the same reason in a different currency: it names the
  * starter's own hostname, and a clone that inherited it would have its first
  * deploy try to claim a zone somebody else owns.
  */
-export function stampWranglerConfig(source: string, rename: { from: string; to: string }): string {
+export function stampWranglerConfig(
+  source: string,
+  rename: { fromSlug: string; toSlug: string; worker: string },
+): string {
+  const { fromSlug, toSlug, worker } = rename;
+
   return source
-    .replace(new RegExp(`"name": "${rename.from}"`), () => `"name": "${rename.to}"`)
+    .replace(new RegExp(`"name": "${fromSlug}-${worker}"`), () => `"name": "${toSlug}-${worker}"`)
+    .replace(
+      new RegExp(`"database_name": "${fromSlug}-db"`),
+      () => `"database_name": "${toSlug}-db"`,
+    )
     .replace(/"database_id": "[^"]*"/, () => '"database_id": "local"')
     .replace(ROUTES_BLOCK, "");
 }

@@ -13,9 +13,20 @@ A minimal, reusable base for Cloudflare-native product experiments.
 # Install dependencies
 pnpm install
 
+# Building your own product on this? Claim its identity FIRST — this rewrites
+# the root package name, both Worker names, and both database names. Doing it
+# later means redoing anything already stamped with the old one.
+# Full workflow: docs/starter-as-upstream.md
+pnpm init:product acme "Acme Cloud"
+
 # Local env — required. Without it every request answers 500, because the env
 # is validated on each one and fails closed. Fill in BETTER_AUTH_SECRET
 # (`openssl rand -hex 32`) and BETTER_AUTH_URL=http://localhost:5173
+#
+# BETTER_AUTH_URL must match the port the dev server actually serves on. Auth
+# is pinned to that origin, so a mismatch keeps every page working while POSTs
+# to /api/auth are refused as an untrusted origin — it reads as a broken
+# signup, not as a misconfigured URL.
 cp apps/web/.dev.vars.example apps/web/.dev.vars
 
 # Apply database migrations (local D1)
@@ -133,6 +144,12 @@ revoking tokens is a session-only operation, so it happens in the dashboard.
 - Revocation is a `revokedAt` stamp, not a delete, so the audit trail survives.
 
 `STARTER_API_URL` overrides the target host (default `http://localhost:5173`).
+
+Both keep the `STARTER_` prefix in a product clone, and `init:product` leaves
+them alone on purpose: they configure the starter's dev tooling, not the
+product, so a clone that renamed them would have to keep renaming them on every
+upstream merge. Product-facing variables get the product's own name; this pair
+is tooling.
 
 ## MCP server
 
