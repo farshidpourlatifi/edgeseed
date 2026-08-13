@@ -23,14 +23,23 @@ git push -u origin main
 ```
 
 Then follow the init script's printed next steps: create the product's D1
-database, put its `database_id` and `database_name` in **both**
-`apps/web/wrangler.jsonc` **and** `apps/mcp/wrangler.jsonc`, set production
-secrets (see `docs/README.md#production-secrets`), and set up OAuth apps.
+database, put its `database_id` in **both** `apps/web/wrangler.jsonc` **and**
+`apps/mcp/wrangler.jsonc`, set production secrets (see
+`docs/README.md#production-secrets`), and set up OAuth apps.
+
+`database_name` needs no edit — `init:product` stamps it to `<slug>-db` in both
+files. It is safe to stamp only because nothing addresses the database by name:
+the `db:*` scripts and the e2e helpers use the `DB` **binding**
+(`packages/cli/src/lib/d1-binding.ts`). Renaming the database while a script
+still named it is what used to break a fresh clone, and `d1 migrations apply`
+misreported it as "No migrations present" — so if you ever reintroduce a name
+literal, undo the stamping with it.
 
 Both Wrangler files must name the same database. `apps/mcp` runs its own Better
 Auth instance against `apps/web`'s users, so a different id there is a different
 set of users — the MCP consent screen would not find the account you signed up
-with. `init:product` resets both to `"local"`; only production needs the real id.
+with. `init:product` resets both ids to `"local"`; only production needs the
+real id.
 
 ## Rules that keep merges clean
 
@@ -58,3 +67,54 @@ pnpm verify           # full gate before pushing the merge
 
 Do this on a branch if the diff is big. Never rebase the product's main onto
 upstream — merge, so product history stays intact.
+
+### The one conflict to expect: generated route types
+
+`apps/web/.react-router/types/` is **generated and tracked**. So any upstream
+release that adds a route conflicts with any product that added one, even
+though `app/routes.ts` itself merges cleanly — the routes live on different
+lines there, but the generated union is one list.
+
+Resolve it by regenerating, never by editing the file or picking a side:
+
+```bash
+cd apps/web && npx react-router typegen
+git add .react-router/types
+```
+
+Hand-resolving looks like it works and silently drops one side's route types,
+so the first failure is a type error in a file nobody touched. This is the
+expected shape of a route-adding merge, not a sign anything went wrong.
+
+## Proving the clone path — the manual release exercise
+
+Most of the adoption path is covered automatically: `init-product.test.ts`
+asserts the stamping rules and fails if any `db:*` script or e2e helper goes
+back to addressing D1 by name, and `pnpm verify` covers everything a clone runs
+locally. What follows is the part no test in this repo can reach, because it
+needs credentials, a Cloudflare account, or a real OAuth client. Walk it before
+a release that changes cloning, identity stamping, or the first-run path.
+
+1. Clone the **public** repo into a throwaway directory — not a copy of a
+   working tree, which hides anything uncommitted or gitignored.
+2. `pnpm install && pnpm init:product acme "Acme Cloud"`, then confirm no
+   upstream identity survives: `grep -ri edgeseed apps packages`.
+3. `cp apps/web/.dev.vars.example apps/web/.dev.vars`, generate a secret with
+   `openssl rand -hex 32`, and leave every optional key empty. The clone must
+   boot on that alone.
+4. `pnpm db:migrate && pnpm db:seed && pnpm build && pnpm check:boot`.
+5. Drive register → verification gate → login → dashboard in a browser.
+6. **Real email**: set `RESEND_API_KEY` + `EMAIL_FROM` and confirm a
+   verification message actually arrives. Unset, the sender only logs, and a
+   _configured but failing_ sender is quiet too (AGENTS.md concern #1).
+7. **Social login**: register callbacks for the clone's own origin and sign in
+   with GitHub and Google. Each origin needs its own registration.
+8. **Remote D1**: create a database, put its id in both wrangler files, and
+   apply migrations with `--remote`.
+9. **MCP**: point a real client at `/mcp` and complete the OAuth flow through
+   to a `tools/call`.
+10. Merge a later upstream release in and re-run `pnpm verify`.
+
+Steps 6–9 are why this stays a manual exercise: each one fails _quietly_ in a
+way local tests cannot see — a swallowed mail rejection, a missing provider
+callback, a pragma D1 rejects but miniflare accepts, a grant that never mints.

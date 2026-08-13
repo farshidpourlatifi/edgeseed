@@ -2,6 +2,15 @@ import { execSync } from "node:child_process";
 import { expect, type Locator } from "@playwright/test";
 
 /**
+ * Address D1 by its **binding**, never by `database_name` — the name is
+ * `<slug>-db` and `init:product` rewrites it, so a suite naming the starter's
+ * database goes red in every clone. Same constant, same reason, as
+ * `packages/cli/src/lib/d1-binding.ts`; restated rather than imported because
+ * this suite deliberately does not depend on `@starter/cli`.
+ */
+const D1_BINDING = "DB";
+
+/**
  * Mark an address verified directly in the local D1.
  *
  * The verification link is a signed token delivered by email, and with no
@@ -13,7 +22,7 @@ import { expect, type Locator } from "@playwright/test";
  */
 export function markEmailVerified(email: string) {
   execSync(
-    `pnpm --filter @starter/web exec wrangler d1 execute edgeseed-db --local ` +
+    `pnpm --filter @starter/web exec wrangler d1 execute ${D1_BINDING} --local ` +
       `--command "UPDATE user SET emailVerified = 1 WHERE email = '${email}'"`,
     { stdio: "pipe" },
   );
@@ -48,7 +57,7 @@ export function readPasswordResetToken(email: string): string {
     `ORDER BY expiresAt DESC LIMIT 1`;
 
   const output = execSync(
-    `pnpm --filter @starter/web exec wrangler d1 execute edgeseed-db --local ` +
+    `pnpm --filter @starter/web exec wrangler d1 execute ${D1_BINDING} --local ` +
       `--json --command "${sql}"`,
     { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] },
   );
@@ -90,7 +99,7 @@ export function giveOrganization(email: string, slug: string, name: string) {
   ].join(" ");
 
   execSync(
-    `pnpm --filter @starter/web exec wrangler d1 execute edgeseed-db --local --command "${sql}"`,
+    `pnpm --filter @starter/web exec wrangler d1 execute ${D1_BINDING} --local --command "${sql}"`,
     { stdio: "pipe" },
   );
 }

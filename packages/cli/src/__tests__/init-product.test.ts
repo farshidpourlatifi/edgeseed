@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it, expect } from "vitest";
 import {
   currentProductSlug,
@@ -140,7 +142,7 @@ describe("stampWranglerConfig", () => {
   const mcp = fixture("starter-mcp");
 
   it("renames the web Worker and localises its database", () => {
-    const out = stampWranglerConfig(web, { from: "starter-web", to: "acme-web" });
+    const out = stampWranglerConfig(web, { fromSlug: "starter", toSlug: "acme", worker: "web" });
 
     expect(out).toContain('"name": "acme-web"');
     expect(out).toContain('"database_id": "local"');
@@ -151,29 +153,63 @@ describe("stampWranglerConfig", () => {
   // Worker bound to the starter's real D1 id — a cross-product data boundary,
   // and a silently broken shared login.
   it("localises the MCP database too, not just the Worker name", () => {
-    const out = stampWranglerConfig(mcp, { from: "starter-mcp", to: "acme-mcp" });
+    const out = stampWranglerConfig(mcp, { fromSlug: "starter", toSlug: "acme", worker: "mcp" });
 
     expect(out).toContain('"name": "acme-mcp"');
     expect(out).toContain('"database_id": "local"');
   });
 
   it("leaves both Workers pointing at the same database", () => {
-    const outWeb = stampWranglerConfig(web, { from: "starter-web", to: "acme-web" });
-    const outMcp = stampWranglerConfig(mcp, { from: "starter-mcp", to: "acme-mcp" });
+    const outWeb = stampWranglerConfig(web, { fromSlug: "starter", toSlug: "acme", worker: "web" });
+    const outMcp = stampWranglerConfig(mcp, { fromSlug: "starter", toSlug: "acme", worker: "mcp" });
 
     const idOf = (s: string) => /"database_id": "([^"]*)"/.exec(s)?.[1];
     expect(idOf(outWeb)).toBe(idOf(outMcp));
   });
 
   it("carries no starter database id into a clone", () => {
-    for (const [source, from, to] of [
-      [web, "starter-web", "acme-web"],
-      [mcp, "starter-mcp", "acme-mcp"],
+    for (const [source, worker] of [
+      [web, "web"],
+      [mcp, "mcp"],
     ] as const) {
-      expect(stampWranglerConfig(source, { from, to })).not.toMatch(
-        /"database_id": "[0-9a-f-]{36}"/,
-      );
+      expect(
+        stampWranglerConfig(source, { fromSlug: "starter", toSlug: "acme", worker }),
+      ).not.toMatch(/"database_id": "[0-9a-f-]{36}"/);
     }
+  });
+
+  // Stamped rather than left as a printed instruction, because following that
+  // instruction used to break the clone: the db:* scripts addressed D1 by name,
+  // so renaming it made `db:migrate`, `db:seed`, `db:reset` and the e2e helpers
+  // resolve nothing — and `d1 migrations apply` misreported it as "No migrations
+  // present". Found by the #17 clean-clone exercise.
+  it("stamps the database name so no upstream identity survives", () => {
+    for (const [source, worker] of [
+      [web, "web"],
+      [mcp, "mcp"],
+    ] as const) {
+      const out = stampWranglerConfig(source, { fromSlug: "starter", toSlug: "acme", worker });
+
+      expect(out).toContain('"database_name": "acme-db"');
+      expect(out).not.toContain("starter-db");
+    }
+  });
+
+  // The other half of that fix, asserted here because this is the file that
+  // knows why: the name is only safe to stamp while nothing resolves the
+  // database by it. A script reverting to a name literal fails this.
+  it.each([
+    ["packages/cli/src/db-migrate.ts"],
+    ["packages/cli/src/db-reset.ts"],
+    ["packages/cli/src/db-seed.ts"],
+    ["tests/e2e/helpers.ts"],
+  ])("%s addresses the binding, not the database name", (path) => {
+    const repoRoot = join(import.meta.dirname, "..", "..", "..", "..");
+    const source = readFileSync(join(repoRoot, path), "utf8");
+
+    expect(source).toContain("D1_BINDING");
+    // Any `wrangler d1 <cmd> <something>-db` — the shape that breaks a clone.
+    expect(source).not.toMatch(/wrangler d1 \S+(?: \S+)* [a-z][a-z0-9-]*-db\b/);
   });
 
   // Same class of bug as the database id, different currency: a clone that
@@ -194,19 +230,31 @@ describe("stampWranglerConfig", () => {
 }`;
 
     it("strips the starter's custom domain from a clone", () => {
-      const out = stampWranglerConfig(withRoutes, { from: "starter-web", to: "acme-web" });
+      const out = stampWranglerConfig(withRoutes, {
+        fromSlug: "starter",
+        toSlug: "acme",
+        worker: "web",
+      });
 
       expect(out).not.toContain("routes");
       expect(out).not.toContain("app.edgeseed.dev");
     });
 
     it("takes the routes comment with it rather than orphaning it", () => {
-      const out = stampWranglerConfig(withRoutes, { from: "starter-web", to: "acme-web" });
+      const out = stampWranglerConfig(withRoutes, {
+        fromSlug: "starter",
+        toSlug: "acme",
+        worker: "web",
+      });
       expect(out).not.toContain("Comment above the routes block");
     });
 
     it("leaves the rest of the config intact when stripping routes", () => {
-      const out = stampWranglerConfig(withRoutes, { from: "starter-web", to: "acme-web" });
+      const out = stampWranglerConfig(withRoutes, {
+        fromSlug: "starter",
+        toSlug: "acme",
+        worker: "web",
+      });
 
       expect(out).toContain('"name": "acme-web"');
       expect(out).toContain('"main": "worker.ts"');
@@ -215,7 +263,11 @@ describe("stampWranglerConfig", () => {
     });
 
     it("still produces parseable config after stripping", () => {
-      const out = stampWranglerConfig(withRoutes, { from: "starter-web", to: "acme-web" });
+      const out = stampWranglerConfig(withRoutes, {
+        fromSlug: "starter",
+        toSlug: "acme",
+        worker: "web",
+      });
       const stripped = out.replace(/^\s*\/\/[^\n]*$/gm, "").replace(/,(\s*[}\]])/g, "$1");
 
       expect(() => JSON.parse(stripped)).not.toThrow();
@@ -223,9 +275,10 @@ describe("stampWranglerConfig", () => {
 
     it("is a no-op on a config that declares no routes", () => {
       // apps/mcp has no custom domain — stripping must not mangle it.
-      expect(stampWranglerConfig(mcp, { from: "starter-mcp", to: "acme-mcp" })).toBe(
+      expect(stampWranglerConfig(mcp, { fromSlug: "starter", toSlug: "acme", worker: "mcp" })).toBe(
         mcp
           .replace('"name": "starter-mcp"', '"name": "acme-mcp"')
+          .replace('"database_name": "starter-db"', '"database_name": "acme-db"')
           .replace(/"database_id": "[^"]*"/, '"database_id": "local"'),
       );
     });

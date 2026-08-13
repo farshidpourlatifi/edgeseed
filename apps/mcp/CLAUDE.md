@@ -91,6 +91,11 @@ unauthenticated `/mcp` → 401 + `WWW-Authenticate`; discovery → dynamic regis
 
 - New tool = new file in `src/tools/`, registered in `registerTools`, mirroring an existing API route's zod schema and response shape
 - Tool responses are `content: [{ type: "text", text: JSON.stringify(...) }]` matching the API JSON body
+- **This app's `build` declares `"outputs": []` in `turbo.json`.** The build is
+  a dry-run deploy: it validates and bundles without writing anything, so the
+  repo-wide `build/**`/`dist/**` globs match nothing and turbo warns on every
+  run. Empty is the accurate answer, not a workaround — give it real outputs
+  only if the script grows an `--outdir`.
 
 ## Testing
 

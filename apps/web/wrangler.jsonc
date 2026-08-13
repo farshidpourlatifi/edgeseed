@@ -89,7 +89,7 @@
   // passes `--var ENVIRONMENT:production` to correct it at deploy time.
   //
   // Done with --var rather than a named `env.production` block on purpose: a
-  // named environment renames the Worker to `edgeseed-web-production` unless
+  // named environment renames the Worker to `<name>-production` unless
   // every binding and the name are redeclared, and a renamed Worker is a
   // different secret store — `wrangler secret put` values would silently not
   // apply.

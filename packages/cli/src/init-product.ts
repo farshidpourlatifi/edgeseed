@@ -55,11 +55,11 @@ rewrite("package.json", (c) =>
 rewrite(PRODUCT_FILE, (c) => stampProductIdentity(c, { slug: name, displayName }));
 
 rewrite("apps/web/wrangler.jsonc", (c) =>
-  stampWranglerConfig(c, { from: `${fromSlug}-web`, to: `${name}-web` }),
+  stampWranglerConfig(c, { fromSlug, toSlug: name, worker: "web" }),
 );
 
 rewrite("apps/mcp/wrangler.jsonc", (c) =>
-  stampWranglerConfig(c, { from: `${fromSlug}-mcp`, to: `${name}-mcp` }),
+  stampWranglerConfig(c, { fromSlug, toSlug: name, worker: "mcp" }),
 );
 
 console.log(`
@@ -67,12 +67,16 @@ Done. Next steps:
   1. Create the product D1 database:
        cd apps/web && npx wrangler d1 create ${name}-db
 
-     Then put the returned id in database_id in BOTH wrangler files, and set
-     database_name to ${name}-db in both:
+     Then put the returned id in database_id in BOTH wrangler files:
        apps/web/wrangler.jsonc
        apps/mcp/wrangler.jsonc
 
-     Both must match. apps/mcp runs its own Better Auth instance against
+     database_name is already stamped to ${name}-db in both. Nothing else
+     addresses the database by name — the db:* scripts and the e2e helpers use
+     the DB *binding* — so local development keeps working before you ever
+     create a remote database.
+
+     Both ids must match. apps/mcp runs its own Better Auth instance against
      apps/web's users, so a different id there is a different set of users —
      sign-in on the MCP consent screen would silently fail to find the account.
      They are stamped to "local" for you; only production needs the real id.

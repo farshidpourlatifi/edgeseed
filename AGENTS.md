@@ -946,6 +946,16 @@ Either answer `DB` at the prompt, or decline and edit `database_id` by hand in
 Changing `database_id` gives you a **fresh local database** too — wrangler keys
 its sqlite state by id, not name. Re-run `pnpm db:reset && pnpm db:seed`.
 
+**Never address D1 by `database_name` when shelling out to wrangler — use the
+`DB` binding.** `wrangler d1` accepts either, and the name is the one a clone
+renames: `init:product` stamps it to `<slug>-db`, so a script naming this
+repo's database resolves to nothing downstream. It shipped that way and the
+#17 clean-clone exercise caught it — worse, `d1 migrations apply` reports the
+miss as "No migrations present at apps/web/migrations", sending the reader to
+look for their migrations instead of their database. The constant and the
+reasoning live in `packages/cli/src/lib/d1-binding.ts`; `init-product.test.ts`
+fails if a `db:*` script reverts to a name literal.
+
 ### Custom domains and the origin split
 
 Full reference: `docs/domains.md`. The shape is **configurable, not baked in** —
@@ -987,7 +997,8 @@ Hostnames are declared as `custom_domain` routes in `apps/web/wrangler.jsonc`,
 so `wrangler deploy` creates the DNS records itself — never pre-create an
 A/CNAME for them, and the zone must be on this same Cloudflare account.
 `init:product` **strips** `routes` from a clone alongside localising
-`database_id`, since they name hostnames the clone does not own. It strips that
+`database_id` and `database_name`, since they name hostnames the clone does not
+own. It strips that
 block and nothing else, so **never write out a key whose correct value depends
 on `routes` existing** — the key survives into a clone that no longer has the
 routes justifying it. `workers_dev` is the live example: absent, wrangler

@@ -12,6 +12,11 @@ load-bearing for Better Auth, do not rename them casually.
 - `src/schema/*.ts` — one table per file, re-exported from `schema/index.ts`
 - `src/helpers/timestamps.ts` — shared `createdAt`/`updatedAt` column pair
 - `src/client.ts` — `createDb(d1)` returns the typed Drizzle instance (`Database` type)
+- `src/index.ts` — also re-exports drizzle's query operators (`eq`, `count`, …).
+  Consumers import them from here, never from `drizzle-orm` directly: pnpm does
+  not expose a transitive dependency, so a direct import fails with TS2307 until
+  the app declares its own copy — a second place to pin a version `better-auth`
+  already constrains. Add operators to that list as they are needed.
 - `migrations/` — generated SQL, never hand-edited (run `pnpm db:generate`). The
   generator **rewrites** what drizzle-kit produces: SQLite turns any foreign-key
   change into a table rebuild wrapped in `PRAGMA foreign_keys=OFF`/`ON`, which
