@@ -12,13 +12,19 @@ load-bearing for Better Auth, do not rename them casually.
 - `src/schema/*.ts` — one table per file, re-exported from `schema/index.ts`
 - `src/helpers/timestamps.ts` — shared `createdAt`/`updatedAt` column pair
 - `src/client.ts` — `createDb(d1)` returns the typed Drizzle instance (`Database` type)
-- `migrations/` — generated SQL, never hand-edited (run `pnpm db:generate`)
+- `migrations/` — generated SQL, never hand-edited (run `pnpm db:generate`). The
+  generator **rewrites** what drizzle-kit produces: SQLite turns any foreign-key
+  change into a table rebuild wrapped in `PRAGMA foreign_keys=OFF`/`ON`, which
+  D1 rejects, and miniflare accepts — so the failure is invisible until the
+  remote migration. `packages/cli/src/lib/d1-sql.ts` strips it and explains why
+  that is safe. Do not restore a stripped pragma.
 
 ## Rules
 
 - Schema change flow: edit `src/schema/` → `pnpm db:generate` → `pnpm db:migrate` (local) → update `src/__tests__/schema.test.ts` to match
 - New tables with created/updated pairs use the `timestamps` helper, not hand-rolled columns
-- Known gap (security audit #13): `member`/`invitation` FKs do not cascade on delete — if you fix it, update the relational-integrity tests
+- Every foreign key declares an `onDelete`, and `schema.test.ts` asserts the complete set — adding one without deciding its delete behavior fails there (security audit #13, closed 2026-08-12)
+- Index rule: **every foreign-key child column** (an unindexed child scans on every cascade delete) **plus named non-key lookups**. The index set is asserted exactly, so a new index needs a stated consumer and a missing one fails — see the `why` field in `schema.test.ts`
 
 ## Testing
 

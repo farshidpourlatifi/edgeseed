@@ -61,6 +61,37 @@ The point is not ceremony. These are the actions where being wrong is expensive
 and hard to walk back, so asking costs far less than assuming. If unsure whether
 an approval still applies: it does not. Ask.
 
+### A new branch must never inherit `main` as its upstream
+
+`git checkout -b <name> origin/main` **sets the new branch's upstream to
+`origin/main`**, because git tracks whatever ref you branched from. A later bare
+`git push` then writes straight to `main` — no warning, no prompt, and every
+branch protection the repo relies on is simply not consulted, because nothing
+ever addressed the feature branch. The commit lands on `main` and cannot be
+walked back without rewriting pushed history, which the rule above forbids.
+
+This has happened here (`feat/org-referential-integrity`, 2026-08-12): the
+branch was created that way, the work was reported as "one push from a PR", and
+the human's `git push` put it on `main` instead. Git announces the tracking in
+its own output — `branch '<name>' set up to track 'origin/main'` — and it was
+not read.
+
+So, when creating a branch:
+
+```bash
+git checkout -b <name> --no-track origin/main   # or: git switch -c <name> --no-track origin/main
+```
+
+- **Verify before reporting anything as pushable.** `git rev-parse --abbrev-ref
+--symbolic-full-name @{u}` must print `origin/<name>`, or fail with "no
+  upstream" — never `origin/main`. A branch with no upstream is the safe state:
+  a bare `git push` refuses and tells the human what to run.
+- **Never hand over a bare `git push`.** Give the explicit form, which is
+  correct regardless of how the branch was wired: `git push -u origin <name>`.
+- **`git checkout -b <name> main` is not the fix.** Branching from the _local_
+  `main` copies main's upstream too. `--no-track` is what breaks the
+  inheritance; `-u` on first push is what sets the right one.
+
 ### GitHub CLI
 
 This repo belongs to a personal account while a work account may also be logged
@@ -261,19 +292,29 @@ and this list, or the stale copy will be trusted.
    a security boundary (children run in parallel and can be fetched directly),
    so a new page guards itself. Ask the standing-pass review questions of every
    diff that adds a route, loader, table, or tool. (`security-plan.md`)
-6. **OAuth tokens sit in plaintext and tenant rows do not cascade.** Any D1
-   export exposes usable Google/GitHub access tokens; expired `verification`
-   rows are never purged; `member`/`invitation` foreign keys have no
-   `onDelete`, so deleting a user or org fails or strands rows — and retained
-   invitee emails are a GDPR-deletion problem. (`security-audit.md` #12, #13)
+6. **OAuth tokens sit in plaintext and expired rows are never purged.** Any D1
+   export exposes usable Google/GitHub access tokens, and `verification` holds
+   raw email-verification and password-reset values that nothing cleans up, so
+   the exposure only grows. (`security-audit.md` #12 — still open.) The
+   **referential-integrity half of this concern is closed**: as of
+   2026-08-12 every tenant foreign key cascades and
+   `session.activeOrganizationId` nulls out, so deleting a user or org can no
+   longer fail or strand rows (#13). One GDPR residue survives that fix and no
+   constraint can reach it — `invitation.email` has no foreign key to `user`,
+   so an invitation addressed to a deleted user's address needs an
+   application-level sweep in whatever finally adds an account-deletion
+   surface.
 7. **A leaked secret is rotated first, cleaned second.** Once committed, the
    credential is compromised even if never pushed — revoke it at the provider,
    then rewrite history. Rewriting without rotation is theater.
    (`secret-scanning.md`)
 8. **D1 bills rows scanned, not rows returned — and writes are the expensive
    metric.** An unindexed filter reads the whole table; deletes count as
-   writes; the hot missing index is `member(userId)`, scanned on every
-   dashboard navigation. Free-plan limits fail closed (errors, not bills);
+   writes. The auth-path indexes ship as of 2026-08-12, `member(userId)`
+   among them — the rule was **every foreign-key child column** (so no cascade
+   scans) **plus the named non-key lookups**, and `schema.test.ts` asserts that
+   set exactly, so a new index needs a stated consumer and a missing one fails.
+   Keep new tables to it. Free-plan limits fail closed (errors, not bills);
    Paid has no hard cap — budget alerts inform, they do not stop usage.
    Paginate every list. (`costs-and-limits.md`)
 9. **Every clone mints its own identity before deploying.** Create a new D1
@@ -780,6 +821,28 @@ Never edit a migration that has reached production; add a new one (concern #10).
 This is why the workflow does not migrate: a destructive migration applied
 automatically on every tag is not something to discover during an incident, and
 the safe ordering cannot be expressed as "one step in the deploy".
+
+**A foreign-key change is a whole-table rebuild, and the generated SQL is not
+D1-safe until `db:generate` rewrites it.** SQLite cannot `ALTER` a constraint,
+so drizzle-kit emits `CREATE __new_x` → `INSERT … SELECT` → `DROP x` →
+`RENAME`, wrapped in `PRAGMA foreign_keys=OFF` / `…=ON`. **D1 rejects that
+pragma** — it enforces foreign keys and exposes only `PRAGMA
+defer_foreign_keys`. Local `db:migrate` runs against miniflare's SQLite, which
+accepts it, so the whole verify gate goes green and the **remote** migration is
+what fails. `db-generate.ts` therefore strips the pragma from files it creates
+and says so in its output (`packages/cli/src/lib/d1-sql.ts` explains why
+removing it is safe rather than merely expedient). Two consequences:
+
+- Migrations under `packages/db/migrations/` are generated **and then
+  rewritten** — do not "restore" a stripped pragma, and do not hand-write one.
+- The rebuild's `INSERT … SELECT` re-validates every existing row against the
+  new constraints. Rows that already violate them fail the migration loudly,
+  which is correct — orphans are the defect. Check before applying to a real
+  database rather than discovering it mid-release:
+
+```bash
+npx wrangler d1 execute edgeseed-db --remote --command "SELECT COUNT(*) FROM member m LEFT JOIN organization o ON o.id = m.organizationId WHERE o.id IS NULL;"
+```
 
 ### Cutting a release
 
