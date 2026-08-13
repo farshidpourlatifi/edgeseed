@@ -55,6 +55,28 @@ export function createAuth(opts: CreateAuthOptions) {
           ...passwordResetEmail({ url, productName: PRODUCT_NAME }),
         });
       },
+      /**
+       * Pinned, because Better Auth defaults it to `false`.
+       *
+       * A password reset is the flow someone reaches for when they believe
+       * another person has their account, so the sessions minted with the old
+       * password are exactly what must not survive it. Left at the default, a
+       * thief who signed in before the reset keeps their cookie for its full
+       * lifetime and the reset accomplishes nothing.
+       *
+       * The cost is that resetting also signs the owner out of their other
+       * devices. That is the correct trade — it is the same thing every
+       * "sign out everywhere" control does, and here it is not optional
+       * because the reason for the reset is unknowable from the server.
+       *
+       * Deliberately NOT paired with marking the address verified. Following
+       * this link proves inbox control, but `requireEmailVerification` is
+       * audit #2's gate and widening what satisfies it is a separate decision;
+       * an unverified user who resets is refused at sign-in and lands on the
+       * verification notice, which `apps/web/app/routes/login.tsx` already
+       * renders. See `apps/web/CLAUDE.md`.
+       */
+      revokeSessionsOnPasswordReset: true,
     },
     emailVerification: {
       sendOnSignUp: true,

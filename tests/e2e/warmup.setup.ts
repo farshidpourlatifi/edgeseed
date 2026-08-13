@@ -13,7 +13,15 @@ import { test as setup } from "@playwright/test";
  * out of the tests. Each route is loaded twice: the first pass triggers the
  * compile and any re-optimization, the second confirms it has settled.
  */
-const ROUTES = ["/", "/login", "/register", "/dashboard", "/dashboard/settings"];
+const ROUTES = [
+  "/",
+  "/login",
+  "/register",
+  "/forgot-password",
+  "/reset-password",
+  "/dashboard",
+  "/dashboard/settings",
+];
 
 setup("warm dev server routes", async ({ page }) => {
   setup.setTimeout(180_000);

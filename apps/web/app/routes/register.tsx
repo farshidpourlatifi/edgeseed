@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import { authClient, POST_VERIFICATION_REDIRECT } from "~/lib/auth-client";
+import { authClient } from "~/lib/auth-client";
+import { POST_VERIFICATION_REDIRECT } from "~/lib/auth-redirects";
 import { Button } from "@starter/ui/components/ui/button";
 import {
   Card,
