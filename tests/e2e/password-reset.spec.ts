@@ -121,14 +121,34 @@ test.describe("the reset screen refuses a link it cannot use", () => {
     await expect(page.getByRole("heading", { name: "This link is not valid" })).toBeVisible();
   });
 
-  test("a forged token reaching the form is refused on submit", async ({ page }) => {
+  /**
+   * Asserts the **sentence**, not merely that an alert appeared.
+   *
+   * A rejected password and a dead link are both 400, and the first cut of this
+   * screen gave them one message — so someone whose password was refused was
+   * told to fetch a new link, which could never help. `resetErrorMessage` maps
+   * the server's own code, and this is what proves it is wired to the real
+   * response rather than to a guess about the status.
+   *
+   * The password-length codes are deliberately **not** exercised here: the
+   * field carries `minLength`/`maxLength`, so a browser cannot submit a value
+   * that trips them — Playwright's own `fill` is truncated by `maxLength` too,
+   * which is how an earlier version of this test fooled itself into passing a
+   * dead-link assertion. They stay covered by
+   * `apps/web/app/__tests__/reset-password-errors.test.ts`, and remain reachable
+   * in production only if `emailAndPassword.minPasswordLength` is configured
+   * away from the attributes the form mirrors.
+   */
+  test("a forged token reaching the form is refused as a dead link", async ({ page }) => {
     // Straight to the form with a token the server never minted — the vector a
     // client-side-only check would miss.
     await page.goto("/reset-password?token=forged-token-value");
 
     await setNewPassword(page, NEW_PASSWORD);
 
-    await expect(page.getByRole("alert")).toBeVisible({ timeout: 10000 });
+    const alert = page.getByRole("alert");
+    await expect(alert).toBeVisible({ timeout: 10000 });
+    await expect(alert).toContainText("no longer valid");
     await expect(page).toHaveURL(/\/reset-password/);
   });
 });

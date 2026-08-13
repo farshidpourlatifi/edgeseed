@@ -3,6 +3,11 @@ import { Link, useSearchParams } from "react-router";
 import { authClient } from "~/lib/auth-client";
 import { POST_RESET_REDIRECT } from "~/lib/auth-redirects";
 import { resetLinkState } from "~/lib/reset-password-link";
+import {
+  MAX_PASSWORD_LENGTH,
+  MIN_PASSWORD_LENGTH,
+  resetErrorMessage,
+} from "~/lib/reset-password-errors";
 import { Button } from "@starter/ui/components/ui/button";
 import {
   Card,
@@ -20,9 +25,6 @@ import { AlertCircle, LinkIcon } from "lucide-react";
 import { BrandMark } from "~/components/brand/brand-mark";
 import { AuthNotice } from "~/components/auth/auth-notice";
 import { toast } from "sonner";
-
-/** Better Auth's `minPasswordLength` default. Below it the API answers `PASSWORD_TOO_SHORT`. */
-const MIN_PASSWORD_LENGTH = 8;
 
 export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
@@ -62,15 +64,12 @@ export default function ResetPasswordPage() {
       });
 
       if (resetError) {
-        // Expired, already used, and outright forged all arrive here as the
-        // same 400 — better-auth consumes the token on success, so a second
-        // submit of a link that worked is indistinguishable from a fake one.
-        // Saying "request a new one" is the only useful answer to all three.
-        setError(
-          resetError.status === 429
-            ? "Too many attempts. Wait a minute and try again."
-            : "That reset link is no longer valid. Request a new one and try again.",
-        );
+        // Mapped from the server's own code, never guessed from the status —
+        // a rejected password and a dead link are both 400 and need opposite
+        // advice. Expired, already used and forged really are indistinguishable
+        // (better-auth consumes the token on success), so those share one
+        // sentence; a password failure must not join them. See the module.
+        setError(resetErrorMessage(resetError));
       } else {
         // Full navigation, not a client-side one: `revokeSessionsOnPasswordReset`
         // has just deleted every session for this user, so the document must be
@@ -141,6 +140,7 @@ export default function ResetPasswordPage() {
                     disabled={isLoading}
                     className="h-11"
                     minLength={MIN_PASSWORD_LENGTH}
+                    maxLength={MAX_PASSWORD_LENGTH}
                   />
                 </div>
                 <div className="space-y-2">
@@ -169,6 +169,7 @@ export default function ResetPasswordPage() {
                     disabled={isLoading}
                     className={`h-11 ${passwordError ? "border-destructive focus-visible:ring-destructive" : ""}`}
                     minLength={MIN_PASSWORD_LENGTH}
+                    maxLength={MAX_PASSWORD_LENGTH}
                   />
                   {passwordError && <p className="text-sm text-destructive">{passwordError}</p>}
                 </div>
