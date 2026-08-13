@@ -107,24 +107,34 @@ describe.each(tables)("$name table", ({ table, name, notNullColumns, nullableCol
 });
 
 /**
- * The complete foreign-key set, as `table.column -> referencedTable (onDelete)`.
+ * The complete foreign-key set, as
+ * `table.column[+column] -> referencedTable.column[+column] (onDelete)`.
  *
  * Asserted as a whole rather than per table so that adding a foreign key
  * without deciding its delete behavior fails here. `no action` is what audit
  * #13 was: deleting a user or organization errored, and any row that escaped
  * enforcement was stranded.
+ *
+ * Both sides render *every* column rather than the first, so a composite key
+ * cannot be half-asserted, and both sides name the column rather than only the
+ * table, so a key pointing at the wrong parent column is visible here too.
+ * Single-column keys — all of them today — read exactly as they would have
+ * either way.
  */
 const expectedForeignKeys = [
-  "account.userId -> user (cascade)",
-  "apiToken.organizationId -> organization (cascade)",
-  "apiToken.userId -> user (cascade)",
-  "invitation.inviterId -> user (cascade)",
-  "invitation.organizationId -> organization (cascade)",
-  "member.organizationId -> organization (cascade)",
-  "member.userId -> user (cascade)",
-  "session.activeOrganizationId -> organization (set null)",
-  "session.userId -> user (cascade)",
+  "account.userId -> user.id (cascade)",
+  "apiToken.organizationId -> organization.id (cascade)",
+  "apiToken.userId -> user.id (cascade)",
+  "invitation.inviterId -> user.id (cascade)",
+  "invitation.organizationId -> organization.id (cascade)",
+  "member.organizationId -> organization.id (cascade)",
+  "member.userId -> user.id (cascade)",
+  "session.activeOrganizationId -> organization.id (set null)",
+  "session.userId -> user.id (cascade)",
 ];
+
+const columnNames = (columns: ReadonlyArray<{ name: string }>) =>
+  columns.map((c) => c.name).join("+");
 
 describe("relational integrity", () => {
   it("every foreign key declares the expected delete behavior", () => {
@@ -132,10 +142,9 @@ describe("relational integrity", () => {
       .flatMap(({ table }) =>
         getTableConfig(table).foreignKeys.map((fk) => {
           const ref = fk.reference();
-          const child = getTableName(table);
-          const column = ref.columns[0].name;
-          const parent = getTableName(ref.foreignTable);
-          return `${child}.${column} -> ${parent} (${fk.onDelete})`;
+          const child = `${getTableName(table)}.${columnNames(ref.columns)}`;
+          const parent = `${getTableName(ref.foreignTable)}.${columnNames(ref.foreignColumns)}`;
+          return `${child} -> ${parent} (${fk.onDelete})`;
         }),
       )
       .sort();
@@ -196,6 +205,14 @@ describe("relational integrity", () => {
  *
  * Most consumers are Better Auth adapter queries rather than application code,
  * so grepping this repo for a call site will not find them.
+ *
+ * This list is explicit indexes only, and does not need `*_unique` entries:
+ * `getTableConfig().indexes` carries only `index()`/`uniqueIndex()` builder
+ * declarations, while a column-level `.unique()` surfaces as `column.isUnique`
+ * and appears in neither `indexes` nor `uniqueConstraints`. Verified against
+ * drizzle-orm 0.45.2 — `session` declares `token` unique and reports
+ * `indexes: ["session_userId_idx"]`. Uniqueness is asserted separately, in
+ * "relational integrity" above.
  */
 const expectedIndexes: Array<{ index: string; table: string; columns: string[]; why: string }> = [
   {
