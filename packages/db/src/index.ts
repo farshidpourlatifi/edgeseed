@@ -13,6 +13,11 @@ export * from "./schema/index";
  * `better-auth` already constrains to `^0.45.2` (AGENTS.md, "Keep zod on one
  * major"). One pin, one import path.
  *
+ * This is for consumers that do **not** declare `drizzle-orm` themselves — the
+ * apps and any product package. `packages/auth` declares it directly and so
+ * imports from the package itself; that is an exception with a reason, not
+ * drift to copy.
+ *
  * The starter never hit this because no app queries D1 directly — every query
  * lives in `@starter/auth` or here. The first product feature discovers it,
  * which is exactly what the #17 clean-clone exercise did.

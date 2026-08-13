@@ -801,7 +801,8 @@ next to one. Full flow in "Cutting a release" below.
 ```bash
 # Remote migrations — BEFORE the deploy that needs them. See "Schema changes"
 # below; the release workflow deliberately does not run these.
-cd apps/web && npx wrangler d1 migrations apply edgeseed-db --remote
+# Addresses the DB binding, so this line is correct in a renamed clone too.
+pnpm db:migrate --remote
 
 # Gated deploy — runs the full verify suite, then deploys.
 # Local escape hatch. It leaves no release behind and runs no smoke check, so
@@ -849,7 +850,7 @@ removing it is safe rather than merely expedient). Two consequences:
   database rather than discovering it mid-release:
 
 ```bash
-npx wrangler d1 execute edgeseed-db --remote --command "SELECT COUNT(*) FROM member m LEFT JOIN organization o ON o.id = m.organizationId WHERE o.id IS NULL;"
+pnpm --filter @starter/web exec wrangler d1 execute DB --remote --command "SELECT COUNT(*) FROM member m LEFT JOIN organization o ON o.id = m.organizationId WHERE o.id IS NULL;"
 ```
 
 ### Cutting a release
@@ -857,7 +858,7 @@ npx wrangler d1 execute edgeseed-db --remote --command "SELECT COUNT(*) FROM mem
 ```bash
 # If this release carries a schema change, apply the (additive) migration first
 # — see "Schema changes" above.
-cd apps/web && npx wrangler d1 migrations apply edgeseed-db --remote && cd ../..
+pnpm db:migrate --remote
 
 pnpm version:bump patch                      # package.json + APP_VERSION + openapi.json
 git commit -am "chore(release): v0.1.1"
