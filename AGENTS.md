@@ -667,9 +667,19 @@ Defined in `apps/web/app/routes.ts` (explicit route config, not file-based routi
   expired, or already used
 - `/dashboard` — layout with sidebar, topbar, auth guard
 - `/dashboard/settings` — profile, plus API token management
+- `*` — branded 404, and **the last entry by construction**: a splat matches
+  whatever the routes above did not, so anything registered below it is
+  unreachable. Its loader returns `data(null, { status: 404 })`, which is what
+  makes the document answer 404 rather than a 200 that merely says "not found";
+  a page that renders correctly while answering 200 is wrong for every crawler,
+  monitor and link checker, and nothing in a browser shows it. It sees browser
+  paths only — `/api/auth/**` and `/api/v1/*` are answered by Hono first, and
+  the origin refusal in `server/origins.ts` stays deliberately plain `Not Found`
+  because it is a security boundary, not an app page
 
-When adding a dashboard page: add the route in `routes.ts`, then create the file
-in `app/routes/`. Route types regenerate on their own — see "TypeScript notes".
+When adding a dashboard page: add the route in `routes.ts` **above the splat**,
+then create the file in `app/routes/`. Route types regenerate on their own — see
+"TypeScript notes".
 
 ### UI components
 

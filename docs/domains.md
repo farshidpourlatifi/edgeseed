@@ -162,6 +162,14 @@ signal is the log line — `origin.refused`, at `warn`, with the host and path �
 not the status code, because an unconfigured origin answering at all is a routes
 or DNS mistake somebody needs to see.
 
+**The refusal stays plain `Not Found`, not the branded 404 page.** Both answer
+404, and they are different things: `app/routes/not-found.tsx` is a page for a
+reader who mistyped a path on an origin this Worker owns, while this one is a
+boundary refusing a hostname nobody declared. Branding it would render the
+product's identity on an origin the deployment does not claim, and it would mean
+constructing the React Router render — and everything below this middleware —
+for a request the whole point was to answer without doing that.
+
 **The refusal only arms in split mode.** With `MARKETING_URL` unset there is no
 declared topology to enforce, so any hostname routed to the Worker is served —
 which is what keeps `pnpm dev` working on both `localhost:5173` and

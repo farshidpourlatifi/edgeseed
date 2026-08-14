@@ -21,6 +21,9 @@ const ROUTES = [
   "/reset-password",
   "/dashboard",
   "/dashboard/settings",
+  // The splat. Any unmatched path compiles the same module, so warming it here
+  // covers `not-found.spec.ts`, which uses a per-run path of its own.
+  "/warm-the-404-route",
 ];
 
 setup("warm dev server routes", async ({ page }) => {

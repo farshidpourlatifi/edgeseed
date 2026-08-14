@@ -13,4 +13,10 @@ export default [
     route("dashboard", "routes/dashboard._index.tsx"),
     route("dashboard/settings", "routes/dashboard.settings.tsx"),
   ]),
+  // Last, and last on purpose: a splat matches anything the routes above did
+  // not, so a route added below it would never be reached. It only ever sees
+  // browser paths — `/api/auth/**` and `/api/v1/*` are answered by Hono in
+  // `server/index.ts` before React Router runs, and a hostname this Worker was
+  // not configured for is refused above that again (`server/origins.ts`).
+  route("*", "routes/not-found.tsx"),
 ] satisfies RouteConfig;
