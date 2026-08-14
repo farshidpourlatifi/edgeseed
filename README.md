@@ -60,6 +60,12 @@ Stated up front, because finding these after adopting a starter is worse than re
 - **The MCP Worker ships undeployed.** Its Agent is a Durable Object, billed by duration —
   deploy it when a product actually needs it.
 - **Dependency updates are manual.** Dependabot security updates are currently disabled.
+- **Much of this code was written with AI assistance** (Claude Code), reviewed by a human
+  and gated by the `pnpm verify` suite, mutation tests and a security audit trail. Those
+  are compensating controls, not a substitute for your own review before you rely on it.
+- **No downstream product has battle-tested this yet** (as of 2026-08). The starter
+  deploys itself to production — that is what the live badge shows — but nothing with
+  real users runs on it. Treat it as young.
 
 ## Quick start
 
