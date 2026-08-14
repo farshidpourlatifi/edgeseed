@@ -1,47 +1,116 @@
 # EdgeSeed
 
-A minimal, reusable base for Cloudflare-native product experiments.
+**Ship SaaS products on Cloudflare in hours, not weeks.**
 
-## Prerequisites
+A Cloudflare-native monorepo starter: Workers, D1, React Router v7 + Hono, Better Auth
+with organizations and email verification, an OpenAPI-described REST API, and an
+OAuth 2.1-gated MCP server — wired together with tests, quality gates and gated deploys.
 
-- Node.js 22+
-- pnpm 9+
+[![ci](https://github.com/farshidpourlatifi/edgeseed/actions/workflows/ci.yml/badge.svg)](https://github.com/farshidpourlatifi/edgeseed/actions/workflows/ci.yml)
+[![release](https://github.com/farshidpourlatifi/edgeseed/actions/workflows/release.yml/badge.svg)](https://github.com/farshidpourlatifi/edgeseed/actions/workflows/release.yml)
+[![gitleaks](https://github.com/farshidpourlatifi/edgeseed/actions/workflows/gitleaks.yml/badge.svg)](https://github.com/farshidpourlatifi/edgeseed/actions/workflows/gitleaks.yml)
+[![latest release](https://img.shields.io/github/v/release/farshidpourlatifi/edgeseed?sort=semver&label=release)](https://github.com/farshidpourlatifi/edgeseed/releases)
+[![live](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapp.edgeseed.dev%2Fapi%2Fv1%2Fhealth&query=%24.version&label=live&color=success)](https://app.edgeseed.dev/api/v1/health)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-## Getting Started
+**[Live demo → edgeseed.dev](https://edgeseed.dev)** · the app itself runs at
+[app.edgeseed.dev](https://app.edgeseed.dev), and this repository is what deployed it.
+
+|                    Landing — dark                    |                   Signed in — light                    |
+| :--------------------------------------------------: | :----------------------------------------------------: |
+| ![EdgeSeed landing page](./docs/assets/landing.webp) | ![EdgeSeed settings page](./docs/assets/settings.webp) |
+
+One shot per theme on purpose: light, dark and system all ship, driven by CSS variables
+and a cookie — no flash of the wrong theme on first paint.
+
+## What you get
+
+Every row below is either running in the live demo or explicitly marked as not shipped.
+
+| Capability                     | State                              | Notes                                                                                                               |
+| ------------------------------ | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Email/password auth            | Shipped                            | Signup grants **no session** until the address is verified — that gate closes account pre-hijacking                 |
+| Password reset                 | Shipped                            | `/forgot-password` → `/reset-password`; a reset revokes every existing session                                      |
+| Social login (GitHub, Google)  | Shipped                            | Auto-enables per provider when its credentials are set                                                              |
+| Organizations and roles        | **Partial**                        | Schema, membership roles, active-org session and the switcher ship; **creating/managing orgs is not in the UI yet** |
+| REST API at `/api/v1`          | Shipped                            | Default-deny. `GET /health`, `GET /me`, `GET`/`POST /tokens`, `DELETE /tokens/{id}`                                 |
+| API tokens                     | Shipped                            | SHA-256 hashed, plaintext shown once, minting is session-only                                                       |
+| MCP server                     | Shipped, **undeployed by default** | OAuth 2.1 with dynamic client registration; tools are `health_check` and `whoami`                                   |
+| Rate limiting                  | Shipped                            | Three Workers `[[ratelimits]]` bindings — mail 3/min, credentials 10/min, default 120/min                           |
+| Security headers + CSP         | Shipped                            | Nonce/hash CSP with no `unsafe-inline` on scripts, HSTS, `no-store` on cookie-bearing responses                     |
+| Observability                  | Shipped                            | Structured logs, one correlation id per request, Sentry opt-in                                                      |
+| Transactional email            | Shipped, needs config              | Resend transport; **falls back to logging** when `RESEND_API_KEY`/`EMAIL_FROM` are unset                            |
+| OpenAPI spec                   | Shipped                            | Generated from route schemas, committed, CI fails on drift                                                          |
+| Quality gate and gated deploys | Shipped                            | `pnpm verify` gates every deploy; releases are tag-triggered and assert the deployed version                        |
+| Billing and entitlements       | Not started                        | Tracked as a candidate epic, not promised                                                                           |
+
+### Known limitations
+
+Stated up front, because finding these after adopting a starter is worse than reading them now:
+
+- **OAuth provider tokens sit in plaintext** in D1, and expired rows in `verification`
+  (email-verification and password-reset values) are never purged, so that exposure only
+  grows. Tracked in [`docs/security-audit.md`](./docs/security-audit.md) #12.
+- **There is no account-deletion surface.** Tenant foreign keys cascade, but
+  `invitation.email` has no foreign key to `user`, so an invitation addressed to a deleted
+  address needs an application-level sweep whoever adds that surface must write.
+- **Organization management has no UI.** The data model and role checks are real; the
+  "Create organization" control is deliberately disabled with the reason next to it rather
+  than faked.
+- **The MCP Worker ships undeployed.** Its Agent is a Durable Object, billed by duration —
+  deploy it when a product actually needs it.
+- **Dependency updates are manual.** Dependabot security updates are currently disabled.
+
+## Quick start
 
 ```bash
-# Install dependencies
+git clone https://github.com/farshidpourlatifi/edgeseed my-app
+cd my-app
 pnpm install
 
-# Building your own product on this? Claim its identity FIRST — this rewrites
-# the root package name, both Worker names, and both database names. Doing it
-# later means redoing anything already stamped with the old one.
-# Full workflow: docs/starter-as-upstream.md
+# Claim your product identity FIRST — this rewrites the root package name, both
+# Worker names, and both database names. Doing it later means redoing anything
+# already stamped with the old one. Full workflow: docs/starter-as-upstream.md
 pnpm init:product acme "Acme Cloud"
 
-# Local env — required. Without it every request answers 500, because the env
-# is validated on each one and fails closed. Fill in BETTER_AUTH_SECRET
-# (`openssl rand -hex 32`) and BETTER_AUTH_URL=http://localhost:5173
+# Local env — required, not optional. The env is validated on every request and
+# fails closed, so without this every page (the landing page included) answers 500.
+# Fill in BETTER_AUTH_SECRET (`openssl rand -hex 32`) and
+# BETTER_AUTH_URL=http://localhost:5173
 #
-# BETTER_AUTH_URL must match the port the dev server actually serves on. Auth
-# is pinned to that origin, so a mismatch keeps every page working while POSTs
-# to /api/auth are refused as an untrusted origin — it reads as a broken
-# signup, not as a misconfigured URL.
+# BETTER_AUTH_URL must match the port the dev server actually serves on. Auth is
+# pinned to that origin, so a mismatch keeps every page working while POSTs to
+# /api/auth are refused as an untrusted origin — it reads as a broken signup,
+# not as a misconfigured URL.
 cp apps/web/.dev.vars.example apps/web/.dev.vars
 
-# Apply database migrations (local D1)
-pnpm db:migrate
-
-# Seed development data
-pnpm db:seed
-
-# Start development server
+pnpm db:migrate      # apply migrations to the local D1
+pnpm db:seed         # seed dev data — then sign in as admin@example.com / dev-password-123
 pnpm dev --filter @starter/web
 ```
 
 The web app runs at `http://localhost:5173`.
 
-## Project Structure
+**Prerequisites:** Node.js 22+ and pnpm 9+.
+
+### Adopting this as your product's upstream
+
+This is deliberately **not** a GitHub template repository. A template severs git history,
+and history is the mechanism: starter fixes reach your product through
+`git merge upstream/main`. Clone it, point `upstream` here, and keep `@starter/*` packages
+read-only in your repo — your product code lives in your own scope.
+
+The full adoption path, including what `init:product` rewrites and what it deliberately
+leaves alone, is in [docs/starter-as-upstream.md](./docs/starter-as-upstream.md).
+
+## Contributing
+
+Bug reports, feature requests and pull requests are welcome — see
+[CONTRIBUTING.md](./CONTRIBUTING.md) for the workflow and the verification gate every
+change has to pass. Security issues follow a private path: see
+[SECURITY.md](./SECURITY.md), and please do not open a public issue for them.
+
+## Project structure
 
 ```
 apps/
@@ -90,7 +159,7 @@ docs/
 | `pnpm check:deployed <output> <version>`  | Assert the deployed origin's `/api/v1/health` reports that version                  |
 | `pnpm release:notes <output>`             | Release-note preamble from wrangler's structured deploy output                      |
 | `pnpm init:product <name>`                | Stamp product identity on a fresh clone ([guide](./docs/starter-as-upstream.md))    |
-| `pnpm check:docs-sync`                    | Fail on drift: undocumented scripts, stale `.dev.vars.example`                      |
+| `pnpm check:docs-sync`                    | Fail on drift: undocumented scripts, stale `.dev.vars.example`, doc claims vs code  |
 | `pnpm check:boot`                         | Start each **built** Worker and prove it serves a request (run after `build`)       |
 
 ## Key Conventions
@@ -112,7 +181,7 @@ docs/
   lint-staged (ESLint + Prettier on staged files) and a [gitleaks](./docs/secret-scanning.md)
   secret scan before every commit
 - **CI** — every PR and push to `main` runs lint, format, tests, build, typecheck, e2e,
-  a full-history gitleaks scan, and drift checks (OpenAPI spec, docs-vs-scripts); a weekly
+  a full-history gitleaks scan, and drift checks (OpenAPI spec, docs-vs-code); a weekly
   cron rerun catches rot between commits
 - **Deploys are gated** — `pnpm deploy:web` refuses to ship unless `pnpm verify` passes
 - **Releases are the deploy** — pushing a `v*` tag runs the same gate, deploys, and
@@ -267,9 +336,15 @@ The web app uses **Hono** as the server middleware layer, bridged to **React Rou
 
 Both `apps/web` and `apps/mcp` share the same `packages/auth` and `packages/db` for consistent auth and data access.
 
-## License
+## License and naming
 
-[MIT](./LICENSE) — use it, fork it, ship proprietary products on top of it.
+[MIT](./LICENSE) — use it, fork it, ship proprietary products on top of it. The root
+`LICENSE` covers the whole tree, `docs/` included; there are deliberately no per-file
+headers.
 
 The UI components in `packages/ui/src/components/ui/` are adapted from
 [shadcn/ui](https://ui.shadcn.com), also MIT.
+
+**The license grants no rights to the EdgeSeed name or the `edgeseed.dev` domain.**
+MIT is silent on trademarks, and silence is not a grant. Fork the code freely — then
+run `pnpm init:product` and ship it under your own name, not this one.

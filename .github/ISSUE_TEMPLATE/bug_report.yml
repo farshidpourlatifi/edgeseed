@@ -1,0 +1,97 @@
+name: Bug report
+description: Something behaves differently from what the code or docs claim.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Not for security problems.** Use the
+        [private advisory form](https://github.com/farshidpourlatifi/edgeseed/security/advisories/new)
+        instead — see [SECURITY.md](https://github.com/farshidpourlatifi/edgeseed/blob/main/SECURITY.md).
+
+        **Never paste secrets.** No `.dev.vars` contents, API keys, tokens, or session
+        cookies — redact them before pasting logs.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What happened, and what you expected instead.
+      placeholder: Signing in with a valid password answers 401 instead of redirecting to the dashboard.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: The smallest sequence that shows it. A failing test is ideal.
+      placeholder: |
+        1. pnpm db:reset && pnpm db:seed
+        2. pnpm dev --filter @starter/web
+        3. Sign in as admin@example.com
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where does it happen?
+      multiple: true
+      options:
+        - Web app (routes, loaders, UI)
+        - REST API (/api/v1)
+        - MCP server (apps/mcp)
+        - CLI scripts (pnpm db:*, api:*, check:*)
+        - Build, verify gate, or CI
+        - Deploy or release flow
+        - Docs only
+    validations:
+      required: true
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      options:
+        - Local dev (pnpm dev)
+        - Local built Worker (pnpm build + check:boot)
+        - Deployed to my own Cloudflare account
+        - The live demo at app.edgeseed.dev
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: The release tag, or the commit SHA you are on. `/api/v1/health` reports the running version.
+      placeholder: v0.1.3
+    validations:
+      required: true
+
+  - type: input
+    id: request_id
+    attributes:
+      label: Correlation id (optional)
+      description: >
+        Every response carries an `x-request-id`, and error responses include it in the
+        body. Quoting it lets the failure be found in the logs.
+      placeholder: 6ef9a4f0-f21a-4587-9248-d668e0cb63b0
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or error output (optional)
+      description: Redact anything sensitive first. This is rendered as a code block automatically.
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I checked that this is not a documented known limitation in the README or `docs/security-audit.md`.
+          required: true
+        - label: This is not a security vulnerability (those go through the private advisory form).
+          required: true

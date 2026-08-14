@@ -1,0 +1,11 @@
+# Blank issues stay enabled: epics and roadmap items are written free-form in the
+# house format (Problem / Scope / Non-goals / Acceptance criteria) and would not
+# fit a form.
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/farshidpourlatifi/edgeseed/security/advisories/new
+    about: Private advisory — never open a public issue for a security problem.
+  - name: Adopting EdgeSeed for your own product
+    url: https://github.com/farshidpourlatifi/edgeseed/blob/main/docs/starter-as-upstream.md
+    about: How to clone, rename, and take upstream fixes. Product features belong in your repo, not here.
