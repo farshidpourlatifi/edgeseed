@@ -5,16 +5,27 @@
  * 2. Each app's .dev.vars.example must stay in sync with the env schema in
  *    packages/config — the examples are the key-name reference agents audit
  *    real .dev.vars files against, so a stale example defeats the check.
+ * 3. Relative links in the public docs must resolve, so a moved file cannot
+ *    quietly turn a documented path into a 404.
+ * 4. Every MCP tool and every API path the code exposes must be named in the
+ *    README, so the public capability claims cannot drift below what ships.
+ *
+ * These run on every PR and in the weekly cron. They are the mechanical half of
+ * keeping docs true; the judgement half is the sweep in docs/housekeeping.md.
  *
  * The comparison logic lives in ./lib/docs-sync so its deny paths are unit-
  * and mutation-tested.
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { dirname, join, normalize } from "node:path";
 
 import {
+  brokenRelativeLinks,
   compareEnvExample,
   exampleKeys,
+  mcpToolNames,
   schemaBlockKeys,
+  undocumentedNames,
   undocumentedScripts,
 } from "./lib/docs-sync";
 
@@ -82,14 +93,75 @@ for (const { file, schema } of EXAMPLES) {
   mirrored.push(`${schema}: ${keys.length}`);
 }
 
+// --- Check 3: relative links in the public docs must resolve ---
+
+// The docs a first-time visitor or adopter actually walks. Per-package
+// CLAUDE.md files are deliberately out: they are read in place by an agent
+// already in that directory, and they cross-reference each other far more
+// loosely than the published surface does.
+const LINKED_DOCS = [
+  "README.md",
+  "AGENTS.md",
+  "CONTRIBUTING.md",
+  "SECURITY.md",
+  ...readdirSync("docs")
+    .filter((f) => f.endsWith(".md"))
+    .map((f) => join("docs", f)),
+];
+
+let linksChecked = 0;
+for (const file of LINKED_DOCS) {
+  const content = readFileSync(file, "utf8");
+  // Targets are written relative to the document, so resolve from its own
+  // directory — `./docs/mcp.md` in README.md and `./mcp.md` in docs/README.md
+  // name the same file.
+  const broken = brokenRelativeLinks(content, (target) =>
+    existsSync(normalize(join(dirname(file), target))),
+  );
+  linksChecked += 1;
+  if (broken.length > 0) {
+    failed = true;
+    console.error(`${file} links to missing paths: ${broken.join(", ")}`);
+  }
+}
+
+// --- Check 4: the README must name every MCP tool and API path that ships ---
+
+const readme = readFileSync("README.md", "utf8");
+
+const toolSources = readdirSync("apps/mcp/src/tools")
+  .filter((f) => f.endsWith(".ts") && f !== "index.ts")
+  .map((f) => readFileSync(join("apps/mcp/src/tools", f), "utf8"));
+const toolNames = mcpToolNames(toolSources);
+const undocumentedTools = undocumentedNames(toolNames, readme);
+if (undocumentedTools.length > 0) {
+  failed = true;
+  console.error(`README.md does not mention MCP tools: ${undocumentedTools.join(", ")}`);
+}
+
+// The generated spec, not the route source: it is the published contract, and
+// it is already regenerated and diffed by the api:spec drift check.
+const apiPaths = Object.keys(
+  (JSON.parse(readFileSync("docs/api/openapi.json", "utf8")) as { paths: Record<string, unknown> })
+    .paths,
+);
+const undocumentedPaths = undocumentedNames(apiPaths, readme);
+if (undocumentedPaths.length > 0) {
+  failed = true;
+  console.error(`README.md does not mention API paths: ${undocumentedPaths.join(", ")}`);
+}
+
 if (failed) {
   console.error(
     "\nFix the drift above: document the commands (or add to IGNORED with a reason)," +
-      " and keep .dev.vars.example matching the env schema.",
+      " keep .dev.vars.example matching the env schema, repair the links, and make the" +
+      " README name every tool and path that ships.",
   );
   process.exit(1);
 }
 console.log(
   `docs-sync ok: ${scripts.length} scripts documented in ${DOC_FILES.join(", ")}; ` +
-    `env keys mirrored (${mirrored.join(", ")})`,
+    `env keys mirrored (${mirrored.join(", ")}); ` +
+    `links resolved in ${linksChecked} docs; ` +
+    `${toolNames.length} MCP tools and ${apiPaths.length} API paths documented`,
 );

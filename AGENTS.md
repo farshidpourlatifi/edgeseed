@@ -130,6 +130,13 @@ and compare names against the example, never values.
 - When you invalidate a claim in one file, **grep for its other homes**. Include
   `.github/skills/code-review/SKILL.md` when the claim is a review rule. Docs that
   contradict the code are worse than missing docs, because they are trusted.
+- **Docs drift is checked in two halves, and only one is automatic.**
+  `pnpm check:docs-sync` runs on every PR and fails on the mechanical kind:
+  an undocumented root script, a stale `.dev.vars.example`, a relative link
+  whose target is gone, an MCP tool or API path that ships without a mention in
+  the README. It cannot judge whether a sentence is still _true_ — that is the
+  quarterly sweep in `docs/housekeeping.md`, which a scheduled workflow opens an
+  issue for. Adding a claim that only a human can verify means adding it there.
 - Do not read live project files as test fixtures. `pnpm init:product` rewrites
   `wrangler.jsonc` and `packages/config/src/product.ts` in every downstream
   clone, so a test asserting on their current contents fails permanently there.
@@ -229,6 +236,11 @@ thing that provably works, not the most engineered thing that might.
 Distilled from `docs/` on 2026-08-06, statuses verified against the code that
 day. The cited doc stays canonical — when a concern is resolved, update both it
 and this list, or the stale copy will be trusted.
+
+That date is the warranty on this list, so it is re-verified on a schedule
+rather than on remembering: section 1 of the sweep in
+[`docs/housekeeping.md`](./docs/housekeeping.md) walks all ten against the
+current code and updates the date to the day it actually happened.
 
 1. **Email verification is the gate — do not weaken it.** Signup grants no
    session until the address is proven, and `requireLocalEmailVerified` stops a

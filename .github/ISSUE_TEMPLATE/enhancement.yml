@@ -1,0 +1,84 @@
+name: Enhancement
+description: Propose a change to what the starter does or ships.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is a **starter**, so the bar is different from a product: everything shipped
+        here is inherited by every clone and has to be maintained forever. A good proposal
+        argues that this belongs in the starter rather than in the product built on it.
+
+        Building your own product? Features specific to it belong in your repository —
+        see [starter-as-upstream.md](https://github.com/farshidpourlatifi/edgeseed/blob/main/docs/starter-as-upstream.md).
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is hard, missing, or wrong today. Describe the situation, not the solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What you propose to change, as a list of concrete pieces of work.
+      placeholder: |
+        - Add …
+        - Update … to …
+        - Document the new behavior in …
+    validations:
+      required: true
+
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+      description: >
+        What this deliberately does not do. This is the most useful field in the form —
+        it is what keeps a change from growing during review.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: How a reviewer decides this is done. Observable outcomes, not implementation steps.
+      placeholder: |
+        - A fresh clone can … without …
+        - The deny path is covered by a test.
+        - `pnpm verify` passes.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - Auth, sessions, or organizations
+        - REST API or OpenAPI spec
+        - MCP server
+        - Database schema or migrations
+        - UI and design system
+        - CLI and dev workflow
+        - Observability
+        - Security posture
+        - Build, verify gate, CI, or release
+        - Docs and public surface
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: This belongs in the starter itself, not in a product built on it.
+          required: true
+        - label: I have read the engineering principles in AGENTS.md.
+          required: false

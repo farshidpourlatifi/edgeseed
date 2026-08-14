@@ -1,8 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
+  brokenRelativeLinks,
   compareEnvExample,
   exampleKeys,
+  mcpToolNames,
+  relativeLinkTargets,
   schemaBlockKeys,
+  undocumentedNames,
   undocumentedScripts,
 } from "../lib/docs-sync";
 
@@ -117,5 +121,89 @@ describe("compareEnvExample", () => {
       missing: [],
       unknown: [],
     });
+  });
+});
+
+describe("relativeLinkTargets", () => {
+  it("should read a relative link and a relative image", () => {
+    expect(
+      relativeLinkTargets("see [docs](./docs/mcp.md) and ![shot](docs/assets/a.webp)"),
+    ).toEqual(["./docs/mcp.md", "docs/assets/a.webp"]);
+  });
+
+  it("should skip absolute URLs and in-page anchors", () => {
+    const doc = "[site](https://edgeseed.dev) [mail](mailto:a@b.c) [top](#quick-start)";
+    expect(relativeLinkTargets(doc)).toEqual([]);
+  });
+
+  it("should skip protocol-relative URLs", () => {
+    expect(relativeLinkTargets("[cdn](//example.com/x.png)")).toEqual([]);
+  });
+
+  it("should strip an anchor so the file is what gets resolved", () => {
+    expect(relativeLinkTargets("[x](./AGENTS.md#cutting-a-release)")).toEqual(["./AGENTS.md"]);
+  });
+
+  it("should drop a link title", () => {
+    expect(relativeLinkTargets('[x](./LICENSE "The license")')).toEqual(["./LICENSE"]);
+  });
+
+  it("should unwrap an angle-bracket destination", () => {
+    expect(relativeLinkTargets("[x](<./docs/a b.md>)")).toEqual(["./docs/a b.md"]);
+  });
+
+  it("should decode a percent-encoded path", () => {
+    expect(relativeLinkTargets("[x](./docs/a%20b.md)")).toEqual(["./docs/a b.md"]);
+  });
+});
+
+describe("brokenRelativeLinks", () => {
+  it("should report a target that does not exist", () => {
+    const doc = "[gone](./docs/removed.md) and [here](./README.md)";
+    expect(brokenRelativeLinks(doc, (t) => t === "./README.md")).toEqual(["./docs/removed.md"]);
+  });
+
+  it("should report nothing when every target resolves", () => {
+    expect(brokenRelativeLinks("[a](./a.md) [b](./b.md)", () => true)).toEqual([]);
+  });
+
+  it("should report a repeated broken target once", () => {
+    const doc = "[a](./gone.md) then [again](./gone.md)";
+    expect(brokenRelativeLinks(doc, () => false)).toEqual(["./gone.md"]);
+  });
+});
+
+describe("mcpToolNames", () => {
+  it("should read the registered name, not the exported function name", () => {
+    const src = [
+      "export function registerHealthTool(server: McpServer) {",
+      '  server.tool("health_check", "Check the health status", {}, async () => ({}));',
+      "}",
+    ].join("\n");
+    expect(mcpToolNames([src])).toEqual(["health_check"]);
+  });
+
+  it("should read tools across several sources", () => {
+    expect(mcpToolNames(['server.tool("a", ...', "server.tool(\n  'b',"])).toEqual(["a", "b"]);
+  });
+
+  it("should find nothing in a source that registers no tool", () => {
+    expect(mcpToolNames(["export interface ToolContext { db: Database }"])).toEqual([]);
+  });
+});
+
+describe("undocumentedNames", () => {
+  it("should report a name the doc never mentions", () => {
+    expect(undocumentedNames(["health_check", "whoami"], "tools are `health_check`")).toEqual([
+      "whoami",
+    ]);
+  });
+
+  it("should report nothing when the doc mentions all of them", () => {
+    expect(undocumentedNames(["/me", "/tokens"], "| `GET /me` | `POST /tokens` |")).toEqual([]);
+  });
+
+  it("should report a duplicated missing name once", () => {
+    expect(undocumentedNames(["/me", "/me"], "nothing here")).toEqual(["/me"]);
   });
 });

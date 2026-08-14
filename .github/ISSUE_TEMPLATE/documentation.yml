@@ -1,0 +1,62 @@
+name: Documentation problem
+description: Docs are wrong, stale, contradictory, or missing something an adopter needs.
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Documentation that contradicts the code is worse than missing documentation,
+        because it gets trusted. Claims are repeated across `README.md`, `docs/`,
+        `AGENTS.md` and the per-package `CLAUDE.md` files on purpose — so if you found one
+        stale copy, there may be others.
+
+  - type: textarea
+    id: claim
+    attributes:
+      label: What the docs say
+      description: Quote the claim, and link the file and line if you can.
+      placeholder: |
+        README.md says the MCP server exposes a tool per public API route.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reality
+    attributes:
+      label: What is actually true
+      description: What the code does, or what happened when you followed the instructions.
+      placeholder: |
+        Only `health_check` and `whoami` are registered in apps/mcp/src/tools/index.ts.
+    validations:
+      required: true
+
+  - type: input
+    id: locations
+    attributes:
+      label: Files affected
+      description: >
+        Every place the claim appears, as far as you found them. Leave it to the
+        maintainer if you are unsure — but a partial fix that leaves a stale copy behind
+        is the failure mode this field exists to prevent.
+      placeholder: README.md, docs/mcp.md, AGENTS.md
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind of problem
+      options:
+        - Wrong — the docs contradict the code
+        - Stale — it was true once and the code moved
+        - Missing — an adopter needs this and it is not written down
+        - Unclear — it is technically correct but reads as something else
+        - Broken link or bad path
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I checked whether this is a documented known limitation rather than a docs error.
+          required: true

@@ -62,3 +62,67 @@ export function compareEnvExample(
     unknown: [...example].filter((k) => !schema.includes(k)),
   };
 }
+
+/**
+ * Relative link and image targets in a markdown document, as written.
+ *
+ * Only local targets are returned: absolute URLs (`https:`, `mailto:`) point
+ * outward and are not this repo's to keep working, and a bare `#anchor` is
+ * in-page. An anchor or query suffix is stripped, so `./docs/a.md#b` resolves
+ * as `./docs/a.md` — the file is what can go missing, and verifying heading
+ * anchors would mean parsing every target's headings for a far rarer failure.
+ *
+ * Angle-bracket destinations (`[x](<./a b.md>)`) are unwrapped, and titles
+ * (`[x](./a.md "t")`) are dropped, because both are valid markdown a doc may
+ * grow at any time.
+ */
+export function relativeLinkTargets(docContent: string): string[] {
+  const targets: string[] = [];
+  for (const [, raw] of docContent.matchAll(/!?\[[^\]]*\]\(([^)]+)\)/g)) {
+    let target = raw.trim();
+    target = target.startsWith("<") ? target.slice(1, target.indexOf(">")) : target.split(/\s+/)[0];
+    target = target.split("#")[0].split("?")[0].trim();
+    if (target === "" || /^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith("//")) continue;
+    targets.push(decodeURIComponent(target));
+  }
+  return targets;
+}
+
+/**
+ * Relative links in `docContent` whose target does not exist.
+ *
+ * `exists` is injected rather than reaching for `node:fs` so the deny path is
+ * testable without a fixture tree — and so this stays pure, like everything
+ * else in this module.
+ */
+export function brokenRelativeLinks(
+  docContent: string,
+  exists: (target: string) => boolean,
+): string[] {
+  return [...new Set(relativeLinkTargets(docContent))].filter((t) => !exists(t));
+}
+
+/**
+ * Tool names registered with an `McpServer`, read from the tools' source.
+ *
+ * The registration string is the name a client sees, and it lives apart from
+ * the `registerXTool` function name — so this matches `server.tool("<name>"`
+ * rather than the export, which is what would drift.
+ */
+export function mcpToolNames(toolSources: string[]): string[] {
+  return toolSources.flatMap((src) =>
+    [...src.matchAll(/server\.tool\(\s*["'`]([a-zA-Z0-9_-]+)["'`]/g)].map((m) => m[1]),
+  );
+}
+
+/**
+ * Names in `expected` that the doc never mentions.
+ *
+ * Shared by the MCP-tool and API-path checks: both are "the code exposes this,
+ * so the public doc has to say so". Matching is a plain substring, because a
+ * path appears as `/tokens/{id}` in one sentence and inside a table cell in
+ * another — anchoring it to a syntax would fail on the doc's own prose.
+ */
+export function undocumentedNames(expected: string[], docContent: string): string[] {
+  return [...new Set(expected)].filter((name) => !docContent.includes(name));
+}

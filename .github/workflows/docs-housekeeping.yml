@@ -1,0 +1,82 @@
+name: docs-housekeeping
+
+# The mechanical drift checks run on every PR (`pnpm check:docs-sync`). This is the
+# other half: the claims a machine cannot judge — whether a sentence is still true.
+# It opens a tracking issue on a calendar so the sweep happens by schedule rather
+# than by remembering. The checklist itself lives in docs/housekeeping.md.
+on:
+  schedule:
+    # 09:00 UTC on the 1st of Jan, Apr, Jul, Oct — quarterly.
+    - cron: "0 9 1 1,4,7,10 *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  open-sweep-issue:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open the sweep issue unless one is already open
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SERVER: ${{ github.server_url }}
+        run: |
+          set -euo pipefail
+
+          # One open sweep at a time. A second issue would split the answers across
+          # two threads and neither would read as complete.
+          existing=$(gh issue list --repo "$REPO" --state open \
+            --label documentation --search 'in:title "Docs housekeeping sweep"' \
+            --json number --jq '.[0].number // empty')
+
+          if [ -n "$existing" ]; then
+            echo "Sweep issue #$existing is still open — not opening another."
+            exit 0
+          fi
+
+          # Computed rather than `date +%q`: that is a GNU extension, and BSD date
+          # emits a literal "q" and still exits 0, so the obvious `|| fallback`
+          # never fires and the title reads "2026 Qq". 10# forces base ten, or
+          # August ("08") is an invalid octal literal.
+          month=$(date -u '+%m')
+          period="$(date -u '+%Y') Q$(((10#$month - 1) / 3 + 1))"
+          checklist="$SERVER/$REPO/blob/main/docs/housekeeping.md"
+
+          # Written to a file rather than captured with $(cat <<BODY): bash tracks
+          # quotes while scanning a command substitution for its closing paren, so
+          # a lone apostrophe in the prose below ("AGENTS.md's") makes the whole
+          # step fail to parse. --body-file has no such trap.
+          #
+          # YAML strips this block's own indentation, so the shell — and the
+          # heredoc terminator — see these lines at column zero. That matters:
+          # four leading spaces would make GitHub render the body as a code block.
+          # The heredoc is unquoted so $checklist interpolates, which is why the
+          # backticks below are escaped.
+          cat > sweep-body.md <<BODY
+          Quarterly sweep of the documentation claims CI cannot check.
+
+          The checklist is **[docs/housekeeping.md]($checklist)** — work through it there,
+          in order, and close this issue with a one-line note per section (including
+          "verified, no change", which is a real result).
+
+          Sections:
+
+          1. **Standing concerns** — re-verify AGENTS.md's ten against the code, update the date
+          2. **Public claims** — README capability matrix, known limitations, screenshots
+          3. **Release truth** — live version vs latest release, supported-versions table
+          4. **Repository surface** — description, topics, \`isTemplate\` still false, rulesets, required checks
+          5. **Security posture** — advisories, Dependabot status, audit statuses
+          6. **Cross-references** — grep changed claims for their other homes
+
+          The mechanical half (\`pnpm check:docs-sync\`) already runs on every PR and in the
+          weekly CI cron; it is not part of this sweep.
+          BODY
+
+          gh issue create --repo "$REPO" \
+            --title "Docs housekeeping sweep — $period" \
+            --label documentation \
+            --body-file sweep-body.md
