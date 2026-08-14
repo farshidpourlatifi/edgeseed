@@ -2,10 +2,16 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it, expect } from "vitest";
 import {
+  currentProductRepo,
   currentProductSlug,
   deriveDisplayName,
   isValidProductSlug,
+  isValidRepoUrl,
+  parseInitArgs,
+  redactForMessage,
+  UNVERIFIABLE_VALUE,
   stampProductIdentity,
+  stampProductRepo,
   stampWranglerConfig,
 } from "../lib/init-product";
 
@@ -118,6 +124,374 @@ describe("stampProductIdentity", () => {
 
       expect(JSON.parse(literal)).toBe(displayName);
     }
+  });
+});
+
+describe("isValidRepoUrl", () => {
+  it.each(["https://github.com/acme/acme", "http://git.internal/acme", "https://gitlab.com/a/b"])(
+    "accepts %s",
+    (url) => {
+      expect(isValidRepoUrl(url)).toBe(true);
+    },
+  );
+
+  // The value reaches an href and a copy-to-clipboard command on the landing
+  // page, so a non-http(s) scheme is a scripted link on the most-visited page
+  // the product has.
+  it.each([
+    "javascript:alert(1)",
+    "data:text/html,<script>alert(1)</script>",
+    "file:///etc/passwd",
+    "ftp://example.com/acme",
+    "github.com/acme/acme",
+    "not a url",
+    "",
+  ])("refuses %j", (url) => {
+    expect(isValidRepoUrl(url)).toBe(false);
+  });
+});
+
+describe("currentProductRepo", () => {
+  it("reads the URL the script will verify against", () => {
+    expect(
+      currentProductRepo('export const PRODUCT_REPO_URL = "https://github.com/acme/acme";'),
+    ).toBe("https://github.com/acme/acme");
+  });
+
+  it("reads the empty default a clone is left with", () => {
+    expect(currentProductRepo('export const PRODUCT_REPO_URL = "";')).toBe("");
+  });
+
+  it("returns null when the declaration is missing", () => {
+    expect(currentProductRepo('export const PRODUCT_SLUG = "acme";')).toBeNull();
+  });
+
+  // Distinguishing "" from null is what lets the script tell a successful clear
+  // from a rewrite that silently matched nothing.
+  it("returns null rather than empty when the declaration is reformatted", () => {
+    expect(currentProductRepo("export const PRODUCT_REPO_URL = '';")).toBeNull();
+  });
+});
+
+describe("stampProductRepo", () => {
+  const source = 'export const PRODUCT_REPO_URL = "https://github.com/upstream/starter";';
+
+  it("clears the upstream URL when no repo is given", () => {
+    const out = stampProductRepo(source, "");
+
+    expect(out).toBe('export const PRODUCT_REPO_URL = "";');
+    expect(out).not.toContain("upstream/starter");
+  });
+
+  it("stamps the product's own repository", () => {
+    expect(stampProductRepo(source, "https://github.com/acme/acme-cloud")).toBe(
+      'export const PRODUCT_REPO_URL = "https://github.com/acme/acme-cloud";',
+    );
+  });
+
+  it("round-trips with currentProductRepo", () => {
+    for (const url of ["", "https://github.com/acme/acme"]) {
+      expect(currentProductRepo(stampProductRepo(source, url))).toBe(url);
+    }
+  });
+
+  // Same hazard as the display name: `$&` in a replacement *string* would splice
+  // the whole match back in. A URL can carry one in a query or fragment.
+  it("keeps regex replacement patterns literal", () => {
+    const url = "https://git.example.com/acme?ref=$&";
+
+    expect(stampProductRepo(source, url)).toBe(
+      `export const PRODUCT_REPO_URL = ${JSON.stringify(url)};`,
+    );
+  });
+
+  it("composes with stampProductIdentity without either undoing the other", () => {
+    const product = [
+      'export const PRODUCT_NAME = "Starter";',
+      'export const PRODUCT_SLUG = "starter";',
+      'export const PRODUCT_REPO_URL = "https://github.com/upstream/starter";',
+    ].join("\n");
+
+    const out = stampProductRepo(
+      stampProductIdentity(product, { slug: "acme", displayName: "Acme" }),
+      "",
+    );
+
+    expect(currentProductSlug(out)).toBe("acme");
+    expect(currentProductRepo(out)).toBe("");
+  });
+});
+
+describe("redactForMessage", () => {
+  // The leak this exists to stop: parseInitArgs quotes the rejected value, and
+  // init-product.ts prints that to stderr, where CI keeps it.
+  it.each([
+    "https://oauth2:ghp_realtokenvalue@github.com/acme/acme",
+    "https://ghp_realtokenvalue@github.com/acme/acme",
+    "https://:ghp_realtokenvalue@github.com/acme/acme",
+  ])("strips the credential out of %j", (url) => {
+    const out = redactForMessage(url);
+
+    expect(out).not.toContain("ghp_realtokenvalue");
+    expect(out).toContain("***@github.com/acme/acme");
+  });
+
+  it("redacts before truncating, so a long credential cannot survive the cut", () => {
+    const out = redactForMessage(`https://user:${"t".repeat(400)}@github.com/acme`);
+
+    expect(out).not.toContain("tttt");
+    expect(out.length).toBeLessThanOrEqual(121);
+  });
+
+  /**
+   * A URL parser splits the authority on its **last** `@`, so redaction has to
+   * as well. `https://user:tok@en@github.com/a` has the password `tok@en`;
+   * stopping at the first `@` printed `https://***@en@github.com/a` and leaked
+   * its tail.
+   */
+  it.each([
+    ["https://user:tok@en@github.com/acme", "https://***@github.com/acme"],
+    ["https://a@b@c@github.com/x", "https://***@github.com/x"],
+    ["https://user:p@ss@w@rd@github.com/x", "https://***@github.com/x"],
+  ])("redacts %j through the authority's last @", (url, expected) => {
+    expect(redactForMessage(url)).toBe(expected);
+  });
+
+  it("leaks no fragment of a multi-@ password", () => {
+    const out = redactForMessage("https://user:tok@en@github.com/acme");
+
+    expect(out).not.toContain("tok");
+    expect(out).not.toContain("@en");
+    // The host survives, or the message stops being useful.
+    expect(out).toContain("github.com/acme");
+  });
+
+  // Scheme and `//` are both optional, so a credential typed without either is
+  // still caught — the shape someone reaches for when they forget the scheme.
+  it.each([
+    ["ghp_realtokenvalue@github.com/acme", "***@github.com/acme"],
+    ["user:ghp_realtokenvalue@github.com/acme", "user:***@github.com/acme"],
+  ])("redacts the schemeless %j", (value, expected) => {
+    const out = redactForMessage(value);
+
+    expect(out).toBe(expected);
+    expect(out).not.toContain("ghp_realtokenvalue");
+  });
+
+  it.each([
+    "https://github.com/acme/a@b",
+    "https://github.com/acme?x=a@b",
+    "https://github.com/acme#a@b",
+  ])("leaves an @ outside the authority alone: %j", (url) => {
+    expect(redactForMessage(url)).toBe(url);
+  });
+
+  it("leaves an @ that is not userinfo alone", () => {
+    expect(redactForMessage("https://github.com/acme/a@b")).toBe("https://github.com/acme/a@b");
+  });
+
+  /**
+   * Malformed credentials, which the authority-bounded pattern cannot reach.
+   *
+   * An unencoded `/` in the password ends the authority before the `@`, so the
+   * pattern never matches — and the value does not parse either, so nothing
+   * establishes the tail is not a secret. Base64-shaped tokens contain `/`.
+   */
+  it.each([
+    "https://user:tok/en@github.com/acme",
+    "https://user:abc/def+ghi@host/repo",
+    "https://user:tok?x@github.com/acme",
+    "https://user:tok#x@github.com/acme",
+  ])("refuses to echo %j at all", (value) => {
+    expect(redactForMessage(value)).toBe(UNVERIFIABLE_VALUE);
+  });
+
+  /**
+   * A leading space stops the anchored pattern firing, yet the URL still parses
+   * *with* credentials — so the userinfo check, not the pattern, is what keeps
+   * the token out of the message here.
+   */
+  it("refuses a credential the anchored pattern cannot reach", () => {
+    const out = redactForMessage(" https://user:ghp_realtokenvalue@github.com/a");
+
+    expect(out).toBe(UNVERIFIABLE_VALUE);
+    expect(out).not.toContain("ghp_realtokenvalue");
+  });
+
+  // The other side of that: trimming is what lets a benign wrapped URL still
+  // parse, so it is echoed rather than needlessly reduced to the placeholder.
+  // Non-breaking space specifically — `new URL` strips a plain leading space
+  // itself, so only this shape actually exercises the trim.
+  it("still echoes a harmless @ on a value wrapped in non-breaking spaces", () => {
+    const out = redactForMessage("\u00A0https://github.com/acme/a@b\u00A0");
+
+    expect(out).not.toBe(UNVERIFIABLE_VALUE);
+    expect(out).toContain("github.com/acme/a@b");
+  });
+
+  /**
+   * Userinfo with only one half present. Both leak if the check asks for
+   * *either* field to be empty rather than both — and a password-only URL
+   * (`https://:token@host`) is exactly how a token-in-URL is usually written.
+   */
+  it.each([
+    " https://:ghp_realtokenvalue@github.com/a",
+    " https://ghp_realtokenvalue@github.com/a",
+  ])("refuses %j, which carries only one half of a credential", (value) => {
+    const out = redactForMessage(value);
+
+    expect(out).toBe(UNVERIFIABLE_VALUE);
+    expect(out).not.toContain("ghp_realtokenvalue");
+  });
+
+  it("names what it withheld, so the reader knows why", () => {
+    expect(UNVERIFIABLE_VALUE).toContain("redacted");
+    expect(UNVERIFIABLE_VALUE.length).toBeGreaterThan(0);
+  });
+
+  it("leaks no part of a malformed credential", () => {
+    expect(redactForMessage("https://user:ghp_realtokenvalue/x@github.com/a")).not.toContain(
+      "ghp_realtokenvalue",
+    );
+  });
+
+  // The four branches, so none of them is unreachable: redaction fired; no `@`
+  // at all; an `@` proven harmless by parsing; and everything else.
+  it.each([
+    ["redaction fired", "https://u:p@h/r", "https://***@h/r"],
+    ["no @ at all", "htps://github.com/acme", "htps://github.com/acme"],
+    ["@ proven to be a path", "https://github.com/acme/a@b", "https://github.com/acme/a@b"],
+    ["unverifiable", "https://u:p/q@h/r", UNVERIFIABLE_VALUE],
+  ])("%s: %j", (_label, value, expected) => {
+    expect(redactForMessage(value)).toBe(expected);
+  });
+
+  it("keeps an ordinary rejected value readable, since that is the point", () => {
+    expect(redactForMessage("htps://github.com/acme")).toBe("htps://github.com/acme");
+  });
+
+  // An argument is arbitrary bytes. ANSI escapes echoed to a terminal can
+  // rewrite what the reader sees, including hiding the rest of the message.
+  it("replaces control characters rather than emitting them", () => {
+    const out = redactForMessage("https://h.dev/\u001B[2J\u001B[1;31mFAKE\u0007");
+
+    // eslint-disable-next-line no-control-regex -- asserting their absence
+    expect(out).not.toMatch(/[\u0000-\u001F\u007F-\u009F]/);
+    expect(out).toContain("\uFFFD");
+  });
+
+  it("truncates a value pasted by mistake", () => {
+    const out = redactForMessage("https://h.dev/" + "a".repeat(500));
+
+    expect(out.length).toBe(121);
+    expect(out.endsWith("\u2026")).toBe(true);
+  });
+
+  it("passes a value at the limit through untouched", () => {
+    const exact = "h".repeat(120);
+    expect(redactForMessage(exact)).toBe(exact);
+  });
+});
+
+describe("parseInitArgs", () => {
+  const ok = (argv: string[]) => {
+    const parsed = parseInitArgs(argv);
+    if (!parsed.ok) throw new Error(`expected success, got: ${parsed.error}`);
+    return parsed.args;
+  };
+
+  it("derives the display name and defaults the repo to empty", () => {
+    expect(ok(["acme"])).toEqual({ slug: "acme", displayName: "Acme", repoUrl: "" });
+  });
+
+  it("takes an explicit display name", () => {
+    expect(ok(["acme", "Acme Cloud"]).displayName).toBe("Acme Cloud");
+  });
+
+  it.each([
+    [["acme", "--repo", "https://github.com/acme/acme"]],
+    [["acme", "--repo=https://github.com/acme/acme"]],
+    [["--repo", "https://github.com/acme/acme", "acme"]],
+  ])("reads --repo from %j wherever it sits", (argv) => {
+    expect(ok(argv)).toEqual({
+      slug: "acme",
+      displayName: "Acme",
+      repoUrl: "https://github.com/acme/acme",
+    });
+  });
+
+  // The reason flags are extracted before positionals are read: `argv[1]` here
+  // is the literal string "--repo", which a positional read stamps into
+  // PRODUCT_NAME as the product's display name.
+  it("does not mistake a flag for the display name", () => {
+    expect(ok(["acme", "--repo", "https://github.com/acme/acme"]).displayName).toBe("Acme");
+  });
+
+  it("keeps a display name that follows the flag's value", () => {
+    expect(ok(["acme", "--repo=https://github.com/acme/acme", "Acme Cloud"]).displayName).toBe(
+      "Acme Cloud",
+    );
+  });
+
+  /**
+   * What is stamped is the canonical URL, never the string typed at the prompt.
+   *
+   * Both of these *parse*, so a check that validated and then kept the input
+   * accepted them. The first renders as a broken link; the second is worse —
+   * `JSON.stringify` escapes the newline, the read-back regex then sees two
+   * characters where one was written, and the script exits on its own stamp
+   * check having already rewritten package.json.
+   */
+  it.each([
+    ["https:example.com/a", "https://example.com/a"],
+    ["https://github.com/acme/acme\n", "https://github.com/acme/acme"],
+    ["  https://github.com/acme/acme  ", "https://github.com/acme/acme"],
+    ["https://github.com", "https://github.com/"],
+  ])("canonicalises %j to %j before stamping", (input, expected) => {
+    expect(ok(["acme", "--repo", input]).repoUrl).toBe(expected);
+  });
+
+  it("stamps a canonical URL that survives the write/read-back round trip", () => {
+    const { repoUrl } = ok(["acme", "--repo", "https://github.com/acme/acme\n"]);
+    const stamped = stampProductRepo('export const PRODUCT_REPO_URL = "x";', repoUrl);
+
+    // The exact comparison init-product.ts makes before declaring success.
+    expect(currentProductRepo(stamped)).toBe(repoUrl);
+  });
+
+  it.each([
+    "https://user:token@github.com/acme/acme",
+    "https://github.com/acme/acme?x=1&y=2",
+    "https://github.com/acme/acme#frag",
+    "https://github.com/acme/$(whoami)",
+    "https://github.com/acme/a;rm",
+  ])("refuses %j, which cannot be published or pasted safely", (url) => {
+    expect(parseInitArgs(["acme", "--repo", url]).ok).toBe(false);
+  });
+
+  it.each([
+    [[], "A product name is required."],
+    [["Acme"], "Not a kebab-case product name: Acme"],
+    [["acme_cloud"], "Not a kebab-case product name: acme_cloud"],
+    [["acme", "--repo"], "--repo needs a URL."],
+    [["acme", "--repo", "javascript:alert(1)"], "Not a usable repository URL: javascript:alert(1)"],
+    [["acme", "--repo", "github.com/acme"], "Not a usable repository URL: github.com/acme"],
+    [["acme", "--repos", "x"], "Unknown option: --repos"],
+    [["acme", "-r", "x"], "Unknown option: -r"],
+  ])("refuses %j", (argv, error) => {
+    const parsed = parseInitArgs(argv);
+
+    expect(parsed.ok).toBe(false);
+    expect(parsed.ok === false && parsed.error).toBe(error);
+  });
+
+  // Without this, `pnpm init:product acme Acme Cloud` stamps "Acme" and drops
+  // "Cloud" without a word.
+  it("refuses an unquoted multi-word display name rather than truncating it", () => {
+    const parsed = parseInitArgs(["acme", "Acme", "Cloud"]);
+
+    expect(parsed.ok).toBe(false);
+    expect(parsed.ok === false && parsed.error).toContain("quote a display name");
   });
 });
 

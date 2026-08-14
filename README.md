@@ -71,7 +71,12 @@ pnpm install
 # Claim your product identity FIRST — this rewrites the root package name, both
 # Worker names, and both database names. Doing it later means redoing anything
 # already stamped with the old one. Full workflow: docs/starter-as-upstream.md
-pnpm init:product acme "Acme Cloud"
+#
+# --repo is optional and points the landing page's GitHub link and clone command
+# at your repository. Omit it and both are simply absent, which is the safe
+# default — nothing derives a repo URL from a product name, so the alternative
+# would be a page linking THIS repository from your product.
+pnpm init:product acme "Acme Cloud" --repo https://github.com/acme/acme-cloud
 
 # Local env — required, not optional. The env is validated on every request and
 # fails closed, so without this every page (the landing page included) answers 500.
@@ -158,7 +163,7 @@ docs/
 | `pnpm check:not-downgrade <tag>`          | Refuse a tag older than the version production is already serving                   |
 | `pnpm check:deployed <output> <version>`  | Assert the deployed origin's `/api/v1/health` reports that version                  |
 | `pnpm release:notes <output>`             | Release-note preamble from wrangler's structured deploy output                      |
-| `pnpm init:product <name>`                | Stamp product identity on a fresh clone ([guide](./docs/starter-as-upstream.md))    |
+| `pnpm init:product <name> [--repo <url>]` | Stamp product identity on a fresh clone ([guide](./docs/starter-as-upstream.md))    |
 | `pnpm check:docs-sync`                    | Fail on drift: undocumented scripts, stale `.dev.vars.example`, doc claims vs code  |
 | `pnpm check:boot`                         | Start each **built** Worker and prove it serves a request (run after `build`)       |
 

@@ -18,9 +18,19 @@ git clone <starter-remote-url> acme && cd acme
 git remote rename origin upstream
 git remote add origin <new-product-repo-url>
 pnpm install
-pnpm init:product acme        # stamps worker names + root package name
+pnpm init:product acme --repo <new-product-repo-url>
 git push -u origin main
 ```
+
+`init:product` stamps the Worker names, the root package name, and the product
+identity in `packages/config/src/product.ts`. `--repo` is optional: it is the
+one value nothing can derive — a slug says nothing about where the repository
+will live, and this usually runs before the remote exists. Omit it and
+`PRODUCT_REPO_URL` is stamped **empty**, which makes the landing page render
+without its GitHub link and without a clone command. That default is the point:
+a clone that never sets it links to nothing, rather than sending its own
+visitors to the starter's repository (issue #32). Set it whenever the repo
+exists — the constant is a one-line edit.
 
 Then follow the init script's printed next steps: create the product's D1
 database, put its `database_id` in **both** `apps/web/wrangler.jsonc` **and**
@@ -53,8 +63,11 @@ real id.
    and UI; upstream keeps its post-v1 changes to apps structural and minimal.
    Occasional conflicts here are expected — resolve favoring the product,
    then re-apply the structural intent of the upstream change.
-4. Keep product identity out of framework files — worker names, D1 ids, and
-   titles are stamped once by `init:product`, secrets live outside git.
+4. Keep product identity out of framework files — worker names, D1 ids, titles
+   and the repository URL are stamped once by `init:product`, secrets live
+   outside git. Anything user-visible that names the product or points at its
+   source reads from `packages/config/src/product.ts`; hardcoding it is how a
+   clone ends up publishing the starter's identity (issue #32).
 
 ## Pulling starter updates
 
@@ -126,17 +139,24 @@ a release that changes cloning, identity stamping, or the first-run path.
    rename fixtures — all correct in a clone — so a wider check fails on a
    healthy repo and teaches the reader to skip it.
 
-3. Replace the identity `init:product` does **not** own, because it is content
-   rather than configuration:
-   - `apps/web/app/components/landing/site.ts` — `GITHUB_URL`, which otherwise
-     points a clone's landing page and footer at the starter's repository
-   - `apps/web/app/components/landing/quality.tsx` — the terminal demo prints
-     `~/edgeseed` and `edgeseed@… verify` as its working directory and script
-     output
+3. Confirm the landing page carries no upstream identity. It no longer needs
+   editing to be _safe_ — `--repo` is the only part that is a decision:
 
-   Both are product-owned surface under the ownership table above, so they are
-   yours to rewrite; the exercise exists partly to catch them before a clone
-   ships someone else's repository link.
+   ```bash
+   grep -rn "git clone\|github.com" apps/web/app/components/landing/
+   ```
+
+   Without `--repo`, `PRODUCT_REPO_URL` is `""` and the page renders with no
+   GitHub link and no clone command at all. That is the intended state for a
+   clone whose repository does not exist yet, not a broken one — set it later in
+   `packages/config/src/product.ts` and the header, footer, hero button and
+   clone command return, pointing at it. The terminal demo derives its working
+   directory and script output from `PRODUCT_SLUG` and `APP_VERSION`, so it
+   needs nothing (issue #32).
+
+   What is still yours to replace is the **copy**: the landing page is starter
+   marketing, and every word of it is about a starter kit. Nothing breaks if you
+   ship it as-is, but it describes the wrong product.
 
 4. `cp apps/web/.dev.vars.example apps/web/.dev.vars`, generate a secret with
    `openssl rand -hex 32`, and leave every optional key empty. The clone must

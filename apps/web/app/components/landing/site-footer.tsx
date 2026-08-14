@@ -2,7 +2,7 @@ import { BrandMark } from "~/components/brand/brand-mark";
 
 import { PRODUCT_NAME } from "@starter/config/product";
 import { GithubIcon } from "./github-icon";
-import { GITHUB_URL } from "./site";
+import { REPO } from "./repo";
 
 const footerLinks = [
   { name: "Features", href: "#features" },
@@ -31,15 +31,17 @@ export function SiteFooter() {
             {link.name}
           </a>
         ))}
-        <a
-          href={GITHUB_URL}
-          target="_blank"
-          rel="noreferrer noopener"
-          className="flex min-h-11 items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <GithubIcon className="size-4" />
-          GitHub
-        </a>
+        {REPO && (
+          <a
+            href={REPO.url}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="flex min-h-11 items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <GithubIcon className="size-4" />
+            GitHub
+          </a>
+        )}
       </nav>
     </footer>
   );

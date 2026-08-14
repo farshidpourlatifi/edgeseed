@@ -6,7 +6,7 @@ import { Button } from "@starter/ui/components/ui/button";
 import { CopyCommand } from "./copy-command";
 import { GithubIcon } from "./github-icon";
 import { HeroBackground } from "./hero-background";
-import { GITHUB_URL } from "./site";
+import { REPO } from "./repo";
 
 export function Hero() {
   return (
@@ -42,18 +42,19 @@ export function Hero() {
               <ArrowRight className="size-4" aria-hidden="true" />
             </Link>
           </Button>
-          <Button size="lg" variant="outline" className="h-12 px-6" asChild>
-            <a href={GITHUB_URL} target="_blank" rel="noreferrer noopener">
-              <GithubIcon className="size-4" />
-              View on GitHub
-            </a>
-          </Button>
+          {/* Both GitHub affordances are absent, not disabled, when the product
+              declares no repository — see repo.ts. */}
+          {REPO && (
+            <Button size="lg" variant="outline" className="h-12 px-6" asChild>
+              <a href={REPO.url} target="_blank" rel="noreferrer noopener">
+                <GithubIcon className="size-4" />
+                View on GitHub
+              </a>
+            </Button>
+          )}
         </div>
 
-        <CopyCommand
-          command={`git clone ${GITHUB_URL} my-app`}
-          className="w-full max-w-md text-left"
-        />
+        {REPO && <CopyCommand command={REPO.cloneCommand} className="w-full max-w-md text-left" />}
       </div>
     </section>
   );

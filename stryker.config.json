@@ -31,6 +31,7 @@
     "apps/web/app/lib/reset-password-link.ts",
     "apps/web/app/lib/reset-password-errors.ts",
     "apps/web/app/components/landing/hero-shader.ts",
+    "apps/web/app/components/landing/repo.ts",
     "apps/mcp/src/tools/**/*.ts",
     "packages/cli/src/lib/**/*.ts",
     "!**/__tests__/**",

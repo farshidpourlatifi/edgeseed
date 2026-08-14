@@ -1,28 +1,32 @@
 /**
  * Stamp product identity onto a fresh clone of the starter.
- * Usage: pnpm init:product <product-name> [display name]
+ * Usage: pnpm init:product <product-name> [display name] [--repo <url>]
  *   e.g. pnpm init:product acme            -> slug "acme",  display "Acme"
  *        pnpm init:product acme "Acme Cloud"                display "Acme Cloud"
+ *        pnpm init:product acme --repo https://github.com/acme/acme
  * See docs/starter-as-upstream.md for the full workflow.
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import {
+  currentProductRepo,
   currentProductSlug,
-  deriveDisplayName,
-  isValidProductSlug,
+  INIT_USAGE,
+  parseInitArgs,
   stampProductIdentity,
+  stampProductRepo,
   stampWranglerConfig,
 } from "./lib/init-product";
 
 const PRODUCT_FILE = "packages/config/src/product.ts";
 
-const name = process.argv[2];
-if (!name || !isValidProductSlug(name)) {
-  console.error(
-    'Usage: pnpm init:product <product-name> [display name]  (kebab-case, e.g. acme "Acme Cloud")',
-  );
+const parsed = parseInitArgs(process.argv.slice(2));
+if (!parsed.ok) {
+  console.error(parsed.error);
+  console.error(INIT_USAGE);
   process.exit(1);
 }
+
+const { slug: name, displayName, repoUrl } = parsed.args;
 
 function rewrite(path: string, edit: (content: string) => string) {
   const before = readFileSync(path, "utf8");
@@ -32,9 +36,6 @@ function rewrite(path: string, edit: (content: string) => string) {
     console.log(`  updated ${path}`);
   }
 }
-
-/** Overridable with a second argument, else derived from the slug. */
-const displayName = process.argv[3] ?? deriveDisplayName(name);
 
 console.log(`Stamping product identity: ${name} ("${displayName}")`);
 
@@ -52,7 +53,32 @@ rewrite("package.json", (c) =>
   c.replace(new RegExp(`"name": "${fromSlug}"`), () => `"name": "${name}"`),
 );
 
-rewrite(PRODUCT_FILE, (c) => stampProductIdentity(c, { slug: name, displayName }));
+rewrite(PRODUCT_FILE, (c) =>
+  stampProductRepo(stampProductIdentity(c, { slug: name, displayName }), repoUrl),
+);
+
+// Read the file back and prove the stamps landed. Every rewrite here is a
+// regex against source, and a reformatted declaration makes one match nothing
+// — `rewrite` then writes nothing and says nothing, because "no change" is also
+// what an already-stamped file looks like. Silence is survivable for a Worker
+// name (wrangler shows it on the first deploy) but not for the repo URL: the
+// clone would keep the starter's, and the first person to notice is a visitor
+// following a "View on GitHub" link to somebody else's project (issue #32).
+const stamped = readFileSync(PRODUCT_FILE, "utf8");
+const stampedSlug = currentProductSlug(stamped);
+const stampedRepo = currentProductRepo(stamped);
+
+if (stampedSlug !== name || stampedRepo !== repoUrl) {
+  console.error(`
+Stamping ${PRODUCT_FILE} did not take effect:
+  PRODUCT_SLUG      expected ${JSON.stringify(name)}, found ${JSON.stringify(stampedSlug)}
+  PRODUCT_REPO_URL  expected ${JSON.stringify(repoUrl)}, found ${JSON.stringify(stampedRepo)}
+
+Both are rewritten by regex against the declarations as written. Restore them to
+the one-line \`export const NAME = "value";\` form and re-run — do not leave this
+half-stamped, or the clone keeps the starter's identity.`);
+  process.exit(1);
+}
 
 rewrite("apps/web/wrangler.jsonc", (c) =>
   stampWranglerConfig(c, { fromSlug, toSlug: name, worker: "web" }),
@@ -104,6 +130,20 @@ Done. Next steps:
      theme preset, then replace the URLs in docs/design-workflow.md.
   7. Starter updates: git fetch upstream && git merge upstream/main
      (docs/starter-as-upstream.md)
+${
+  repoUrl
+    ? `  8. The landing page links to ${repoUrl} — its header, footer, hero button
+     and clone command all read PRODUCT_REPO_URL.`
+    : `  8. No repository URL was set, so the landing page renders without its
+     GitHub link and without a "git clone" command. That is the safe default,
+     not a broken state. Once your repo exists, set PRODUCT_REPO_URL in
+     packages/config/src/product.ts (or re-run with --repo) and the header,
+     footer, hero button and clone command come back pointing at it.`
+}
+
+The landing page under apps/web/app/components/landing/ is starter marketing.
+Every reference to the starter's own identity is now derived — but the copy is
+still about the starter, so replace it with your product's when you have one.
 
 Only if you deploy this alongside another product in the SAME Cloudflare
 account: change the namespace_id values under "ratelimits" in both wrangler

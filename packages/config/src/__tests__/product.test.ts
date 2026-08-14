@@ -1,10 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { MCP_SERVER_NAME, PRODUCT_NAME, PRODUCT_SLUG } from "../product";
+import { MCP_SERVER_NAME, PRODUCT_NAME, PRODUCT_REPO_URL, PRODUCT_SLUG } from "../product";
 
 describe("product identity", () => {
   it("exposes a display name and a kebab-case slug", () => {
     expect(PRODUCT_NAME).toBeTruthy();
     expect(PRODUCT_SLUG).toMatch(/^[a-z][a-z0-9-]*$/);
+  });
+
+  // Holds in a clone too, where the value is "" — that is the stamped default,
+  // and the landing page renders without its GitHub affordances rather than
+  // linking the starter (issue #32). Anything in between is a value that would
+  // reach an href: `repoLinks()` drops it, and this says so at the source.
+  it("declares a repository that is empty or an http(s) URL", () => {
+    expect(PRODUCT_REPO_URL === "" || /^https?:\/\/\S+$/.test(PRODUCT_REPO_URL)).toBe(true);
   });
 
   // The MCP server name is what clients display. Deriving it means
@@ -24,5 +32,9 @@ describe("product identity", () => {
 
     expect(source).toMatch(/export const PRODUCT_NAME = "[^"]*"/);
     expect(source).toMatch(/export const PRODUCT_SLUG = "[^"]*"/);
+    // Reformatting this one does more than break the rename: init-product.ts
+    // verifies its own stamp through the same regex and exits non-zero, rather
+    // than leaving a clone silently pointed at the starter's repository.
+    expect(source).toMatch(/export const PRODUCT_REPO_URL = "[^"]*"/);
   });
 });
