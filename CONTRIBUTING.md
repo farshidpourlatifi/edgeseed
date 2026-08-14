@@ -48,8 +48,17 @@ pnpm verify
 ```
 
 It runs lint, format, unit tests, a gitleaks scan, build, typecheck, the Worker boot
-check and e2e. CI runs the same thing, split across four required jobs — `quality`,
-`e2e`, `drift`, `scan`. A pull request cannot merge until all four are green.
+check and e2e. CI runs those across four required jobs — `quality`, `e2e`, `drift`,
+`scan` — and a pull request cannot merge until all four are green.
+
+**`verify` is not quite the whole of CI.** The `drift` job also runs `pnpm check:docs-sync`
+and re-generates the OpenAPI spec to diff it, and neither is part of `verify`. If your
+change touches docs, links, a root script, an API route or an MCP tool, run this too or
+CI will find it for you:
+
+```bash
+pnpm check:docs-sync
+```
 
 Two traps that look like code regressions and are not:
 

@@ -99,12 +99,18 @@ for (const { file, schema } of EXAMPLES) {
 // CLAUDE.md files are deliberately out: they are read in place by an agent
 // already in that directory, and they cross-reference each other far more
 // loosely than the published surface does.
+//
+// `recursive` matters: without it this saw only top-level docs/*.md, so
+// docs/adr/*.md went unchecked while AGENTS.md and CONTRIBUTING.md both
+// advertised the check as covering the public docs — and the README walks a
+// reader straight into docs/adr/002-observability.md.
 const LINKED_DOCS = [
   "README.md",
   "AGENTS.md",
   "CONTRIBUTING.md",
   "SECURITY.md",
-  ...readdirSync("docs")
+  ...readdirSync("docs", { recursive: true })
+    .map(String)
     .filter((f) => f.endsWith(".md"))
     .map((f) => join("docs", f)),
 ];
@@ -129,10 +135,27 @@ for (const file of LINKED_DOCS) {
 
 const readme = readFileSync("README.md", "utf8");
 
-const toolSources = readdirSync("apps/mcp/src/tools")
-  .filter((f) => f.endsWith(".ts") && f !== "index.ts")
-  .map((f) => readFileSync(join("apps/mcp/src/tools", f), "utf8"));
+const TOOLS_DIR = "apps/mcp/src/tools";
+const toolSources = readdirSync(TOOLS_DIR, { recursive: true })
+  .map(String)
+  .filter((f) => f.endsWith(".ts") && f !== "index.ts" && !f.includes("__tests__"))
+  .map((f) => readFileSync(join(TOOLS_DIR, f), "utf8"));
 const toolNames = mcpToolNames(toolSources);
+
+// A discovery-based check has to fail when it discovers nothing, or it reports
+// success for the wrong reason. An empty inventory yields an empty
+// undocumented list, so without this floor a renamed registration API, a moved
+// directory, or an emptied one would all print "0 MCP tools documented" and
+// exit 0. The Worker ships two tools; zero means the scan broke, not that the
+// product lost its MCP surface.
+if (toolNames.length === 0) {
+  failed = true;
+  console.error(
+    `No MCP tools found in ${TOOLS_DIR} — the scan is broken, not the surface.` +
+      " Check the registration call it matches in lib/docs-sync.ts.",
+  );
+}
+
 const undocumentedTools = undocumentedNames(toolNames, readme);
 if (undocumentedTools.length > 0) {
   failed = true;

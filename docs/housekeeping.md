@@ -102,4 +102,9 @@ Close the tracking issue with a one-line note per section — what changed, or "
 change". "No change" is a real result and worth recording: it is what makes the next
 sweep's diff meaningful.
 
-Then run `pnpm verify`, because docs changes can break the drift checks.
+Then run **`pnpm check:docs-sync`**, because docs changes are exactly what breaks it.
+
+Note it is **not** part of `pnpm verify` — that is lint, format, test, gitleaks, build,
+typecheck, boot and e2e. The drift checks (`check:docs-sync`, and the `api:spec` diff)
+live in CI's `drift` job alone, so a sweep that edits the README or moves a doc goes green
+locally and red on the pull request unless you run it yourself.

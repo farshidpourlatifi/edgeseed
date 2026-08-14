@@ -155,6 +155,19 @@ describe("relativeLinkTargets", () => {
   it("should decode a percent-encoded path", () => {
     expect(relativeLinkTargets("[x](./docs/a%20b.md)")).toEqual(["./docs/a b.md"]);
   });
+
+  /**
+   * A `%` that is not valid percent-encoding threw `URIError` out of the whole
+   * check, so one oddly-named file replaced every finding with a stack trace.
+   */
+  it("should keep a target whose percent-encoding is malformed instead of throwing", () => {
+    expect(() => relativeLinkTargets("[x](./docs/100%-guide.md)")).not.toThrow();
+    expect(relativeLinkTargets("[x](./docs/100%-guide.md)")).toEqual(["./docs/100%-guide.md"]);
+  });
+
+  it("should keep the whole destination when an angle bracket is never closed", () => {
+    expect(relativeLinkTargets("[x](<./docs/a.md)")).toEqual(["./docs/a.md"]);
+  });
 });
 
 describe("brokenRelativeLinks", () => {
@@ -187,6 +200,17 @@ describe("mcpToolNames", () => {
     expect(mcpToolNames(['server.tool("a", ...', "server.tool(\n  'b',"])).toEqual(["a", "b"]);
   });
 
+  /**
+   * `registerTool` is the SDK's other current API. Matching only `tool(` made a
+   * tool written this way invisible — and an invisible tool cannot be reported
+   * as undocumented, so the gate passed having checked nothing.
+   */
+  it("should read a tool registered with registerTool", () => {
+    expect(mcpToolNames(['server.registerTool("orgs_list", { title: "List orgs" }'])).toEqual([
+      "orgs_list",
+    ]);
+  });
+
   it("should find nothing in a source that registers no tool", () => {
     expect(mcpToolNames(["export interface ToolContext { db: Database }"])).toEqual([]);
   });
@@ -205,5 +229,28 @@ describe("undocumentedNames", () => {
 
   it("should report a duplicated missing name once", () => {
     expect(undocumentedNames(["/me", "/me"], "nothing here")).toEqual(["/me"]);
+  });
+
+  /**
+   * The bug this boundary exists for: a plain `includes` counted the collection
+   * route as documented because the item route contains it, so dropping
+   * `GET`/`POST /tokens` from the README left the gate green.
+   */
+  it("should not count a longer path as documenting the shorter one", () => {
+    expect(undocumentedNames(["/tokens"], "only `DELETE /tokens/{id}` is here")).toEqual([
+      "/tokens",
+    ]);
+  });
+
+  it("should still match the longer path itself", () => {
+    expect(undocumentedNames(["/tokens/{id}"], "`DELETE /tokens/{id}` revokes it")).toEqual([]);
+  });
+
+  it("should not count a longer tool name as documenting the shorter one", () => {
+    expect(undocumentedNames(["whoami"], "the `whoami_verbose` tool")).toEqual(["whoami"]);
+  });
+
+  it("should accept a name followed by punctuation or a closing backtick", () => {
+    expect(undocumentedNames(["/me", "health_check"], "`/me`, then `health_check`.")).toEqual([]);
   });
 });

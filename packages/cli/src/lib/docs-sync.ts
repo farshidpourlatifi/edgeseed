@@ -75,17 +75,37 @@ export function compareEnvExample(
  * Angle-bracket destinations (`[x](<./a b.md>)`) are unwrapped, and titles
  * (`[x](./a.md "t")`) are dropped, because both are valid markdown a doc may
  * grow at any time.
+ *
+ * Nothing in here may throw. This feeds a CI gate, and a gate that crashes on
+ * malformed input reports a stack trace where it owed a finding — so a `%` that
+ * is not valid percent-encoding (`./100%-guide.md`) falls back to the raw text,
+ * and an unterminated `<` keeps the whole destination rather than silently
+ * losing its last character.
  */
 export function relativeLinkTargets(docContent: string): string[] {
   const targets: string[] = [];
   for (const [, raw] of docContent.matchAll(/!?\[[^\]]*\]\(([^)]+)\)/g)) {
     let target = raw.trim();
-    target = target.startsWith("<") ? target.slice(1, target.indexOf(">")) : target.split(/\s+/)[0];
+    if (target.startsWith("<")) {
+      const close = target.indexOf(">");
+      target = close === -1 ? target.slice(1) : target.slice(1, close);
+    } else {
+      target = target.split(/\s+/)[0];
+    }
     target = target.split("#")[0].split("?")[0].trim();
     if (target === "" || /^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith("//")) continue;
-    targets.push(decodeURIComponent(target));
+    targets.push(safeDecode(target));
   }
   return targets;
+}
+
+/** `decodeURIComponent` that returns its input rather than throwing `URIError`. */
+function safeDecode(target: string): string {
+  try {
+    return decodeURIComponent(target);
+  } catch {
+    return target;
+  }
 }
 
 /**
@@ -106,12 +126,22 @@ export function brokenRelativeLinks(
  * Tool names registered with an `McpServer`, read from the tools' source.
  *
  * The registration string is the name a client sees, and it lives apart from
- * the `registerXTool` function name — so this matches `server.tool("<name>"`
+ * the `registerXTool` function name — so this matches the registration call
  * rather than the export, which is what would drift.
+ *
+ * **Both spellings, deliberately.** `server.tool()` is what this repo's two
+ * tools use; `server.registerTool()` is the SDK's other current API (present
+ * throughout `@modelcontextprotocol/sdk@1.29`'s typings). Matching only the
+ * first meant a tool written the other way was invisible here — and because an
+ * empty inventory has nothing to report as undocumented, the gate would have
+ * passed while asserting nothing. The caller enforces a non-empty floor for the
+ * same reason.
  */
 export function mcpToolNames(toolSources: string[]): string[] {
   return toolSources.flatMap((src) =>
-    [...src.matchAll(/server\.tool\(\s*["'`]([a-zA-Z0-9_-]+)["'`]/g)].map((m) => m[1]),
+    [...src.matchAll(/server\.(?:registerTool|tool)\(\s*["'`]([a-zA-Z0-9_-]+)["'`]/g)].map(
+      (m) => m[1],
+    ),
   );
 }
 
@@ -119,10 +149,19 @@ export function mcpToolNames(toolSources: string[]): string[] {
  * Names in `expected` that the doc never mentions.
  *
  * Shared by the MCP-tool and API-path checks: both are "the code exposes this,
- * so the public doc has to say so". Matching is a plain substring, because a
- * path appears as `/tokens/{id}` in one sentence and inside a table cell in
- * another — anchoring it to a syntax would fail on the doc's own prose.
+ * so the public doc has to say so". A name may appear anywhere in the prose —
+ * in a table cell, inside backticks, mid-sentence — so this is a substring
+ * match rather than a syntax.
+ *
+ * **But it ends at a boundary**, exactly as `undocumentedScripts` does above,
+ * and for the same reason: a plain `includes` counted `/tokens` as documented
+ * whenever `/tokens/{id}` appeared, so dropping the collection route from the
+ * README would have left this gate green while the docs lost a shipped route.
+ * A trailing `/`, word character or `-` means the doc is talking about
+ * something longer.
  */
 export function undocumentedNames(expected: string[], docContent: string): string[] {
-  return [...new Set(expected)].filter((name) => !docContent.includes(name));
+  return [...new Set(expected)].filter(
+    (name) => !new RegExp(`${escapeRegExp(name)}(?![A-Za-z0-9_:/-])`).test(docContent),
+  );
 }
