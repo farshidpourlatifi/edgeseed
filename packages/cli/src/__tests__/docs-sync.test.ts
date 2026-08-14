@@ -1,10 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   brokenRelativeLinks,
   compareEnvExample,
   exampleKeys,
   mcpToolNames,
   relativeLinkTargets,
+  resolveDocTarget,
   schemaBlockKeys,
   undocumentedNames,
   undocumentedScripts,
@@ -170,19 +171,71 @@ describe("relativeLinkTargets", () => {
   });
 });
 
+describe("resolveDocTarget", () => {
+  it("should resolve relative to the document's own directory", () => {
+    expect(resolveDocTarget("docs/README.md", "./mcp.md")).toBe("docs/mcp.md");
+    expect(resolveDocTarget("README.md", "./docs/mcp.md")).toBe("docs/mcp.md");
+  });
+
+  it("should climb with ..", () => {
+    expect(resolveDocTarget("docs/adr/002-observability.md", "../mcp.md")).toBe("docs/mcp.md");
+    expect(resolveDocTarget("docs/README.md", "../AGENTS.md")).toBe("AGENTS.md");
+  });
+
+  /**
+   * GitHub renders a leading `/` as repo-root-relative. Resolving it against
+   * the document's directory produced `docs/docs/mcp.md` from `docs/README.md`
+   * — and the correct answer from a root-level document, so the bug hid.
+   */
+  it("should treat a leading slash as repo-root-relative from any depth", () => {
+    expect(resolveDocTarget("README.md", "/docs/mcp.md")).toBe("docs/mcp.md");
+    expect(resolveDocTarget("docs/README.md", "/docs/mcp.md")).toBe("docs/mcp.md");
+    expect(resolveDocTarget("docs/adr/002-observability.md", "/docs/mcp.md")).toBe("docs/mcp.md");
+  });
+
+  it("should refuse a target that climbs out of the repository", () => {
+    expect(resolveDocTarget("docs/README.md", "../../../../etc/passwd")).toBeNull();
+    expect(resolveDocTarget("README.md", "../outside.md")).toBeNull();
+  });
+
+  it("should refuse a target that resolves to nothing", () => {
+    expect(resolveDocTarget("docs/README.md", "/")).toBeNull();
+  });
+});
+
 describe("brokenRelativeLinks", () => {
   it("should report a target that does not exist", () => {
     const doc = "[gone](./docs/removed.md) and [here](./README.md)";
-    expect(brokenRelativeLinks(doc, (t) => t === "./README.md")).toEqual(["./docs/removed.md"]);
+    expect(brokenRelativeLinks(doc, "README.md", (t) => t === "README.md")).toEqual([
+      "./docs/removed.md",
+    ]);
   });
 
   it("should report nothing when every target resolves", () => {
-    expect(brokenRelativeLinks("[a](./a.md) [b](./b.md)", () => true)).toEqual([]);
+    expect(brokenRelativeLinks("[a](./a.md) [b](./b.md)", "README.md", () => true)).toEqual([]);
   });
 
   it("should report a repeated broken target once", () => {
     const doc = "[a](./gone.md) then [again](./gone.md)";
-    expect(brokenRelativeLinks(doc, () => false)).toEqual(["./gone.md"]);
+    expect(brokenRelativeLinks(doc, "README.md", () => false)).toEqual(["./gone.md"]);
+  });
+
+  it("should hand the resolved repo-relative path to exists, not the raw target", () => {
+    const seen: string[] = [];
+    brokenRelativeLinks("[x](./mcp.md)", "docs/README.md", (p) => {
+      seen.push(p);
+      return true;
+    });
+    expect(seen).toEqual(["docs/mcp.md"]);
+  });
+
+  /** Escaping the repo is reported broken rather than asked of the runner's disk. */
+  it("should report an escaping target as broken without consulting exists", () => {
+    const exists = vi.fn(() => true);
+    expect(brokenRelativeLinks("[x](../../../../etc/passwd)", "docs/README.md", exists)).toEqual([
+      "../../../../etc/passwd",
+    ]);
+    expect(exists).not.toHaveBeenCalled();
   });
 });
 

@@ -109,17 +109,59 @@ function safeDecode(target: string): string {
 }
 
 /**
- * Relative links in `docContent` whose target does not exist.
+ * A link target resolved to a repo-relative path, or `null` when it escapes the
+ * repository.
+ *
+ * Two rules, both about making the answer depend only on repo content:
+ *
+ * A leading `/` is **repo-root-relative**, which is how GitHub renders it.
+ * Resolving it against the document's directory instead turned a valid
+ * `/docs/mcp.md` into `docs/docs/mcp.md` from `docs/README.md` — a working link
+ * reported as broken. It happened to be correct from root-level documents,
+ * which is the worst kind of latent bug.
+ *
+ * Anything climbing out of the repo returns `null` and is reported broken. The
+ * checker would otherwise ask the runner's filesystem about a path this
+ * repository does not own, so the gate's verdict would depend on where the
+ * checkout happens to sit. Posix separators throughout: these are repo-relative
+ * paths, not host paths.
+ */
+export function resolveDocTarget(docPath: string, target: string): string | null {
+  const segments = target.startsWith("/")
+    ? [target.slice(1)]
+    : [...docPath.split("/").slice(0, -1), target];
+
+  const resolved: string[] = [];
+  for (const part of segments.join("/").split("/")) {
+    if (part === "" || part === ".") continue;
+    if (part === "..") {
+      // Nothing left to pop means the target has climbed past the repo root.
+      if (resolved.length === 0) return null;
+      resolved.pop();
+      continue;
+    }
+    resolved.push(part);
+  }
+  return resolved.length === 0 ? null : resolved.join("/");
+}
+
+/**
+ * Relative links in `docContent` whose target does not resolve to a file that
+ * exists inside the repository.
  *
  * `exists` is injected rather than reaching for `node:fs` so the deny path is
  * testable without a fixture tree — and so this stays pure, like everything
- * else in this module.
+ * else in this module. It receives a **repo-relative** path, already resolved.
  */
 export function brokenRelativeLinks(
   docContent: string,
-  exists: (target: string) => boolean,
+  docPath: string,
+  exists: (repoRelativePath: string) => boolean,
 ): string[] {
-  return [...new Set(relativeLinkTargets(docContent))].filter((t) => !exists(t));
+  return [...new Set(relativeLinkTargets(docContent))].filter((target) => {
+    const resolved = resolveDocTarget(docPath, target);
+    return resolved === null || !exists(resolved);
+  });
 }
 
 /**

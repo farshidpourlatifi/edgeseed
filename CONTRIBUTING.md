@@ -29,7 +29,7 @@ pnpm install
 cp apps/web/.dev.vars.example apps/web/.dev.vars
 
 pnpm db:migrate
-pnpm db:seed          # signs in as admin@example.com / dev-password-123
+pnpm db:seed          # then sign in as admin@example.com / dev-password-123
 pnpm dev --filter @starter/web
 ```
 

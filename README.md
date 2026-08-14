@@ -85,7 +85,7 @@ pnpm init:product acme "Acme Cloud"
 cp apps/web/.dev.vars.example apps/web/.dev.vars
 
 pnpm db:migrate      # apply migrations to the local D1
-pnpm db:seed         # seed dev data — signs in as admin@example.com / dev-password-123
+pnpm db:seed         # seed dev data — then sign in as admin@example.com / dev-password-123
 pnpm dev --filter @starter/web
 ```
 

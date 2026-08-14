@@ -17,7 +17,7 @@
  * and mutation-tested.
  */
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { dirname, join, normalize } from "node:path";
+import { join } from "node:path";
 
 import {
   brokenRelativeLinks,
@@ -118,12 +118,11 @@ const LINKED_DOCS = [
 let linksChecked = 0;
 for (const file of LINKED_DOCS) {
   const content = readFileSync(file, "utf8");
-  // Targets are written relative to the document, so resolve from its own
-  // directory — `./docs/mcp.md` in README.md and `./mcp.md` in docs/README.md
-  // name the same file.
-  const broken = brokenRelativeLinks(content, (target) =>
-    existsSync(normalize(join(dirname(file), target))),
-  );
+  // `resolveDocTarget` does the path work — relative to the document, or to the
+  // repo root for a leading `/`, and refusing anything that climbs out of the
+  // tree. It hands back a repo-relative path, so all that is left here is
+  // asking the filesystem.
+  const broken = brokenRelativeLinks(content, file, existsSync);
   linksChecked += 1;
   if (broken.length > 0) {
     failed = true;
