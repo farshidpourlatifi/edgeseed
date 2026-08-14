@@ -5,6 +5,7 @@
   "coverageAnalysis": "perTest",
   "ignorePatterns": [
     ".wrangler",
+    ".react-router",
     ".turbo",
     ".claude/worktrees",
     "build",

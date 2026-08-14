@@ -7,8 +7,10 @@ They are **not registered as routes** — they exist as copy-paste starting poin
 
 1. Copy the file to `app/routes/` (e.g., `cp _examples/dashboard-with-widgets.tsx ../dashboard._index.tsx`)
 2. Register the route in `app/routes.ts` if it's a new route
-3. Run `npx react-router typegen` to generate types
-4. Wire real data in the loader (replace static arrays with DB queries)
+3. Wire real data in the loader (replace static arrays with DB queries)
+
+Route types are generated, not committed: `pnpm typecheck` and
+`react-router dev` both write `.react-router/types/`.
 
 **Keep the `requireUser(context, request)` call.** Both examples open their
 loader with it, and it must survive the copy: in React Router v7 the dashboard

@@ -95,8 +95,10 @@ docs/api          — Generated OpenAPI specs
 
 1. Create the route file in `apps/web/app/routes/`
 2. Register it in `apps/web/app/routes.ts`
-3. Run `cd apps/web && npx react-router typegen`
-4. If it's a dashboard page, nest it inside the `layout("routes/dashboard.tsx", [...])` block
+3. If it's a dashboard page, nest it inside the `layout("routes/dashboard.tsx", [...])` block
+
+Route types (`apps/web/.react-router/types/`) are generated and gitignored —
+`pnpm typecheck` writes them, and `pnpm dev` keeps them current while it runs.
 
 Check `apps/web/app/routes/_examples/` for reference implementations.
 
