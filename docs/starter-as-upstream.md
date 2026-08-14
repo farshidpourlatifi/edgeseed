@@ -68,23 +68,39 @@ pnpm verify           # full gate before pushing the merge
 Do this on a branch if the diff is big. Never rebase the product's main onto
 upstream — merge, so product history stays intact.
 
-### The one conflict to expect: generated route types
+### Adopting the release that untracked the route types — one manual step
 
-`apps/web/.react-router/types/` is **generated and tracked**. So any upstream
-release that adds a route conflicts with any product that added one, even
-though `app/routes.ts` itself merges cleanly — the routes live on different
-lines there, but the generated union is one list.
+`apps/web/.react-router/types/` used to be generated **and** tracked, which made
+every route-adding upstream release conflict with every route-adding product —
+`app/routes.ts` merges line-by-line, but the generated union is a single list.
+Issue #30 gitignored the directory upstream, which ends that conflict for good.
+The merge that _carries_ that change is the exception, because a `.gitignore`
+has no effect on paths already in the product's index.
 
-Resolve it by regenerating, never by editing the file or picking a side:
+Two things happen on that one merge, and only the first announces itself:
+
+- Upstream **deletes** the twelve files it tracked. A product that added a route
+  has **modified** `+routes.ts`, since every route lands in that one union — so
+  git reports `CONFLICT (modify/delete)` instead of taking the deletion.
+- The per-route files for the product's **own** routes were never upstream's, so
+  the merge leaves them alone. They stay tracked and keep conflicting on every
+  later route-adding merge — the exact problem this was meant to end. Nothing
+  reports this one; it is silent.
+
+Taking the deletion across the whole directory settles both:
 
 ```bash
-cd apps/web && npx react-router typegen
-git add .react-router/types
+git merge upstream/main            # CONFLICT (modify/delete) under .react-router/
+git rm -r --cached apps/web/.react-router
+git commit                         # completes the merge
+pnpm install && pnpm verify        # typecheck regenerates the directory
 ```
 
-Hand-resolving looks like it works and silently drops one side's route types,
-so the first failure is a type error in a file nobody touched. This is the
-expected shape of a route-adding merge, not a sign anything went wrong.
+`--cached` is the load-bearing flag: the files leave the index but stay on disk,
+gitignored from then on. Nothing needs regenerating by hand — `pnpm verify` runs
+`pnpm typecheck`, which runs `react-router typegen` first. After this one merge,
+an upstream release that adds a route and a product that adds its own merge
+cleanly.
 
 ## Proving the clone path — the manual release exercise
 

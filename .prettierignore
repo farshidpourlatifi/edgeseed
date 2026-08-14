@@ -3,6 +3,8 @@ pnpm-lock.yaml
 docs/api/
 packages/db/migrations/
 
-# generated, gitignored only by nested .gitignore files prettier can't see
+# generated and gitignored. Listed here as well rather than relying on
+# Prettier's default of also reading .gitignore, so `format:check` does not
+# depend on that default staying put.
 **/.react-router/
 **/.wrangler/

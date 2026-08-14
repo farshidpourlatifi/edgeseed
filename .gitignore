@@ -4,6 +4,7 @@ node_modules/
 # build outputs
 dist/
 build/
+.react-router/
 
 # cloudflare
 .wrangler/

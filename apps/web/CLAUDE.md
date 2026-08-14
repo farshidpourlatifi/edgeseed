@@ -19,7 +19,7 @@ The product: React Router v7 app + Hono API on a single Cloudflare Worker.
 
 ## Rules
 
-- New page: add to `routes.ts` → create route file → `npx react-router typegen`
+- New page: add to `routes.ts` → create route file. `.react-router/types/` is generated and gitignored — `pnpm typecheck` runs `react-router typegen` first, and `react-router dev` rewrites it as routes change, so there is no manual step. `react-router build` does **not** write it, which is why `typecheck` owns it (issue #30)
 - **Any link crossing the marketing/app boundary needs `<Link reloadDocument>`.** A plain `<Link>` navigates client-side, so `server/origins.ts` never sees it — in split-origin mode the app page renders on the marketing host and its auth POST takes a 302 that downgrades to GET. Applies to landing → `/login` `/register`, and login/register → `/`. Links staying on one side must NOT use it (`docs/domains.md`)
 - New API route: add to `server/api.ts` with OpenAPI schema → `pnpm api:spec` → add matching MCP tool in `apps/mcp`
 - **Auth guard: call `requireUser(context, request)` (`app/lib/require-user.ts`) in every protected loader, including children of the dashboard layout.** The layout loader is not a security boundary in React Router v7 — children run in parallel with it and a `.data` request can fetch one directly, so the parent's redirect never applies. Guard even a loader that returns nothing: it is the template the next page gets copied from (audit #10)
