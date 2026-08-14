@@ -51,11 +51,45 @@ export type ParsedInitArgs = { ok: true; args: InitArgs } | { ok: false; error: 
  *    something was there rather than silently dropping it.
  * 3. **Truncate.** A pasted-wrong argument can be a whole file.
  */
+/** Stands in for a value whose shape cannot be shown to be credential-free. */
+export const UNVERIFIABLE_VALUE = "<redacted: may contain a credential>";
+
+/**
+ * Whether an `@` left in `value` is provably harmless.
+ *
+ * True only when the value parses *and* carries no userinfo, which puts the
+ * `@` in a path, query or fragment. A value that does not parse cannot be
+ * reasoned about at all — and "does not parse" is the normal state here, since
+ * this only ever runs on input that was already rejected.
+ */
+function parsesWithoutUserinfo(value: string): boolean {
+  try {
+    const parsed = new URL(value.trim());
+    return !parsed.username && !parsed.password;
+  } catch {
+    // Stryker reports `catch {}` as a surviving mutant here and it is a genuine
+    // equivalent: the only caller negates the result, where `undefined` and
+    // `false` are the same answer. Not worth contorting the code to kill.
+    return false;
+  }
+}
+
 export function redactForMessage(value: string): string {
   const withoutCredentials = value.replace(
     /^((?:[a-zA-Z][a-zA-Z0-9+.-]*:)?(?:\/\/)?)[^/?#]*@/,
     (_match, prefix: string) => `${prefix}***@`,
   );
+
+  // Structured redaction did not fire, yet an `@` survives. Credentials that
+  // are *malformed* land here: `https://user:tok/en@github.com/a` has an
+  // unencoded `/` in the password, so the authority ends before the `@` and the
+  // pattern never matches — while the URL does not parse either, so nothing
+  // else establishes that `tok` is not a secret. Base64-shaped tokens contain
+  // `/`, which makes this a paste away rather than a curiosity. Refuse to echo
+  // it: a less helpful message costs less than a token in a CI log.
+  if (withoutCredentials === value && value.includes("@") && !parsesWithoutUserinfo(value)) {
+    return UNVERIFIABLE_VALUE;
+  }
   // Matching control characters is the entire purpose here: they are exactly
   // what must not reach a terminal.
   // eslint-disable-next-line no-control-regex

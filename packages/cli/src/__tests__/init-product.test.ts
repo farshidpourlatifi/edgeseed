@@ -9,6 +9,7 @@ import {
   isValidRepoUrl,
   parseInitArgs,
   redactForMessage,
+  UNVERIFIABLE_VALUE,
   stampProductIdentity,
   stampProductRepo,
   stampWranglerConfig,
@@ -287,6 +288,82 @@ describe("redactForMessage", () => {
 
   it("leaves an @ that is not userinfo alone", () => {
     expect(redactForMessage("https://github.com/acme/a@b")).toBe("https://github.com/acme/a@b");
+  });
+
+  /**
+   * Malformed credentials, which the authority-bounded pattern cannot reach.
+   *
+   * An unencoded `/` in the password ends the authority before the `@`, so the
+   * pattern never matches — and the value does not parse either, so nothing
+   * establishes the tail is not a secret. Base64-shaped tokens contain `/`.
+   */
+  it.each([
+    "https://user:tok/en@github.com/acme",
+    "https://user:abc/def+ghi@host/repo",
+    "https://user:tok?x@github.com/acme",
+    "https://user:tok#x@github.com/acme",
+  ])("refuses to echo %j at all", (value) => {
+    expect(redactForMessage(value)).toBe(UNVERIFIABLE_VALUE);
+  });
+
+  /**
+   * A leading space stops the anchored pattern firing, yet the URL still parses
+   * *with* credentials — so the userinfo check, not the pattern, is what keeps
+   * the token out of the message here.
+   */
+  it("refuses a credential the anchored pattern cannot reach", () => {
+    const out = redactForMessage(" https://user:ghp_realtokenvalue@github.com/a");
+
+    expect(out).toBe(UNVERIFIABLE_VALUE);
+    expect(out).not.toContain("ghp_realtokenvalue");
+  });
+
+  // The other side of that: trimming is what lets a benign wrapped URL still
+  // parse, so it is echoed rather than needlessly reduced to the placeholder.
+  // Non-breaking space specifically — `new URL` strips a plain leading space
+  // itself, so only this shape actually exercises the trim.
+  it("still echoes a harmless @ on a value wrapped in non-breaking spaces", () => {
+    const out = redactForMessage("\u00A0https://github.com/acme/a@b\u00A0");
+
+    expect(out).not.toBe(UNVERIFIABLE_VALUE);
+    expect(out).toContain("github.com/acme/a@b");
+  });
+
+  /**
+   * Userinfo with only one half present. Both leak if the check asks for
+   * *either* field to be empty rather than both — and a password-only URL
+   * (`https://:token@host`) is exactly how a token-in-URL is usually written.
+   */
+  it.each([
+    " https://:ghp_realtokenvalue@github.com/a",
+    " https://ghp_realtokenvalue@github.com/a",
+  ])("refuses %j, which carries only one half of a credential", (value) => {
+    const out = redactForMessage(value);
+
+    expect(out).toBe(UNVERIFIABLE_VALUE);
+    expect(out).not.toContain("ghp_realtokenvalue");
+  });
+
+  it("names what it withheld, so the reader knows why", () => {
+    expect(UNVERIFIABLE_VALUE).toContain("redacted");
+    expect(UNVERIFIABLE_VALUE.length).toBeGreaterThan(0);
+  });
+
+  it("leaks no part of a malformed credential", () => {
+    expect(redactForMessage("https://user:ghp_realtokenvalue/x@github.com/a")).not.toContain(
+      "ghp_realtokenvalue",
+    );
+  });
+
+  // The four branches, so none of them is unreachable: redaction fired; no `@`
+  // at all; an `@` proven harmless by parsing; and everything else.
+  it.each([
+    ["redaction fired", "https://u:p@h/r", "https://***@h/r"],
+    ["no @ at all", "htps://github.com/acme", "htps://github.com/acme"],
+    ["@ proven to be a path", "https://github.com/acme/a@b", "https://github.com/acme/a@b"],
+    ["unverifiable", "https://u:p/q@h/r", UNVERIFIABLE_VALUE],
+  ])("%s: %j", (_label, value, expected) => {
+    expect(redactForMessage(value)).toBe(expected);
   });
 
   it("keeps an ordinary rejected value readable, since that is the point", () => {
