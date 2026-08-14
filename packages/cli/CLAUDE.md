@@ -5,8 +5,18 @@
 Dev workflow scripts run via `tsx` from the root `package.json` (`db:*`,
 `api:spec`, `version:bump`). Not shipped anywhere — tooling only. Scripts
 shell out via `pnpm --filter` rather than importing workspace packages, so
-this package declares no workspace dependencies (shared test helpers live in
-`@starter/testing`).
+this package declares almost no workspace dependencies (shared test helpers
+live in `@starter/testing`).
+
+**`@starter/config` is the one exception, and only for
+`canonicalRepoUrl`.** `init:product` decides what may be stamped into
+`PRODUCT_REPO_URL`; the landing page decides what it will render from it. The
+guarantee worth having is that those two answers are the _same_ answer — a
+second copy of the rule here would drift, and the drift is precisely how a
+value that passes the CLI reaches a page that cannot safely render it (a
+credential in the userinfo, a `&` in a copy-paste `git clone` line). Shelling
+out cannot express a shared predicate, so this one is imported. Do not grow the
+exception: anything that can be a subprocess still should be.
 
 The one external devDependency is `better-auth`, for `hashPassword` in
 `db-seed.ts`. Seeding a login-able user means writing a password hash, and the

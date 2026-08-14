@@ -88,7 +88,7 @@ docs/api          — Generated OpenAPI specs
 | `pnpm check:not-downgrade <tag>`    | Guard: tag vs the live production version |
 | `pnpm check:deployed <out> <ver>`   | Guard: live /health reports that version  |
 | `pnpm release:notes <out>`          | Version ID preamble for release notes     |
-| `pnpm init:product <name>`          | Stamp product identity (new repo)         |
+| `pnpm init:product <name> [--repo]` | Stamp product identity (new repo)         |
 | `pnpm check:docs-sync`              | Docs + .dev.vars.example drift check      |
 
 ## Adding a new page

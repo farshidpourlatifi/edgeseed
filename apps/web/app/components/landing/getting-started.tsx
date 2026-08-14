@@ -1,13 +1,23 @@
 import { CopyCommand } from "./copy-command";
-import { GITHUB_URL } from "./site";
+import { REPO } from "./repo";
+
+// The clone step exists only when there is a repository to clone. Everything
+// below it is local tooling, correct with or without one — so a product that
+// declares no repo gets a shorter list rather than a step pointing at somebody
+// else's code (issue #32). The <ol> numbers from the array, so it renumbers.
+const cloneStep = REPO
+  ? [
+      {
+        title: "Clone the repository",
+        description:
+          "Clone with full history so you can keep pulling upstream updates through the upstream remote later.",
+        command: REPO.cloneCommand,
+      },
+    ]
+  : [];
 
 const steps = [
-  {
-    title: "Clone the starter",
-    description:
-      "Clone with full history so you can keep pulling starter updates through the upstream remote later.",
-    command: `git clone ${GITHUB_URL} my-app`,
-  },
+  ...cloneStep,
   {
     title: "Make it yours",
     description:
@@ -31,8 +41,10 @@ export function GettingStarted() {
     <section id="getting-started" className="scroll-mt-16 border-b">
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-12 px-4 py-20 sm:px-6 md:py-24">
         <div className="flex max-w-2xl flex-col gap-4">
+          {/* Counted, not spelled out: the clone step is conditional, and a
+              hardcoded "four" is simply false without it. */}
           <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-            Running locally in four commands
+            Running locally in {steps.length} commands
           </h2>
           <p className="text-base leading-relaxed text-muted-foreground text-pretty">
             No dashboard clicking required. Everything below works against local D1 before you

@@ -539,6 +539,11 @@ arguments.
 - New auth endpoint — is it in the right rate-limit class, and if it reaches
   Better Auth through `auth.api.*` rather than HTTP, does it limit itself?
 - New inline script — nonce or hash, and which, and is it tested?
+- New user-visible mention of the product — its name, slug, version or
+  repository URL — does it read from `@starter/config` rather than a literal?
+  A literal ships the starter's identity to every clone, and the repo URL is
+  the one value nothing derives, so it may be empty and the surface has to
+  render without it (issue #32).
 - Invalidated a claim in a doc — did you grep for its other homes? The audit,
   `security-plan.md`, this file, `.github/skills/code-review/SKILL.md` and the
   per-package `CLAUDE.md` files all repeat each other, and a stale copy is trusted.
@@ -733,7 +738,7 @@ pnpm format / pnpm format:check  # Prettier
 pnpm verify                 # Full gate: lint, format, test, gitleaks, build, typecheck, boot, e2e
 pnpm deploy:web             # verify + wrangler deploy (the gated deploy path)
 pnpm deploy:web:ungated     # the deploy half alone — CI only, see below
-pnpm init:product <name>    # Stamp product identity on a fresh clone (docs/starter-as-upstream.md)
+pnpm init:product <name> [--repo <url>]   # Stamp product identity on a fresh clone (docs/starter-as-upstream.md)
 pnpm check:docs-sync        # Fail on drift: undocumented root scripts, stale .dev.vars.example
 pnpm check:boot             # Boot each built Worker and prove it serves (after build)
 pnpm check:release-version <tag>   # Refuse a tag disagreeing with package.json / APP_VERSION

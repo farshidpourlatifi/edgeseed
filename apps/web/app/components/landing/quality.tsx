@@ -1,13 +1,23 @@
+import { PRODUCT_SLUG } from "@starter/config/product";
+import { APP_VERSION } from "@starter/config/version";
 import { Terminal, type ScriptStep } from "@starter/ui/components/ui/terminal";
 import { QualityStats } from "./quality-stats";
+
+// Derived, not written out: `init:product` stamps the root package name to the
+// slug and `version:bump` writes APP_VERSION alongside the package version, so
+// these two are exactly what pnpm prints in a clone as well as here. Hardcoded,
+// they showed the starter's directory in every clone — and had already drifted
+// a version behind in this repo (issue #32).
+const CWD = `~/${PRODUCT_SLUG}`;
+const VERIFY_BANNER = `> ${PRODUCT_SLUG}@${APP_VERSION} verify`;
 
 // Animated walkthrough of the real pipeline: verify gate, then mutation run.
 // Content mirrors actual command output — keep in sync with the chain.
 const PIPELINE_SCRIPT: ScriptStep[] = [
   {
     cmd: "pnpm verify",
-    cwd: "~/edgeseed",
-    out: [{ text: "> edgeseed@0.1.0 verify", tone: "dim" }, { text: "" }],
+    cwd: CWD,
+    out: [{ text: VERIFY_BANNER, tone: "dim" }, { text: "" }],
     lineMs: 110,
   },
   { spinner: "eslint .", ms: 800, done: "lint — eslint . clean" },
@@ -54,7 +64,7 @@ const PIPELINE_SCRIPT: ScriptStep[] = [
     lineMs: 200,
     after: 2000,
   },
-  { cmd: "pnpm test:mutation", cwd: "~/edgeseed", enterPause: 500 },
+  { cmd: "pnpm test:mutation", cwd: CWD, enterPause: 500 },
   {
     spinner: "stryker — mutating 294 sites across packages",
     ms: 1700,
@@ -76,7 +86,7 @@ const PIPELINE_SCRIPT: ScriptStep[] = [
 const VERIFY_SUMMARY: ScriptStep[] = [
   {
     cmd: "pnpm verify",
-    cwd: "~/edgeseed",
+    cwd: CWD,
     out: [
       "› lint       eslint .                ok",
       "› format     prettier --check .      ok",
@@ -93,7 +103,7 @@ const VERIFY_SUMMARY: ScriptStep[] = [
 const MUTATION_SUMMARY: ScriptStep[] = [
   {
     cmd: "pnpm test:mutation",
-    cwd: "~/edgeseed",
+    cwd: CWD,
     out: [
       "Stryker  mutating packages + app server…",
       "killed 159   survived 131   no-coverage 4",

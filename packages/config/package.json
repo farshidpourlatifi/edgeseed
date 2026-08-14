@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./env": "./src/env.ts",
     "./product": "./src/product.ts",
+    "./repo-url": "./src/repo-url.ts",
     "./version": "./src/version.ts"
   },
   "dependencies": {

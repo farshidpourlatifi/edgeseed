@@ -16,7 +16,7 @@ import {
 } from "@starter/ui/components/ui/sheet";
 import { ThemeToggle } from "@starter/ui/components/ui/theme-toggle";
 import { GithubIcon } from "./github-icon";
-import { GITHUB_URL } from "./site";
+import { REPO } from "./repo";
 
 const links = [
   { name: "Features", href: "#features" },
@@ -107,12 +107,14 @@ export function SiteHeader() {
               </nav>
               <Separator />
               <div className="flex flex-col gap-3 px-4 pb-6">
-                <Button variant="outline" className="h-11" asChild>
-                  <a href={GITHUB_URL} target="_blank" rel="noreferrer noopener">
-                    <GithubIcon className="size-4" />
-                    View on GitHub
-                  </a>
-                </Button>
+                {REPO && (
+                  <Button variant="outline" className="h-11" asChild>
+                    <a href={REPO.url} target="_blank" rel="noreferrer noopener">
+                      <GithubIcon className="size-4" />
+                      View on GitHub
+                    </a>
+                  </Button>
+                )}
                 <Button variant="ghost" className="h-11" asChild>
                   <Link reloadDocument to="/login" onClick={() => setOpen(false)}>
                     Sign In

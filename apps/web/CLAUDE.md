@@ -27,6 +27,25 @@ The product: React Router v7 app + Hono API on a single Cloudflare Worker.
 - **Anything minting a verification link passes `POST_VERIFICATION_REDIRECT` (`app/lib/auth-redirects.ts`) as `callbackURL`.** Better Auth defaults it to `/`, and `/verify-email` redirects there after auto sign-in — so omitting it lands a just-verified user on the landing page, which `server/origins.ts` then bounces to the marketing host while the cookie stays on the app host. It reads as "verified, then logged out". No e2e covers this leg (the link only reaches the dev server log), so the shared constant is the guard
 - **Password reset spans two screens and one shared constant.** `/forgot-password` requests the link, `/reset-password` spends it, and `PASSWORD_RESET_REDIRECT` (`app/lib/auth-redirects.ts`) is both the `redirectTo` and the route path — drift and the emailed link 302s to a 404. The constants live apart from `auth-client.ts` because that module builds a Better Auth client at import time, and `tests/e2e/password-reset.spec.ts` imports them to follow the same URL production does — hard-coding the path there made that walk decorative, which is how the drift went uncaught in review. Three things are deliberate: the notice says "if an account exists" and never that mail was sent (better-auth answers 200 either way, so the UI is the last place that could leak); the reset screen has **two** entry states, since better-auth's GET callback appends `?token=` **or** `?error=INVALID_TOKEN` to the same URL, and rendering a form on the second is a dead end; and a completed reset does **not** mark the address verified, so an unverified user lands on the verification notice at `/login` rather than the dashboard. That last one is a security decision, not a papercut — see `docs/security-audit.md` #2. A failed send cannot be reported at all (`runInBackgroundOrAwait` swallows it — ADR 003)
 - **The hero's shader background degrades or it does nothing at all.** `app/components/landing/hero-background.tsx` mounts `MeshGradient` from `@paper-design/shaders-react` (pinned exactly — the package is pre-1.0). Four things are load-bearing. It renders only after `supportsWebGl2` says yes, because the library **throws from its constructor** on a null `webgl2` context — and that throw happens inside an un-awaited `async` effect, so it surfaces as an unhandled rejection that **no error boundary can catch**; the probe is the guard, `ShaderBoundary` is not. Underneath sits an unconditional poster (`hero-poster.css`): a WebP still of the shader's own **frame 0**, one per theme over an orange underlay, so the server render, every browser without WebGL2, and the canvas's first painted frame are all the same image. `prefers-reduced-motion` pins `speed` to 0, which the library does not handle itself. And **both the poster and the shader read the theme from `documentElement`'s `dark` class** — the poster through CSS, the shader through `themeFromDocument` — never from `useTheme().resolvedMode`, which is seeded from the system preference and only reconciles with the `theme` cookie in an effect, so it would mount the wrong palette for anyone whose cookie disagrees with their system setting. Playwright's headless Chromium has no WebGL2, so CI runs the fallback path on every e2e run (`tests/e2e/hero-background.spec.ts`)
+- **The landing page never hardcodes the product's identity or its repository.**
+  `PRODUCT_NAME`, `PRODUCT_SLUG`, `APP_VERSION` and `PRODUCT_REPO_URL` come from
+  `@starter/config`; the repo URL specifically goes through `repoLinks()` in
+  `app/components/landing/repo.ts`, which returns `null` when the product
+  declares none. Every GitHub affordance — hero button, header sheet, footer
+  link, the `git clone` command, and step one of getting started — is then
+  **absent**, not disabled, and the step list renumbers itself. That empty state
+  is the default in a clone and is the whole point: a hardcoded URL made a
+  product's own landing page tell its visitors to clone the starter (issue #32).
+  `repoLinks` delegates to `canonicalRepoUrl` in `@starter/config` — the same
+  rule `init:product` stamps by, which is what lets the clone command be
+  interpolated unquoted. **A hardcoded link is invisible to the e2e specs**,
+  which run against a checkout that declares a URL and so cannot tell a derived
+  link from a literal one; `app/__tests__/landing-render.test.ts` renders the
+  components with the constant mocked empty and is the only thing that can. It
+  reaches four of the five sites — the header's lives inside a closed Radix
+  `Sheet`, so `tests/e2e/landing-layout.spec.ts` opens the mobile menu for that
+  one. Both regressions (a hardcoded href, and an ungated link surviving an
+  empty constant) were confirmed to turn that spec red before it was kept
 - **A visible control either works or says why it cannot.** No `setTimeout` +
   success toast, no "coming soon" handler, no icon button with no destination —
   those shipped once and made real infrastructure look fake (issue #16). Wire it,
