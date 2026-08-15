@@ -1,6 +1,13 @@
 import { redirect, useRouteLoaderData } from "react-router";
 import { Building2, UserX } from "lucide-react";
-import { hasRole, listPendingInvitations, resolveMembership, ROLES } from "@starter/auth";
+import {
+  can,
+  countOwners,
+  hasRole,
+  listPendingInvitations,
+  resolveMembership,
+  ROLES,
+} from "@starter/auth";
 import { EmptyState } from "@starter/ui/components/layout/empty-state";
 import type { Route } from "./+types/dashboard.members";
 import type { loader as dashboardLoader } from "./dashboard";
@@ -24,10 +31,20 @@ const INVITATIONS_PARAM = "invitations";
 
 /**
  * Members of the active organization, plus the invitations that have not been
- * spent yet.
+ * spent yet, plus what this reader may do to either.
  *
- * Read-only by design: invite, resend, revoke, change-role, remove and leave
- * are #37. Nothing here mutates, so there is no action.
+ * **There is no action here, and the mutations are not one.** Every write goes
+ * from the browser to Better Auth's own endpoints through `authClient`, the way
+ * `create-organization-dialog.tsx` does — so `/organization/invite-member`
+ * passes through the rate limiter that a server-side `auth.api.*` call would
+ * step around (`packages/auth/src/rate-limit.ts`), and invitations stay inside
+ * the `mail` class they were classified into.
+ *
+ * That makes what follows a *rendering* decision, never the guard. The guard is
+ * the role table in `packages/auth/src/organization.ts`, which is what refuses
+ * an admin who posts to `/organization/update-member-role` with no page
+ * involved. Both read one matrix — `ORG_CAPABILITIES` — so they cannot come to
+ * different conclusions about who may do what.
  */
 export async function loader({ context, request }: Route.LoaderArgs) {
   // Its own guard, not the layout's. Children run in parallel with the layout
@@ -78,7 +95,7 @@ export async function loader({ context, request }: Route.LoaderArgs) {
     return { state: belongsElsewhere ? ("not-a-member" as const) : ("none" as const) };
   }
 
-  const canReadInvitations = hasRole(membership.role, ROLES.admin);
+  const canReadInvitations = can(membership.role, "readInvitations");
   const membersPage = readPage(url.searchParams.get(MEMBERS_PARAM));
   const invitationsPage = readPage(url.searchParams.get(INVITATIONS_PARAM));
 
@@ -93,7 +110,7 @@ export async function loader({ context, request }: Route.LoaderArgs) {
    * reads every spent invitation an organization has ever had. `org-store.ts`
    * exists for that reason.
    */
-  const [members, invitations] = await Promise.all([
+  const [members, invitations, ownerCount] = await Promise.all([
     context.auth.api.listMembers({
       headers: request.headers,
       query: {
@@ -112,6 +129,10 @@ export async function loader({ context, request }: Route.LoaderArgs) {
           offset: offsetFor(invitationsPage),
         })
       : null,
+    // Not derivable from `members` above: the second owner may be three pages
+    // further down. It decides whether the sole owner is told why they cannot
+    // leave, rather than being handed a control that fails.
+    countOwners(context.db, { organizationId: membership.organizationId }),
   ]);
 
   // A page number past the end renders an empty list under a pager that claims
@@ -136,6 +157,17 @@ export async function loader({ context, request }: Route.LoaderArgs) {
   return {
     state: "ready" as const,
     organizationId: membership.organizationId,
+    /**
+     * What this reader may do, decided once here and never re-derived in a
+     * component. `RoleBadge` renders a role and is explicitly not allowed to
+     * grow into a policy; these booleans are why it does not have to.
+     */
+    capabilities: {
+      invite: can(membership.role, "invite"),
+      revokeInvitation: can(membership.role, "revokeInvitation"),
+      changeRole: can(membership.role, "changeRole"),
+      removeMember: can(membership.role, "removeMember"),
+    },
     members: {
       rows: members.members.map(
         (member): MemberRow => ({
@@ -145,6 +177,13 @@ export async function loader({ context, request }: Route.LoaderArgs) {
           role: member.role,
           joinedAt: new Date(member.createdAt).toISOString(),
           isSelf: member.userId === session.user.id,
+          /*
+           * A fact about the organization, not a permission — which is why it
+           * travels on the row rather than in `capabilities`. It is what
+           * removes "Remove" from the last owner's row and turns their "Leave"
+           * into an explanation, and Better Auth refuses both regardless.
+           */
+          isLastOwner: hasRole(member.role, ROLES.owner) && ownerCount <= 1,
         }),
       ),
       pager: membersPager,
@@ -195,7 +234,7 @@ export default function MembersPage({ loaderData }: Route.ComponentProps) {
   // type is not a discriminated union, so `state` cannot narrow the payload.
   // The payload narrows itself, and the discriminant is left to say *why* there
   // is none.
-  const { members, invitations, organizationId } = loaderData;
+  const { members, invitations, organizationId, capabilities } = loaderData;
 
   if (!members) {
     return (
@@ -203,7 +242,7 @@ export default function MembersPage({ loaderData }: Route.ComponentProps) {
         <PageHeading organizationName={null} />
         {loaderData.state === "not-a-member" ? (
           /*
-           * Reachable once #37 ships removal: Better Auth clears the
+           * Reachable through the product as of #37: Better Auth clears the
            * *remover's* active organization, never the removed member's, so
            * their session keeps naming an organization they can no longer read.
            * Saying so beats the first-run empty state, which would tell someone
@@ -247,6 +286,8 @@ export default function MembersPage({ loaderData }: Route.ComponentProps) {
         pager={members.pager}
         previousUrl={members.previousUrl}
         nextUrl={members.nextUrl}
+        organizationId={organizationId}
+        capabilities={capabilities}
       />
 
       {/*
@@ -260,6 +301,8 @@ export default function MembersPage({ loaderData }: Route.ComponentProps) {
           pager={invitations.pager}
           previousUrl={invitations.previousUrl}
           nextUrl={invitations.nextUrl}
+          organizationId={organizationId}
+          capabilities={capabilities}
         />
       )}
     </div>

@@ -4,7 +4,7 @@ export { createBetterAuthClient } from "./client";
 export type { AuthClient } from "./client";
 export { authMiddleware } from "./middleware";
 export type { AuthEnv } from "./middleware";
-export { organizationOptions, organizationPlugin } from "./organization";
+export { organizationOptions, organizationPlugin, ORGANIZATION_ROLES } from "./organization";
 export type { OrganizationOptions, OrganizationPluginDeps } from "./organization";
 export {
   INVITATION_ACCEPT_PATH,
@@ -22,8 +22,8 @@ export {
 } from "./rate-limit";
 export type { RateLimitClass, RateLimiters } from "./rate-limit";
 export { getSession, requireSession } from "./helpers/session";
-export { ROLES, hasRole } from "./helpers/roles";
-export type { Role } from "./helpers/roles";
+export { ROLES, ORG_CAPABILITIES, OWNER_MUST_BE_PROMOTED, can, hasRole } from "./helpers/roles";
+export type { OrgCapability, Role } from "./helpers/roles";
 export {
   API_TOKEN_PREFIX,
   extractBearerToken,
@@ -35,7 +35,7 @@ export {
 export type { GeneratedApiToken } from "./helpers/api-token";
 export { createApiToken, listApiTokens, revokeApiToken } from "./helpers/api-token-store";
 export type { ApiTokenSummary } from "./helpers/api-token-store";
-export { listPendingInvitations, resolveMembership } from "./helpers/org-store";
+export { countOwners, listPendingInvitations, resolveMembership } from "./helpers/org-store";
 export type { Membership, Page, PendingInvitationSummary } from "./helpers/org-store";
 export {
   getPrincipal,

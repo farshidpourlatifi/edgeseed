@@ -108,6 +108,14 @@ following whenever the diff touches the relevant surface.
   grant, never request or tool input.
 - When a change introduces or modifies tenant-scoped data access, verify
   organization membership and scope every query by the verified organization.
+- Route organization permissions through `can(role, capability)` and
+  `ORG_CAPABILITIES`, never a fresh `hasRole` comparison or a role string at the
+  call site. A new capability must also appear in `ORGANIZATION_ROLES`, which
+  narrows Better Auth's own role table — its stock `adminAc` grants
+  `member: ["update", "delete"]`, so a matrix enforced only in a loader or a
+  component leaves the endpoint open to any admin holding a session cookie.
+  Assert the deny path against `/api/auth/organization/*`, not against an absent
+  button.
 - Keep invalid bearer tokens from falling back to session authentication.
 - Require new guards to fail closed and ship with a deny-path test.
 

@@ -28,10 +28,11 @@ built from, which is why they guard even where they return nothing sensitive.
 
 Its Team tab has a **shipped** counterpart: `app/routes/dashboard.members.tsx`
 took the card, avatar and badge vocabulary from here and wired it to real
-members and invitations. The example keeps its "Invite your first teammate"
-button and the real page does not — sending an invitation has no UI yet (#37),
-and a control that does nothing is what issue #16 is about. Copy the layout from
-here; copy the wiring from there.
+members and invitations — including this file's "Invite your first teammate"
+button, which the real page held back until #37 gave it something to open.
+That is issue #16 read the right way round: the control was omitted while it
+would have done nothing, and shipped the moment it would not. Copy the layout
+from here; copy the wiring from there.
 
 ## Generating new designs with V0
 

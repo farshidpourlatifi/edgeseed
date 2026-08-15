@@ -7,6 +7,8 @@ import {
   CardTitle,
 } from "@starter/ui/components/ui/card";
 import { EmptyState } from "@starter/ui/components/layout/empty-state";
+import { InvitationActions } from "./invitation-actions";
+import { InviteMemberButton } from "./invite-member-dialog";
 import { ListPager } from "./list-pager";
 import { RoleBadge } from "./role-badge";
 import { formatDate } from "~/lib/format-date";
@@ -25,26 +27,35 @@ export interface PendingInvitationsProps {
   pager: Pager;
   previousUrl: string | null;
   nextUrl: string | null;
+  organizationId: string;
+  /** Decided by the loader from `ORG_CAPABILITIES`; never re-derived here. */
+  capabilities: {
+    invite: boolean;
+    revokeInvitation: boolean;
+  };
 }
 
 /**
  * Invitations sent but not yet spent.
  *
  * Rendered for admins and owners only — the caller makes that decision with
- * `hasRole`, and a plain member is served no invitations section at all rather
- * than an empty one. The rows carry the invited addresses, which are the one
- * thing on this page that is not already visible to everyone in the
- * organization.
+ * `can(role, "readInvitations")`, and a plain member is served no invitations
+ * section at all rather than an empty one. The rows carry the invited
+ * addresses, which are the one thing on this page that is not already visible
+ * to everyone in the organization.
  *
- * No invite, resend or revoke control here: those are #37. The empty state
- * therefore describes where invitations come from instead of offering a button
- * that would do nothing (issue #16).
+ * The controls arrived with #37 and the empty state changed with them: it now
+ * offers the invitation it used to describe, because there is finally something
+ * behind the button (issue #16 cuts both ways — a control that works belongs
+ * where the reader is already looking).
  */
 export function PendingInvitations({
   invitations,
   pager,
   previousUrl,
   nextUrl,
+  organizationId,
+  capabilities,
 }: PendingInvitationsProps) {
   return (
     <Card>
@@ -60,6 +71,11 @@ export function PendingInvitations({
             icon={<MailPlus className="h-10 w-10" />}
             title="No pending invitations"
             description="Invitations appear here until the person accepts them or the link expires."
+            action={
+              capabilities.invite ? (
+                <InviteMemberButton organizationId={organizationId} />
+              ) : undefined
+            }
           />
         ) : (
           <ul aria-label="Pending invitations" className="divide-y rounded-md border">
@@ -72,7 +88,15 @@ export function PendingInvitations({
                     {invitation.expiresAt && ` · expires ${formatDate(invitation.expiresAt)}`}
                   </p>
                 </div>
-                <RoleBadge role={invitation.role} />
+                <div className="flex shrink-0 items-center gap-2">
+                  <RoleBadge role={invitation.role} />
+                  <InvitationActions
+                    invitation={invitation}
+                    organizationId={organizationId}
+                    canResend={capabilities.invite}
+                    canRevoke={capabilities.revokeInvitation}
+                  />
+                </div>
               </li>
             ))}
           </ul>

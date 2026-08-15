@@ -544,6 +544,36 @@ audit data — it hands an attacker a fresh bucket per request.
 MCP tools read identity from `ctx.user` (the OAuth grant), never from tool
 arguments.
 
+### Organization roles
+
+One matrix, `ORG_CAPABILITIES` in `packages/auth/src/helpers/roles.ts`, read
+through `can(role, capability)` — never `hasRole` at a call site, which
+re-decides the policy there. Admin+ invites, resends and revokes; **owner only**
+changes a role or removes somebody; anybody may leave. Nobody is _invited_ as an
+owner — that is a promotion, so it happens to somebody already inside.
+
+**The page is not the boundary, and neither is any loader.** These writes go
+from the browser to `/api/auth/organization/*` through `authClient`, so the
+session cookie reaches Better Auth with no product code in between. What
+enforces the matrix is `ORGANIZATION_ROLES` in `packages/auth/src/organization.ts`,
+which narrows Better Auth's **own** role table: stock `adminAc` grants
+`member: ["update", "delete"]`, so with the defaults left alone every admin
+changes roles and removes members whatever the UI offers. Two e2e cases in
+`member-actions.spec.ts` were seen red against those defaults, and they are the
+only thing standing between this rule and a silent regression on a version bump.
+
+- **Add a capability to `ORG_CAPABILITIES` first**, then render from it; the API
+  (#38) and MCP tools (#39) import the same object rather than restating it.
+- **A capability that maps to a Better Auth permission needs the role table to
+  agree**, and `organization.test.ts` asserts every role × capability pair
+  against `authorize()` so it cannot quietly not.
+- **The last-owner rule is state, not rank.** Better Auth enforces it on leave,
+  demote and remove; the page reads `countOwners` so it can say so in advance
+  rather than offering a control that fails.
+- Product rules Better Auth has no vocabulary for go in `organizationHooks` —
+  where the write is — not in a component. The invite-as-owner ban is the one
+  such rule today (`beforeCreateInvitation`).
+
 ### Ask of every diff that adds surface
 
 - New route or API path — is it in the allowlist on purpose, or denied by default?
@@ -551,6 +581,9 @@ arguments.
 - New middleware that touches a response — does it survive an immutable one?
 - New binding — is it in `webEnvSchema`/`mcpEnvSchema`?
 - New guard — is there a test for the **deny** path?
+- New organization capability — is it in `ORG_CAPABILITIES`, does
+  `ORGANIZATION_ROLES` agree with it, and is the deny case asserted at the
+  **endpoint** rather than at a missing button?
 - New auth endpoint — is it in the right rate-limit class, and if it reaches
   Better Auth through `auth.api.*` rather than HTTP, does it limit itself?
 - New inline script — nonce or hash, and which, and is it tested?
@@ -688,8 +721,14 @@ Defined in `apps/web/app/routes.ts` (explicit route config, not file-based routi
   here instead of `/dashboard`
 - `/dashboard` — layout with sidebar, topbar, auth guard
 - `/dashboard/members` — the active organization's members and its pending
-  invitations, both bounded. Read-only; every membership write is #37. The
-  invitations half is admin-and-owner only, since it carries invited addresses
+  invitations, both bounded, plus every membership write: invite, resend,
+  revoke, change role, remove, leave. The invitations half is admin-and-owner
+  only, since it carries invited addresses. **The writes go from the browser
+  straight to Better Auth's endpoints through `authClient`**, so they pass
+  through the rate limiter that a server-side `auth.api.*` call would step
+  around — which means the page renders from `ORG_CAPABILITIES` but does not
+  enforce it. Enforcement is `ORGANIZATION_ROLES` in `packages/auth`; see
+  "Organization roles" under Security standards
 - `/dashboard/settings` — profile, plus API token management
 - `*` — branded 404, written last for readability. **Not for correctness:**
   React Router ranks branches by specificity and docks a splat by `splatPenalty`

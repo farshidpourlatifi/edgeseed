@@ -1,14 +1,14 @@
-import { ROLES } from "@starter/auth";
+import { ROLES } from "@starter/auth/roles";
 import { Badge } from "@starter/ui/components/ui/badge";
 
 /**
  * A member's or invitation's role, as a badge.
  *
- * **Display only.** Nothing on this page decides what someone may do from the
- * string it renders — membership is the whole check here, and the permission
- * comparisons that arrive with the member actions (#37) go through `hasRole`,
- * never an inline comparison like the one below. What follows is a palette
- * lookup; it is not allowed to grow into a policy.
+ * **Display only.** Nothing decides what someone may do from the string it
+ * renders: the member actions beside it read the loader's `capabilities`, which
+ * come from `can()` and `ORG_CAPABILITIES`. What follows is a palette lookup —
+ * it is not allowed to grow into a policy, and the fact that it compares role
+ * names is exactly why nothing else here may.
  *
  * An unrecognised role still renders, in the neutral variant. Better Auth's
  * `role` column is free text and a downstream product may add its own — a

@@ -143,11 +143,32 @@ ORGANIZATION_ALREADY_EXISTS` — **not** `ORGANIZATION_SLUG_ALREADY_TAKEN`,
   Both lists are bounded at `PAGE_SIZE` (`app/lib/pagination.ts`); the member
   page comes from better-auth's `list-members`, which paginates, and the
   invitations from `listPendingInvitations`, because its `list-invitations` does
-  not. **Pending invitations are admin-and-owner only** (`hasRole`), since the
-  rows carry addresses nobody in the organization has otherwise seen — a plain
-  member gets no section at all rather than an empty one. Every membership
-  write — invite, resend, revoke, change role, remove, leave — is #37, so the
-  page ships no control that would need one (issue #16)
+  not. **Pending invitations are admin-and-owner only**
+  (`can(role, "readInvitations")`), since the rows carry addresses nobody in the
+  organization has otherwise seen — a plain member gets no section at all rather
+  than an empty one
+- **The membership writes are `authClient` calls, not a route action, and the
+  page does not enforce the matrix.** Invite, resend, revoke, change role,
+  remove and leave all go from the browser to `/api/auth/organization/*` — the
+  same shape as `create-organization-dialog.tsx` — for one reason that decides
+  it: `auth.api.*` **bypasses the rate limiter** (it lives in better-auth's HTTP
+  router hook), and `/organization/invite-member` sits in the strict `mail`
+  class. A server-side action would have had to re-implement that limit, which
+  AGENTS.md names as how a second hole gets made. So the loader's `capabilities`
+  are a _rendering_ decision derived from `ORG_CAPABILITIES`, and the guard is
+  `ORGANIZATION_ROLES` in `@starter/auth` — see AGENTS.md, "Organization roles".
+  Consequences worth knowing: a 429 is ordinary rather than exceptional and
+  `app/lib/member-action-errors.ts` names it, reading the real number out of
+  `RATE_LIMIT_RULES` so the copy cannot drift; **owner-only actions are absent
+  for an admin, never disabled**, while the last owner's "Leave" _is_ disabled
+  with the reason, because that is a state they can change and not a rank they
+  lack (issue #16 allows exactly that much); every dialog is a **sibling** of
+  the row's dropdown, since Radix unmounts `DropdownMenuContent` on close and
+  would take a nested dialog with it (#54); and **leaving ends in
+  `window.location.reload()`**, not `revalidate()`, for the same reason
+  `switchOrganization` does — it changes which tenant every loader is about.
+  `isLastOwner` rides on the row from `countOwners`, because the second owner
+  may be three pages down and the roster is bounded at `PAGE_SIZE`
 - **Every rendered date goes through `app/lib/format-date.ts`, and its locale is
   pinned.** `toLocaleDateString(undefined, …)` asks the _runtime_ for a locale,
   and a server-rendered page has two: the Worker answers `en-US`

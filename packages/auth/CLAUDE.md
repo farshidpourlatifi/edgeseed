@@ -53,8 +53,10 @@ holds the reasoning, including why KV and `secondaryStorage` were both rejected.
   is authenticated but is still the app sending mail on someone's say-so. That
   one prefix covers **resend too**: `resend: true` is a body flag on the same
   endpoint, not a second path, so there is nothing else to classify. At 3/60s
-  it will bite the invite form in #37 — surface the 429 as "too quickly" there,
-  rather than loosening the class.
+  it **does** bite the invite form, which is why
+  `apps/web/app/lib/member-action-errors.ts` gives the 429 a sentence of its own
+  and reads `RATE_LIMIT_RULES.mail.max` rather than restating the number. The
+  answer to a person hitting it is to wait, never to loosen the class.
 - **Changing a number means changing it in three places** — the table here and
   `simple` in both `wrangler.jsonc` files. The table is canonical; the bindings
   are what enforce.
@@ -91,6 +93,35 @@ holds the reasoning, including why KV and `secondaryStorage` were both rejected.
   when they remove _themselves_ — so a removed member keeps a session naming an
   organization they can no longer read. `resolveMembership` is what turns that
   id into an answer, and every read scopes itself besides.
+- **The role matrix is `ORG_CAPABILITIES`, and `ORGANIZATION_ROLES` is what
+  makes it true.** `helpers/roles.ts` holds who may do what and `can()` is the
+  only comparison a call site should need; `organization.ts` narrows Better
+  Auth's own role table to match, because the browser posts to
+  `/api/auth/organization/*` directly and nothing in `apps/web` sits between the
+  cookie and the write. Stock `adminAc` grants `member: ["update", "delete"]`,
+  so **without the override every admin can change roles and remove members** —
+  the whole reason the option is set. It is derived from `adminAc.statements`
+  rather than spelled out, so a better-auth upgrade that adds a resource cannot
+  silently _deny_ it here; `organization.test.ts` asserts every role ×
+  capability pair against `authorize()`, and two e2e cases in
+  `member-actions.spec.ts` were seen red against the defaults.
+- **`helpers/roles.ts` is a leaf and must stay one.** `apps/web` imports it as
+  `@starter/auth/roles` from browser components; reaching the matrix through the
+  package index instead pulls better-auth into the client bundle, which is the
+  same rule `invitation.ts` follows. `OWNER_MUST_BE_PROMOTED` lives there rather
+  than beside the hook that throws it for exactly this reason.
+- **Product rules better-auth cannot express go in `organizationHooks`.** The
+  invite-as-owner ban is the one today: better-auth refuses a _non_-owner asking
+  for `owner` and permits an owner, so `beforeCreateInvitation` closes the other
+  half. It is **not** reached on the resend path, which returns earlier — that
+  costs nothing, since a resend carries the stored role and no owner invitation
+  can exist to carry.
+- **`countOwners` is what lets the page say "you are the only owner" first.**
+  Better Auth enforces the last-owner rule on leave, demote and remove; the
+  count is only so the UI can explain instead of offering a control that fails.
+  It matches `role = 'owner'` exactly, which is correct **because this product
+  writes one role per member** — better-auth's column can hold a comma-separated
+  list, and a downstream product using that has to widen it.
 - **`listPendingInvitations` exists because Better Auth's list endpoint is
   unbounded.** `/organization/list-invitations` runs a bare `findMany` on
   `organizationId` — no limit, no offset, no status filter — so it reads every
@@ -101,6 +132,9 @@ holds the reasoning, including why KV and `secondaryStorage` were both rejected.
 ## Rules
 
 - Route guards use `requireSession`/`hasRole` — never re-implement role comparison inline
+- Organization permissions go through `can(role, capability)`, not `hasRole` at
+  the call site — `hasRole` is the hierarchy primitive `can` is built on, and
+  reaching past it re-decides the matrix wherever it is used
 - `hasRole` treats unknown roles as no permission (fails closed); keep it that way
 - Auth flow convention: authenticate → resolve org context → check permission → scope data by org
 - better-auth version is pinned by the security audit findings — check `docs/security-audit.md` #1 before touching it
