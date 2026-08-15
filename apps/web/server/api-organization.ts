@@ -253,6 +253,15 @@ const WRITE_PATHS = {
 /**
  * Charge this request to the limiter, and refuse it if the bucket is empty.
  *
+ * **Called after the target has been resolved, and before the write.** A request
+ * that is about to 404 has already been refused on tenancy grounds, and spending
+ * a member's budget on it would let one stale page id throttle the writes they
+ * are entitled to make. It is not a probing oracle: the caller is already a
+ * member with a session, the ids are not guessable, and the answer is the same
+ * 404 either way — what a volumetric attempt runs into is the WAF rule concern
+ * #3 names, not this. Invite is the exception only because it has no target to
+ * resolve, so its charge is the first thing that happens.
+ *
  * Required because these routes reach Better Auth through `auth.api.*`, which
  * bypasses the limiter entirely — it lives in the HTTP router's `onRequest`
  * hook, and nothing else stands between `/api/v1` and the write. Skipping it

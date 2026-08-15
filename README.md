@@ -54,11 +54,14 @@ Stated up front, because finding these after adopting a starter is worse than re
 - **There is no account-deletion surface.** Tenant foreign keys cascade, but
   `invitation.email` has no foreign key to `user`, so an invitation addressed to a deleted
   address needs an application-level sweep whoever adds that surface must write.
-- **An organization cannot be renamed or deleted.** The membership lifecycle is complete —
-  create, switch, invite, accept, revoke, promote, demote, remove and leave, from the
-  dashboard and from `/api/v1/organization/*` alike — but there is no organization-settings
-  surface and no route behind one. The MCP Worker has no organization tools yet either;
-  both are tracked under the Organizations epic.
+- **An organization cannot be renamed or deleted**, and the API covers less of the
+  lifecycle than the dashboard does. From the dashboard the lifecycle is complete —
+  create, switch, invite, accept, revoke, promote, demote, remove and leave.
+  `/api/v1/organization/*` covers the reads plus invite, revoke, role change and
+  removal; creating, switching, accepting an invitation and leaving stay browser-only,
+  and the [route table](#rest-api) is the contract. What is missing outright is an
+  organization-settings surface — there is no route behind one — and the MCP Worker has
+  no organization tools. Both are tracked under the Organizations epic.
 - **The MCP Worker ships undeployed.** Its Agent is a Durable Object, billed by duration —
   deploy it when a product actually needs it.
 - **Dependency updates are manual.** Dependabot security updates are currently disabled.

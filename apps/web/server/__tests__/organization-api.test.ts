@@ -467,6 +467,97 @@ describe("POST /organization/invitations", () => {
   });
 });
 
+/**
+ * The three writes that are not invite.
+ *
+ * They sit in the loose `default` class rather than `mail`, which makes it
+ * tempting to leave them untested — and that is exactly how the charge would
+ * come to be deleted without anything failing. `auth.api.*` bypasses Better
+ * Auth's own limiter, so these calls are the only thing bounding a membership
+ * write that arrives through the API rather than the browser.
+ */
+const DEFAULT_CLASS_WRITES: Array<{
+  label: string;
+  path: string;
+  init: RequestInit;
+  /** The Better Auth path the charge is keyed under — its bucket, shared with the browser. */
+  limitPath: string;
+  delegate: ReturnType<typeof vi.fn>;
+}> = [
+  {
+    label: "revoking an invitation",
+    path: "/organization/invitations/inv_1",
+    init: { method: "DELETE", headers: sameOrigin },
+    limitPath: "/organization/cancel-invitation",
+    delegate: auth.api.cancelInvitation,
+  },
+  {
+    label: "changing a role",
+    path: "/organization/members/mem_1",
+    init: { method: "PATCH", headers: json, body: JSON.stringify({ role: "admin" }) },
+    limitPath: "/organization/update-member-role",
+    delegate: auth.api.updateMemberRole,
+  },
+  {
+    label: "removing a member",
+    path: "/organization/members/mem_1",
+    init: { method: "DELETE", headers: sameOrigin },
+    limitPath: "/organization/remove-member",
+    delegate: auth.api.removeMember,
+  },
+];
+
+describe("every write charges the limiter, not just invite", () => {
+  it.each(DEFAULT_CLASS_WRITES)(
+    "429s $label on an empty bucket, and writes nothing",
+    async (write) => {
+      const limiter = createFakeRateLimiter(0);
+
+      const res = await request(
+        SESSION,
+        write.path,
+        write.init,
+        createFakeEnv({ RATE_LIMIT_DEFAULT: limiter }),
+      );
+
+      expect(res.status).toBe(429);
+      expect(res.headers.get("Retry-After")).toBe(String(RATE_LIMIT_RULES.default.window));
+      expect(write.delegate).not.toHaveBeenCalled();
+    },
+  );
+
+  // The same key better-auth builds for its own endpoint, so a membership write
+  // draws on one budget per address whichever door it came through.
+  it.each(DEFAULT_CLASS_WRITES)("keys $label under its Better Auth path", async (write) => {
+    const limiter = createFakeRateLimiter();
+
+    await request(SESSION, write.path, write.init, createFakeEnv({ RATE_LIMIT_DEFAULT: limiter }));
+
+    expect(limiter.keys).toEqual([`no-trusted-ip|${write.limitPath}`]);
+  });
+
+  /*
+   * The ordering, pinned as a decision rather than left as an accident. The
+   * charge happens after the target is resolved, so a request that is about to
+   * 404 costs a member nothing — one stale page id cannot throttle the writes
+   * they are entitled to make.
+   */
+  it("does not charge for a target outside the caller's organization", async () => {
+    store.findOrganizationMember.mockResolvedValue(null);
+    const limiter = createFakeRateLimiter();
+
+    const res = await request(
+      SESSION,
+      "/organization/members/mem_other_tenant",
+      { method: "DELETE", headers: sameOrigin },
+      createFakeEnv({ RATE_LIMIT_DEFAULT: limiter }),
+    );
+
+    expect(res.status).toBe(404);
+    expect(limiter.keys).toEqual([]);
+  });
+});
+
 describe("DELETE /organization/invitations/{id}", () => {
   const revoke = (principal: ApiPrincipal | null, id = "inv_1") =>
     request(principal, `/organization/invitations/${id}`, {
