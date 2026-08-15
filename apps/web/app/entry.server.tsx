@@ -97,11 +97,14 @@ export function handleError(
 
   const path = safePath(request);
 
-  // Expected 4xx — the router's own 404 for an unmatched URL (every browser
-  // asking for /favicon.ico, every crawler probing /wp-admin), or a loader
-  // throwing data() with a 4xx. Same contract as observabilityErrorHandler:
-  // logged at warn, never sent to Sentry. A 5xx ErrorResponse falls through —
-  // that one is a genuine failure.
+  // Expected 4xx — a loader or action throwing data() with a 4xx, or the
+  // router's own 405 for a POST at a route that declares no action. Same
+  // contract as observabilityErrorHandler: logged at warn, never sent to
+  // Sentry. A 5xx ErrorResponse falls through — that one is a genuine failure.
+  //
+  // Unmatched URLs no longer arrive here: `routes/not-found.tsx` is a splat
+  // that renders the branded 404 from a *successful* loader, so every crawler
+  // probing /wp-admin is a normal render rather than a route error.
   if (isRouteErrorResponse(error) && error.status < 500) {
     loggerFor(context).warn("loader.rejected", { status: error.status, error, path });
     return;

@@ -426,6 +426,16 @@ asserts "is CI configured" instead of "does the bundle boot". Remember that
   does not hide the surface — `GET /doc` is public and lists every route — but it
   does remove the 404/401 difference as an oracle for probing paths the spec does
   not advertise. Do not "fix" this.
+- **`apiApp` ends in a terminal `all("*")`, and it must stay last.** An
+  _authenticated_ unknown path clears the deny guard and matches no route, so
+  without it the request falls out of the mount — and
+  `hono-react-router-adapter` installs React Router **after** this app, so it
+  lands on the browser splat and an API client is served an HTML page. Nothing
+  about the status or content type says so (both were already `404 text/html`),
+  which is how it survived review; only the body distinguishes them, so the
+  tests assert the body. Anything registered below it is unreachable — that is
+  the one place in this repo where route order really is load-bearing, unlike
+  `app/routes.ts`, where React Router ranks by specificity instead.
 - Reject with `HTTPException`, never a bare `throw new Response(...)`. Hono's
   `compose()` only routes `Error` instances to the error handler, so a thrown
   `Response` escapes as a 500.
@@ -667,6 +677,21 @@ Defined in `apps/web/app/routes.ts` (explicit route config, not file-based routi
   expired, or already used
 - `/dashboard` — layout with sidebar, topbar, auth guard
 - `/dashboard/settings` — profile, plus API token management
+- `*` — branded 404, written last for readability. **Not for correctness:**
+  React Router ranks branches by specificity and docks a splat by `splatPenalty`
+  (-2) in `computeScore`, so a static route declared below it still wins its own
+  path, and reordering fixes nothing. Its loader returns
+  `data(null, { status: 404 })`, which is what makes the document answer 404
+  rather than a 200 that merely says "not found" — a page that renders correctly
+  while answering 200 is wrong for every crawler, monitor and link checker, and
+  nothing in a browser shows it. It sees browser paths; `/api/auth/**` and
+  `/api/v1/*` are answered by Hono first, and the origin refusal in
+  `server/origins.ts` stays deliberately plain `Not Found` because it is a
+  security boundary, not an app page. That it sees only browser paths is
+  enforced, not assumed: the adapter installs React Router **after** the Hono
+  app, so `apiApp` ends in a terminal `all("*")` returning JSON — without it an
+  authenticated miss on an unknown `/api/v1` path reached this page and served
+  an API client HTML. Anonymous misses are still 401 from the deny guard
 
 When adding a dashboard page: add the route in `routes.ts`, then create the file
 in `app/routes/`. Route types regenerate on their own — see "TypeScript notes".

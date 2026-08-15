@@ -18,7 +18,7 @@ vi.mock("@starter/observability/sentry", () => ({ captureError }));
 const { handleError } = await import("../entry.server");
 
 /** Shape react-router's isRouteErrorResponse duck-types against. */
-function routeErrorResponse(status: number, data = 'No route matches URL "/favicon.ico"') {
+function routeErrorResponse(status: number, data = "Not Found") {
   return { status, statusText: "Error", internal: true, data };
 }
 
@@ -34,11 +34,13 @@ beforeEach(() => {
 });
 
 describe("handleError", () => {
-  it("logs a router 404 at warn and never captures it", () => {
+  // A loader throwing data(null, { status: 404 }) — the unmatched-URL case now
+  // renders `routes/not-found.tsx` from a successful loader and never gets here.
+  it("logs a thrown 404 at warn and never captures it", () => {
     const entries: LogEntry[] = [];
 
     handleError(routeErrorResponse(404), {
-      request: new Request("http://localhost/favicon.ico"),
+      request: new Request("http://localhost/dashboard/items/missing"),
       context: makeContext(entries),
     });
 
@@ -47,7 +49,7 @@ describe("handleError", () => {
       level: "warn",
       msg: "loader.rejected",
       status: 404,
-      path: "/favicon.ico",
+      path: "/dashboard/items/missing",
     });
     expect(captureError).not.toHaveBeenCalled();
   });

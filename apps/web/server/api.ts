@@ -300,3 +300,29 @@ apiApp.doc31("/doc", {
   openapi: "3.1.0",
   info: OPENAPI_INFO,
 });
+
+// --- Terminal 404 ---
+
+/**
+ * Nothing under this mount escapes to the page router.
+ *
+ * Registered **last**, so it only runs when no route above returned: Hono stops
+ * composing the moment a handler answers without calling `next()`.
+ *
+ * Without it, an **authenticated** request to an unknown `/api/v1` path passes
+ * the default-deny guard, matches no route here, and falls out of the mount
+ * entirely — `hono-react-router-adapter` installs React Router as a middleware
+ * after this app, so the request lands on the browser splat and an API client
+ * receives an HTML page. That predates the splat (it used to be React Router's
+ * default error page instead), which is what made it easy to keep: both answer
+ * `404 text/html`, so status and content type look untouched either way.
+ *
+ * An anonymous caller never reaches here — the deny guard above throws 401
+ * first, and that stays true (`docs/security-audit.md` #15). This is only the
+ * authenticated miss, and JSON is the shape every other error on this app
+ * already uses.
+ *
+ * It is a plain Hono route, not an `openapi()` one, so it adds no path to the
+ * spec — `/doc` still advertises exactly the routes that exist.
+ */
+apiApp.all("*", (c) => c.json({ error: "Not Found" }, 404));
