@@ -19,8 +19,8 @@ from here instead of configuring Better Auth themselves.
 - `src/helpers/session.ts` — `getSession()` / `requireSession()` (throws `HTTPException(401)`)
 - `src/helpers/api-token.ts` — pure crypto: mint, hash, parse `Authorization`, usability check
 - `src/helpers/api-token-store.ts` — `listApiTokens` / `createApiToken` / `revokeApiToken`; keeps drizzle out of `apps/web`
-- `src/helpers/org-store.ts` — `resolveMembership` / `listPendingInvitations`; the org-scoped reads Better Auth either does not paginate or does not filter
-- `src/helpers/principal.ts` — `principalMiddleware` + `requirePrincipal` / `requireInteractivePrincipal` / `requireOrganization`
+- `src/helpers/org-store.ts` — the org-scoped reads Better Auth either does not paginate, does not filter, or will not serve without a session: `resolveMembership`, `countOwners`, `listPendingInvitations`, plus `getOrganizationForMember` / `listOrganizationMembers` / `findOrganizationMember` / `findPendingInvitation` for `/api/v1/organization/*`
+- `src/helpers/principal.ts` — `principalMiddleware` + `requirePrincipal` / `requireInteractivePrincipal` / `requireOrganization`, and `rejectRequest`, the one refusal envelope every guard and API route answers in
 
 ## API tokens
 
@@ -126,8 +126,31 @@ holds the reasoning, including why KV and `secondaryStorage` were both rejected.
   unbounded.** `/organization/list-invitations` runs a bare `findMany` on
   `organizationId` — no limit, no offset, no status filter — so it reads every
   spent invitation an organization has ever had, and D1 bills rows scanned.
-  `/organization/list-members` paginates properly and is used as-is; the split
-  is per-endpoint, not a preference.
+  `/organization/list-members` paginates properly and **the members page uses it
+  as-is**; the split is per-endpoint, not a preference.
+- **`listOrganizationMembers` is not a second opinion about that split.** It
+  exists because `/organization/list-members` sits behind `orgSessionMiddleware`
+  (`plugins/organization/call.mjs`), so it can only ever answer a caller holding
+  a session cookie — and `/api/v1` also serves bearer tokens, which have none.
+  The page keeps using better-auth's; the API cannot. Its order matches what the
+  page asks for (`createdAt` ascending, `id` breaking ties).
+- **`callerIsMember` is the scope on every org-scoped read, and it is a clause
+  rather than a preceding lookup.** An organization id arriving on a request
+  proves nothing: `removeMember` clears the session of the person doing the
+  removing and only when they remove _themselves_, and an API token's
+  `organizationId` is stamped once at creation and never revisited. A route that
+  resolved membership one call earlier is still not a guard where the data is
+  read. **The `alias` inside it is load-bearing** — `listOrganizationMembers`
+  selects from `member`, so an un-aliased subquery would join to its own row and
+  the guard would be a tautology.
+- **`findOrganizationMember` and `findPendingInvitation` are why the API can
+  answer 404.** Better Auth resolves both ids **globally** and compares
+  organizations afterwards, so a foreign id gets three different answers —
+  `update-member-role` 403, `cancel-invitation` 400, and `remove-member` a
+  last-owner refusal _before_ the tenancy check, which reports whether an id the
+  caller does not own belongs to an owner. Resolving the target inside the
+  caller's organization first collapses missing and somebody-else's into one
+  answer.
 
 ## Rules
 

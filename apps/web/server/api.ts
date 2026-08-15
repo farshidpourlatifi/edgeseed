@@ -11,6 +11,7 @@ import {
 } from "@starter/auth";
 import { PRODUCT_NAME } from "@starter/config/product";
 import { APP_VERSION } from "@starter/config/version";
+import { organizationApp } from "./api-organization";
 
 export const apiApp = new OpenAPIHono<PrincipalEnv>();
 
@@ -276,6 +277,20 @@ apiApp.openapi(revokeTokenRoute, async (c) => {
   if (!revoked) return c.json({ error: "Token not found" }, 404);
   return c.json({ revoked: true }, 200);
 });
+
+// --- Organizations ---
+
+/**
+ * Mounted at the root rather than under a `/organization` prefix, because the
+ * sub-app states its own full paths — so what `/doc` advertises is the string
+ * written next to each route, with no prefix to reconcile. It must stay **above**
+ * the terminal `all("*")` below, which answers anything left.
+ *
+ * Nothing about these routes is public: they are absent from `PUBLIC_OPERATIONS`
+ * and therefore denied to an anonymous caller by the guard at the top of this
+ * file, before routing resolves.
+ */
+apiApp.route("/", organizationApp);
 
 // --- OpenAPI spec endpoint ---
 

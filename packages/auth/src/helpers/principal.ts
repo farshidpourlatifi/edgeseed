@@ -117,12 +117,26 @@ export function getPrincipal<E extends PrincipalEnv>(c: Context<E>): ApiPrincipa
  * only routes `Error` instances to the error handler, so a thrown `Response`
  * never reaches it. This also lets `observabilityErrorHandler` classify these as
  * expected 4xx rejections — logged at warn, never sent to Sentry.
+ *
+ * Exported because the refusal envelope is one decision, not one per file. The
+ * guards below and every route on `/api/v1/organization/*` answer in the same
+ * shape, and a route reaching for its own `new HTTPException` is how a caller
+ * ends up parsing two error formats from one API. `code` is the machine-readable
+ * half — better-auth's own vocabulary, which
+ * `apps/web/app/lib/member-action-errors.ts` already maps to sentences — and is
+ * absent where there is nothing but the status to say.
  */
-function reject(status: 401 | 403, error: string): never {
+export function rejectRequest(
+  status: 400 | 401 | 403 | 404 | 429,
+  error: string,
+  options?: { code?: string; headers?: Record<string, string> },
+): never {
+  const body = options?.code ? { error, code: options.code } : { error };
+
   throw new HTTPException(status, {
-    res: new Response(JSON.stringify({ error }), {
+    res: new Response(JSON.stringify(body), {
       status,
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...options?.headers },
     }),
   });
 }
@@ -130,9 +144,13 @@ function reject(status: 401 | 403, error: string): never {
 /** Principal or a thrown 401. Mirrors `requireSession`. */
 export function requirePrincipal<E extends PrincipalEnv>(c: Context<E>): ApiPrincipal {
   const principal = getPrincipal(c);
-  if (!principal) reject(401, "Unauthorized");
+  if (!principal) rejectRequest(401, "Unauthorized");
   return principal;
 }
+
+/** What a token caller hears on the surface this guard was written for. */
+const TOKEN_MANAGEMENT_IS_INTERACTIVE =
+  "API tokens can only be managed from an interactive session";
 
 /**
  * Require an interactive (session) caller, not an API token.
@@ -140,12 +158,21 @@ export function requirePrincipal<E extends PrincipalEnv>(c: Context<E>): ApiPrin
  * Guard token *management* with this. A token that can mint further tokens is a
  * privilege-escalation primitive: it turns one leaked CI credential into
  * permanent, self-renewing access that revoking the original does not stop.
+ *
+ * `reason` is the sentence the refusal carries, because a second caller has
+ * since wanted the same rule for a different reason — membership writes
+ * (`/api/v1/organization/*`), where a token that can promote its own owner to
+ * `owner` is the same escalation shape. Defaulted rather than required so the
+ * token routes read exactly as they did, and so the *rule* stays one function:
+ * a call site that needed its own wording would otherwise re-implement the
+ * check and get to decide the status itself.
  */
-export function requireInteractivePrincipal<E extends PrincipalEnv>(c: Context<E>): ApiPrincipal {
+export function requireInteractivePrincipal<E extends PrincipalEnv>(
+  c: Context<E>,
+  reason: string = TOKEN_MANAGEMENT_IS_INTERACTIVE,
+): ApiPrincipal {
   const principal = requirePrincipal(c);
-  if (principal.via !== "session") {
-    reject(403, "API tokens can only be managed from an interactive session");
-  }
+  if (principal.via !== "session") rejectRequest(403, reason);
   return principal;
 }
 
@@ -154,7 +181,7 @@ export function requireOrganization<E extends PrincipalEnv>(
   c: Context<E>,
 ): { principal: ApiPrincipal; organizationId: string } {
   const principal = requirePrincipal(c);
-  if (!principal.organizationId) reject(403, "No active organization");
+  if (!principal.organizationId) rejectRequest(403, "No active organization");
   return { principal, organizationId: principal.organizationId };
 }
 

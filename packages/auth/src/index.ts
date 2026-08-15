@@ -22,7 +22,14 @@ export {
 } from "./rate-limit";
 export type { RateLimitClass, RateLimiters } from "./rate-limit";
 export { getSession, requireSession } from "./helpers/session";
-export { ROLES, ORG_CAPABILITIES, OWNER_MUST_BE_PROMOTED, can, hasRole } from "./helpers/roles";
+export {
+  ROLES,
+  ORG_CAPABILITIES,
+  OWNER_MUST_BE_PROMOTED,
+  PRODUCT_REFUSAL_CODES,
+  can,
+  hasRole,
+} from "./helpers/roles";
 export type { OrgCapability, Role } from "./helpers/roles";
 export {
   API_TOKEN_PREFIX,
@@ -35,12 +42,28 @@ export {
 export type { GeneratedApiToken } from "./helpers/api-token";
 export { createApiToken, listApiTokens, revokeApiToken } from "./helpers/api-token-store";
 export type { ApiTokenSummary } from "./helpers/api-token-store";
-export { countOwners, listPendingInvitations, resolveMembership } from "./helpers/org-store";
-export type { Membership, Page, PendingInvitationSummary } from "./helpers/org-store";
+export {
+  countOwners,
+  findOrganizationMember,
+  findPendingInvitation,
+  getOrganizationForMember,
+  listOrganizationMembers,
+  listPendingInvitations,
+  resolveMembership,
+} from "./helpers/org-store";
+export type {
+  MemberRef,
+  Membership,
+  OrganizationMemberSummary,
+  OrganizationSummary,
+  Page,
+  PendingInvitationSummary,
+} from "./helpers/org-store";
 export {
   getPrincipal,
   ownedTokenFilter,
   principalMiddleware,
+  rejectRequest,
   requireInteractivePrincipal,
   requireOrganization,
   requirePrincipal,

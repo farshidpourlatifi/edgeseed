@@ -27,22 +27,22 @@ and a cookie — no flash of the wrong theme on first paint.
 
 Every row below is either running in the live demo or explicitly marked as not shipped.
 
-| Capability                     | State                              | Notes                                                                                                               |
-| ------------------------------ | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Email/password auth            | Shipped                            | Signup grants **no session** until the address is verified — that gate closes account pre-hijacking                 |
-| Password reset                 | Shipped                            | `/forgot-password` → `/reset-password`; a reset revokes every existing session                                      |
-| Social login (GitHub, Google)  | Shipped                            | Auto-enables per provider when its credentials are set                                                              |
-| Organizations and roles        | **Partial**                        | Schema, membership roles, active-org session and the switcher ship; **creating/managing orgs is not in the UI yet** |
-| REST API at `/api/v1`          | Shipped                            | Default-deny. `GET /health`, `GET /me`, `GET`/`POST /tokens`, `DELETE /tokens/{id}`                                 |
-| API tokens                     | Shipped                            | SHA-256 hashed, plaintext shown once, minting is session-only                                                       |
-| MCP server                     | Shipped, **undeployed by default** | OAuth 2.1 with dynamic client registration; tools are `health_check` and `whoami`                                   |
-| Rate limiting                  | Shipped                            | Three Workers `[[ratelimits]]` bindings — mail 3/min, credentials 10/min, default 120/min                           |
-| Security headers + CSP         | Shipped                            | Nonce/hash CSP with no `unsafe-inline` on scripts, HSTS, `no-store` on cookie-bearing responses                     |
-| Observability                  | Shipped                            | Structured logs, one correlation id per request, Sentry opt-in                                                      |
-| Transactional email            | Shipped, needs config              | Resend transport; **falls back to logging** when `RESEND_API_KEY`/`EMAIL_FROM` are unset                            |
-| OpenAPI spec                   | Shipped                            | Generated from route schemas, committed, CI fails on drift                                                          |
-| Quality gate and gated deploys | Shipped                            | `pnpm verify` gates every deploy; releases are tag-triggered and assert the deployed version                        |
-| Billing and entitlements       | Not started                        | Tracked as a candidate epic, not promised                                                                           |
+| Capability                     | State                              | Notes                                                                                                                |
+| ------------------------------ | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Email/password auth            | Shipped                            | Signup grants **no session** until the address is verified — that gate closes account pre-hijacking                  |
+| Password reset                 | Shipped                            | `/forgot-password` → `/reset-password`; a reset revokes every existing session                                       |
+| Social login (GitHub, Google)  | Shipped                            | Auto-enables per provider when its credentials are set                                                               |
+| Organizations and roles        | Shipped                            | Create, switch, invite, accept, revoke, promote/demote, remove and leave — one role matrix behind the UI and the API |
+| REST API at `/api/v1`          | Shipped                            | Default-deny, session cookie **or** bearer token — see [REST API](#rest-api) for every route                         |
+| API tokens                     | Shipped                            | SHA-256 hashed, plaintext shown once, minting is session-only                                                        |
+| MCP server                     | Shipped, **undeployed by default** | OAuth 2.1 with dynamic client registration; tools are `health_check` and `whoami`                                    |
+| Rate limiting                  | Shipped                            | Three Workers `[[ratelimits]]` bindings — mail 3/min, credentials 10/min, default 120/min                            |
+| Security headers + CSP         | Shipped                            | Nonce/hash CSP with no `unsafe-inline` on scripts, HSTS, `no-store` on cookie-bearing responses                      |
+| Observability                  | Shipped                            | Structured logs, one correlation id per request, Sentry opt-in                                                       |
+| Transactional email            | Shipped, needs config              | Resend transport; **falls back to logging** when `RESEND_API_KEY`/`EMAIL_FROM` are unset                             |
+| OpenAPI spec                   | Shipped                            | Generated from route schemas, committed, CI fails on drift                                                           |
+| Quality gate and gated deploys | Shipped                            | `pnpm verify` gates every deploy; releases are tag-triggered and assert the deployed version                         |
+| Billing and entitlements       | Not started                        | Tracked as a candidate epic, not promised                                                                            |
 
 ### Known limitations
 
@@ -54,13 +54,14 @@ Stated up front, because finding these after adopting a starter is worse than re
 - **There is no account-deletion surface.** Tenant foreign keys cascade, but
   `invitation.email` has no foreign key to `user`, so an invitation addressed to a deleted
   address needs an application-level sweep whoever adds that surface must write.
-- **Organization management is partly built.** Creating an organization, switching the
-  active one, accepting an emailed invitation, and reading the member and pending-invitation
-  lists all work from the dashboard. What has no UI yet is every _write_ to a membership —
-  there is no form to send an invitation, and no way to change a role, remove a member,
-  revoke an invitation or leave, so an invitation still has to be created through the API
-  today. The data model and role checks behind them are real. Tracked as the Organizations
-  epic.
+- **An organization cannot be renamed or deleted**, and the API covers less of the
+  lifecycle than the dashboard does. From the dashboard the lifecycle is complete —
+  create, switch, invite, accept, revoke, promote, demote, remove and leave.
+  `/api/v1/organization/*` covers the reads plus invite, revoke, role change and
+  removal; creating, switching, accepting an invitation and leaving stay browser-only,
+  and the [route table](#rest-api) is the contract. What is missing outright is an
+  organization-settings surface — there is no route behind one — and the MCP Worker has
+  no organization tools. Both are tracked under the Organizations epic.
 - **The MCP Worker ships undeployed.** Its Agent is a Durable Object, billed by duration —
   deploy it when a product actually needs it.
 - **Dependency updates are manual.** Dependabot security updates are currently disabled.
@@ -202,6 +203,48 @@ docs/
 - **Releases are the deploy** — pushing a `v*` tag runs the same gate, deploys, and
   then cuts a GitHub Release naming the live Cloudflare Version ID (see
   [Deploying](#deploying))
+
+## REST API
+
+Every route is **default-deny**: anything not named in `PUBLIC_OPERATIONS` needs a
+principal, so a route added later is authenticated whether or not anybody
+remembered. The generated spec is at [`docs/api/openapi.json`](./docs/api/openapi.json)
+and served live at `GET /doc`.
+
+| Route                                   | Credential      | Notes                                                      |
+| --------------------------------------- | --------------- | ---------------------------------------------------------- |
+| `GET /health`                           | public          | Reports the running version — what the live badge reads    |
+| `GET /doc`                              | public          | The OpenAPI document for everything below                  |
+| `GET /me`                               | session · token | The principal, from the credential and never from input    |
+| `GET /tokens`                           | session         | The caller's active tokens                                 |
+| `POST /tokens`                          | session         | Returns the plaintext once                                 |
+| `DELETE /tokens/{id}`                   | session         | Revokes; 404 if it is not the caller's                     |
+| `GET /organization`                     | session · token | The active organization, the caller's role, what it allows |
+| `GET /organization/members`             | session · token | Paginated, `?limit` capped at 20, `?offset`                |
+| `GET /organization/invitations`         | session · token | Pending only, paginated; **admin and owner only**          |
+| `POST /organization/invitations`        | session         | Admin+; `resend: true` re-sends an existing one            |
+| `DELETE /organization/invitations/{id}` | session         | Admin+; 404 outside the caller's organization              |
+| `PATCH /organization/members/{id}`      | session         | **Owner only** — `{ "role": "admin" }`                     |
+| `DELETE /organization/members/{id}`     | session         | **Owner only**; 404 outside the caller's organization      |
+
+Three rules the organization routes keep, which are worth knowing before you build on
+them:
+
+- **The tenant comes from the credential, never the request.** No route takes an
+  organization id. A session carries its active organization; a token carries the one
+  it was minted in — and both are re-checked against the `member` table on every
+  request, because a session outlives a removal and a token's organization is stamped
+  once.
+- **Writes are session-only.** A token that could promote its own owner would turn one
+  leaked credential into permanent control of the organization, which revoking that
+  token does not undo. Reads are open to tokens; membership writes answer 403.
+- **A member or invitation outside your organization is 404, not 403.** Missing and
+  belonging-to-somebody-else are deliberately the same answer, so ids cannot be used to
+  probe another tenant.
+
+Role rules live in one matrix (`ORG_CAPABILITIES` in `packages/auth`), which the
+dashboard, the API and Better Auth's own permission table all read — so the API cannot
+allow something the UI refuses.
 
 ## API tokens
 

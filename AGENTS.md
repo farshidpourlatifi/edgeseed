@@ -436,9 +436,21 @@ asserts "is CI configured" instead of "does the bundle boot". Remember that
   tests assert the body. Anything registered below it is unreachable — that is
   the one place in this repo where route order really is load-bearing, unlike
   `app/routes.ts`, where React Router ranks by specificity instead.
+- **Routes may live in a sub-app, mounted above that terminal handler.**
+  `server/api-organization.ts` is one, and it registers its **full** paths and is
+  mounted at `/` rather than under a prefix — so the string beside each route is
+  the string `/doc` advertises and `check:docs-sync` matches against the README.
+  The guards travel with `apiApp`, so a sub-app's routes are default-deny on
+  arrival like any other. What is not automatic: `api-guard.test.ts` sweeps the
+  paths **the spec advertises**, so a registry merge that silently did nothing
+  would shrink that sweep to zero without failing — which is why the same file
+  asserts the organization paths are in the document at all.
 - Reject with `HTTPException`, never a bare `throw new Response(...)`. Hono's
   `compose()` only routes `Error` instances to the error handler, so a thrown
-  `Response` escapes as a 500.
+  `Response` escapes as a 500. Use `rejectRequest` from `@starter/auth` rather
+  than building one: it is the envelope every guard and route on this app answers
+  in, `{ error, code? }`, and a route with its own is how a client ends up
+  parsing two error formats from one API.
 
 ### Loaders
 
@@ -562,8 +574,17 @@ changes roles and removes members whatever the UI offers. Two e2e cases in
 `member-actions.spec.ts` were seen red against those defaults, and they are the
 only thing standing between this rule and a silent regression on a version bump.
 
-- **Add a capability to `ORG_CAPABILITIES` first**, then render from it; the API
-  (#38) and MCP tools (#39) import the same object rather than restating it.
+- **Add a capability to `ORG_CAPABILITIES` first**, then render from it. The API
+  imports it (`server/api-organization.ts` derives both its `can()` gates and the
+  `capabilities` it reports from the object itself, so a new entry needs no edit
+  there); MCP tools (#39) are to do the same rather than restate it.
+- **The API is the one surface where product code does sit between the caller and
+  Better Auth**, so it enforces twice on purpose: `can()` decides which refusal is
+  heard first and keeps a doomed write from costing a round trip, and the
+  delegated `auth.api.*` call is what actually enforces. A 403 coming back from
+  Better Auth there means the two disagree — a bug in this repo — and is
+  deliberately left to surface as a 500 rather than reported to the caller as
+  their own fault.
 - **A capability that maps to a Better Auth permission needs the role table to
   agree**, and `organization.test.ts` asserts every role × capability pair
   against `authorize()` so it cannot quietly not.
@@ -701,7 +722,22 @@ CLAUDE.md and `docs/security-audit.md` #8:
 - Only the SHA-256 hash of a token is stored; plaintext is returned once
 - Token management is session-only — a token that can mint tokens outlives
   revocation of the one that leaked
+- **Membership writes are session-only too**, for the same shape of reason: a
+  token that can promote its own owner turns one leaked credential into
+  permanent control of the organization, which revoking that token does not
+  undo. Reads under `/api/v1/organization/*` are open to tokens; the four writes
+  answer 403. Both refusals come from `requireInteractivePrincipal`, which takes
+  the sentence as an argument rather than being re-implemented per surface
 - A present-but-invalid bearer token is rejected, never downgraded to cookie auth
+- **An organization-scoped route takes no organization id.** The tenant is the
+  principal's, and it is re-checked against the `member` table on every request —
+  a session outlives a removal, and a token's `organizationId` is stamped once at
+  creation. A member or invitation outside it answers **404**, never 403, so ids
+  are not a cross-tenant oracle
+- **A write reaching Better Auth through `auth.api.*` charges the rate limiter
+  itself**, keyed under the Better Auth path it delegates to, so the browser and
+  the API share one budget per address. The class comes from `rateLimitClassFor`,
+  never a second table
 
 ### Routes
 

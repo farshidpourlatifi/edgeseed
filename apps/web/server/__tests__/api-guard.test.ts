@@ -65,6 +65,30 @@ describe("default deny on /api/v1", () => {
     }
   });
 
+  /**
+   * The sweep above is only as broad as what `/doc` advertises, so a route that
+   * failed to register is a route it silently stops covering.
+   *
+   * That is a live risk rather than a hypothetical: the organization routes live
+   * in their own `OpenAPIHono` and reach the spec through `apiApp.route()`,
+   * which merges the sub-app's registry. A merge that quietly did nothing would
+   * leave every assertion in this file passing while seven operations went
+   * unexamined — and `check:docs-sync` reads the same generated spec, so the
+   * README gate would go quiet too. Hand-listed on purpose: deriving the
+   * expectation from the app would fail in exactly the same direction.
+   */
+  it("advertises the organization routes, so the sweep above covers them", async () => {
+    expect(await advertisedPaths()).toEqual(
+      expect.arrayContaining([
+        "/organization",
+        "/organization/members",
+        "/organization/members/{id}",
+        "/organization/invitations",
+        "/organization/invitations/{id}",
+      ]),
+    );
+  });
+
   it.each(PUBLIC)("%s answers without credentials", async (path) => {
     const res = await appWith(null).request(path);
     expect(res.status).toBe(200);

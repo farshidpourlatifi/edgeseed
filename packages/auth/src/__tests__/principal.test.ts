@@ -5,6 +5,7 @@ import { generateApiToken } from "../helpers/api-token";
 import {
   getPrincipal,
   principalMiddleware,
+  requireInteractivePrincipal,
   requireOrganization,
   requirePrincipal,
   type ApiPrincipal,
@@ -56,8 +57,13 @@ function appWith(opts: { rows?: TokenRow[]; session?: unknown }) {
   app.get("/who", (c) => c.json({ principal: getPrincipal(c) }));
   app.get("/guarded", (c) => c.json({ principal: requirePrincipal(c) }));
   app.get("/org", (c) => c.json(requireOrganization(c)));
+  app.get("/interactive", (c) => c.json(requireInteractivePrincipal(c)));
+  app.get("/interactive-custom", (c) => c.json(requireInteractivePrincipal(c, CUSTOM_REASON)));
   return app;
 }
+
+/** What a second surface — the organization writes — refuses a token with. */
+const CUSTOM_REASON = "Organization membership can only be changed from an interactive session";
 
 const usableRow: TokenRow = {
   id: "tok_1",
@@ -180,6 +186,46 @@ describe("requirePrincipal", () => {
 
   it("throws a 401 Response when anonymous", async () => {
     const res = await appWith({}).request("/guarded");
+
+    expect(res.status).toBe(401);
+    await expect(res.json()).resolves.toEqual({ error: "Unauthorized" });
+  });
+});
+
+describe("requireInteractivePrincipal", () => {
+  it("lets a session through", async () => {
+    const res = await appWith({ session: SESSION }).request("/interactive");
+    expect(res.status).toBe(200);
+  });
+
+  it("403s a bearer token", async () => {
+    const res = await appWith({ rows: [usableRow] }).request("/interactive", {
+      headers: await bearer(),
+    });
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toEqual({
+      error: "API tokens can only be managed from an interactive session",
+    });
+  });
+
+  /*
+   * The reason two surfaces can share one rule. Token management and membership
+   * writes refuse a token for related but distinct reasons, and a call site that
+   * could not say its own would have re-implemented the check — and got to pick
+   * its own status while doing it.
+   */
+  it("carries a caller-supplied reason instead", async () => {
+    const res = await appWith({ rows: [usableRow] }).request("/interactive-custom", {
+      headers: await bearer(),
+    });
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toEqual({ error: CUSTOM_REASON });
+  });
+
+  it("401s when anonymous, before the credential-type check", async () => {
+    const res = await appWith({}).request("/interactive-custom");
 
     expect(res.status).toBe(401);
     await expect(res.json()).resolves.toEqual({ error: "Unauthorized" });
