@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext, type Browser } from "@playwright/test";
+import { OWNER_MUST_BE_PROMOTED } from "@starter/auth/roles";
 import {
   clientIp,
   giveMembership,
@@ -195,6 +196,27 @@ test.describe("organization API", () => {
       OTHER_INVITEE,
     );
     expect(body.total).toBe(0);
+  });
+
+  /*
+   * The product rule that has no Better Auth vocabulary, through the real hook.
+   *
+   * `beforeCreateInvitation` raises `APIError("FORBIDDEN", …)` — 403 is the only
+   * status a hook can throw with — while every *other* refusal on this path is a
+   * 400. The route has to tell those apart, and a unit test cannot prove it does:
+   * this exact case shipped as an unhandled 500 while its unit test passed
+   * against a mocked 400 the hook never produces. Only the real hook settles it.
+   */
+  test("refuses an invitation that hands out owner, with the code", async ({ browser }) => {
+    const ana = await signedIn(browser, ANA.email);
+
+    const response = await ana.post(
+      "/api/v1/organization/invitations",
+      write({ email: `e2e-api-owner-${RUN}@example.com`, role: "owner" }),
+    );
+
+    expect(response.status()).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ code: OWNER_MUST_BE_PROMOTED });
   });
 
   /*

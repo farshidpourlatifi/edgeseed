@@ -22,7 +22,14 @@ export {
 } from "./rate-limit";
 export type { RateLimitClass, RateLimiters } from "./rate-limit";
 export { getSession, requireSession } from "./helpers/session";
-export { ROLES, ORG_CAPABILITIES, OWNER_MUST_BE_PROMOTED, can, hasRole } from "./helpers/roles";
+export {
+  ROLES,
+  ORG_CAPABILITIES,
+  OWNER_MUST_BE_PROMOTED,
+  PRODUCT_REFUSAL_CODES,
+  can,
+  hasRole,
+} from "./helpers/roles";
 export type { OrgCapability, Role } from "./helpers/roles";
 export {
   API_TOKEN_PREFIX,

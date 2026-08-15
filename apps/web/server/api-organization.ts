@@ -8,6 +8,7 @@ import {
   listOrganizationMembers,
   listPendingInvitations,
   ORG_CAPABILITIES,
+  PRODUCT_REFUSAL_CODES,
   rejectRequest,
   requireInteractivePrincipal,
   requireOrganization,
@@ -301,27 +302,48 @@ function isApiError(error: unknown): error is { statusCode: number; body?: { cod
 /**
  * Run a Better Auth write and turn its refusal into this API's envelope.
  *
- * Everything reachable here is a **product** refusal rather than an
- * authorization one: the caller's role and the target's tenancy were both
- * settled before the call, so what is left is the organization's own rules —
- * the last owner, an address already invited, an invitation that tried to hand
- * out `owner`. They answer 400 carrying better-auth's `code`, which is the same
- * vocabulary `app/lib/member-action-errors.ts` turns into sentences, so an API
- * client and the browser branch on one set of names.
+ * The caller's role and the target's tenancy were both settled before the call,
+ * so what is left is the organization's own rules — the last owner, an address
+ * already invited, an invitation that tried to hand out `owner`. Those answer
+ * **400** carrying the `code`, which is the same vocabulary
+ * `app/lib/member-action-errors.ts` turns into sentences, so an API client and
+ * the browser branch on one set of names.
  *
- * A 403 from better-auth is deliberately *not* passed through as one. Reaching
- * it means this file's `can()` and `ORGANIZATION_ROLES` disagreed — a bug in
- * this repo, not something the caller can act on — so it is left to escape as a
- * 500 with a correlation id rather than told to the caller as if they had asked
- * for something they lack the role for.
+ * **Two kinds of 403 arrive here and they are not the same thing.**
+ *
+ * Better Auth's own means *your role does not permit this*, which on this
+ * surface can only happen when `can()` above and `ORGANIZATION_ROLES` disagree —
+ * a bug in this repo, not something the caller can act on. It is left to escape
+ * as a 500 with a correlation id rather than told to the caller as if they had
+ * asked for something they lack the role for.
+ *
+ * A **product** refusal from `organizationHooks` arrives as 403 only because
+ * that is the status a hook can throw with. `beforeCreateInvitation` is the one
+ * today: an owner *is* allowed to invite, and what is refused is the role in the
+ * body. `PRODUCT_REFUSAL_CODES` is what tells the two apart, and it lives beside
+ * the hooks rather than here so a second rule cannot be added without meeting
+ * it — this exact case shipped as an unhandled 500 while the browser path had
+ * asserted 403 on it all along, because the unit test mocked a 400 the hook
+ * never throws.
+ *
+ * It answers **400 rather than the browser's 403** on purpose. Nothing is wrong
+ * with the credential: 403 on this app means "no active organization, or your
+ * role does not permit this", and a refused value in a request body is neither.
+ * The `code` is identical across both doors, and that is what clients branch on.
  */
 async function delegate<T>(run: () => Promise<T>): Promise<T> {
   try {
     return await run();
   } catch (error) {
-    if (isApiError(error) && error.statusCode === 400) {
-      rejectRequest(400, "The organization refused that change.", { code: error.body?.code });
+    if (!isApiError(error)) throw error;
+
+    const code = error.body?.code;
+    const isProductRule = code !== undefined && PRODUCT_REFUSAL_CODES.has(code);
+
+    if (error.statusCode === 400 || isProductRule) {
+      rejectRequest(400, "The organization refused that change.", { code });
     }
+
     throw error;
   }
 }

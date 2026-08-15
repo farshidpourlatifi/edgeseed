@@ -114,10 +114,23 @@ function request(
   return appWith(principal).request(path, init, env);
 }
 
-/** Better Auth's refusal, shaped the way its own `isAPIError` recognises. */
-function apiError(code: string, statusCode = 400) {
+/**
+ * Better Auth's refusal, shaped the way its own `isAPIError` recognises.
+ *
+ * **`statusCode` is required, and that is a scar.** It defaulted to 400, so the
+ * invite-as-owner case below asserted a status the hook does not throw:
+ * `beforeCreateInvitation` raises `APIError("FORBIDDEN", …)` because 403 is the
+ * only status a hook can use, and the route mapped 400 alone — so the real path
+ * answered 500 with the test green. A mock with a convenient default is a test
+ * that agrees with itself.
+ */
+function apiError(code: string, statusCode: number) {
   return Object.assign(new Error(code), { name: "APIError", statusCode, body: { code } });
 }
+
+/** What Better Auth's own `APIError.from("FORBIDDEN", …)` and `("BAD_REQUEST", …)` produce. */
+const FORBIDDEN = 403;
+const BAD_REQUEST = 400;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -388,9 +401,15 @@ describe("POST /organization/invitations", () => {
    * `owner` passes validation on purpose and is refused by the hook that owns
    * the rule, so the caller hears *why* rather than a bare validation error.
    * Nobody is invited as an owner — that is a promotion.
+   *
+   * **The hook throws 403, not 400**, because `FORBIDDEN` is the only status an
+   * `organizationHooks` rule can raise with — `packages/auth/src/organization.ts`,
+   * and `tests/e2e/member-actions.spec.ts` asserts the browser sees exactly that.
+   * Mapping 400 alone made this a 500 on the API while this test passed against
+   * a mock of its own invention.
    */
-  it("reaches the hook with role=owner, and reports its code", async () => {
-    auth.api.createInvitation.mockRejectedValue(apiError(OWNER_MUST_BE_PROMOTED));
+  it("reports the invite-as-owner refusal, which the hook raises as 403", async () => {
+    auth.api.createInvitation.mockRejectedValue(apiError(OWNER_MUST_BE_PROMOTED, FORBIDDEN));
 
     const res = await invite(SESSION, { email: "fin@example.com", role: "owner" });
 
@@ -401,9 +420,26 @@ describe("POST /organization/invitations", () => {
     });
   });
 
+  /*
+   * The other half of that distinction, and why the fix is a code set rather
+   * than "map every 403". Better Auth's own permission refusal can only be
+   * reached here if `can()` and `ORGANIZATION_ROLES` disagree — a bug in this
+   * repo. Reporting it to the caller would blame them for it and hide it from
+   * Sentry, so it escapes as a 500 with a correlation id.
+   */
+  it("does not dress up a permission 403 as the caller's fault", async () => {
+    auth.api.createInvitation.mockRejectedValue(
+      apiError("YOU_ARE_NOT_ALLOWED_TO_INVITE_USERS_TO_THIS_ORGANIZATION", FORBIDDEN),
+    );
+
+    const res = await invite(SESSION, { email: "fin@example.com", role: "member" });
+
+    expect(res.status).toBe(500);
+  });
+
   it("passes better-auth's other refusals through by code", async () => {
     auth.api.createInvitation.mockRejectedValue(
-      apiError("USER_IS_ALREADY_A_MEMBER_OF_THIS_ORGANIZATION"),
+      apiError("USER_IS_ALREADY_A_MEMBER_OF_THIS_ORGANIZATION", BAD_REQUEST),
     );
 
     const res = await invite(SESSION, { email: "ben@example.com", role: "member" });
@@ -689,7 +725,7 @@ describe("PATCH /organization/members/{id}", () => {
   // The last owner is better-auth's rule, at the moment of the write.
   it("reports the last-owner refusal by code", async () => {
     auth.api.updateMemberRole.mockRejectedValue(
-      apiError("YOU_CANNOT_LEAVE_THE_ORGANIZATION_AS_THE_ONLY_OWNER"),
+      apiError("YOU_CANNOT_LEAVE_THE_ORGANIZATION_AS_THE_ONLY_OWNER", BAD_REQUEST),
     );
 
     const res = await changeRole(SESSION, "member");

@@ -103,3 +103,24 @@ export function can(userRole: string, capability: OrgCapability): boolean {
  * closes is the half with no vocabulary for it.
  */
 export const OWNER_MUST_BE_PROMOTED = "OWNER_MUST_BE_PROMOTED_NOT_INVITED";
+
+/**
+ * Refusals **this product** raises, as opposed to ones Better Auth raises itself.
+ *
+ * They arrive as `FORBIDDEN`, because that is the only status
+ * `organizationHooks` can throw with — but they mean something categorically
+ * different from Better Auth's own 403s. Its 403s say *the caller's role does
+ * not permit this*, which on `/api/v1/organization/*` can only happen when
+ * `can()` and `ORGANIZATION_ROLES` disagree: a bug in this repo, and one that
+ * must surface as a 500 with a correlation id rather than be reported to the
+ * caller as their own fault. These say *the request asked for something the
+ * product forbids* — an answer the caller can act on, and one that has to carry
+ * its code.
+ *
+ * A set rather than a comparison against the one constant, because that
+ * distinction is invisible from the throw site: **a new `organizationHooks` rule
+ * adds its code here, or the API answers 500 to a refusal it was supposed to
+ * explain.** That is exactly how the invite-as-owner case reached `/api/v1` as
+ * an unhandled 500 while the browser path had asserted 403 all along.
+ */
+export const PRODUCT_REFUSAL_CODES: ReadonlySet<string> = new Set([OWNER_MUST_BE_PROMOTED]);
