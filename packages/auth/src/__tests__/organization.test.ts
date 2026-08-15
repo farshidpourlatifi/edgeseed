@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { createEmailSender, type EmailMessage, type EmailSender } from "@starter/email";
-import { organizationOptions } from "../organization";
+import { ORGANIZATION_ROLES, organizationOptions } from "../organization";
 import { INVITATION_EXPIRES_IN_SECONDS } from "../invitation";
+import { ORG_CAPABILITIES, OWNER_MUST_BE_PROMOTED, ROLES, can } from "../helpers/roles";
 
 /**
  * The invitation half of the organization plugin is *configuration*, in the
@@ -89,6 +90,102 @@ describe("organizationOptions — invitations", () => {
   it("should still create organizations with the creator as owner", () => {
     expect(build().allowUserToCreateOrganization).toBe(true);
     expect(build().creatorRole).toBe("owner");
+  });
+});
+
+/**
+ * The role table, which is the half of the matrix that a request actually hits.
+ *
+ * `can()` decides what the members page renders; this decides what
+ * `/api/auth/organization/*` answers when somebody posts to it regardless. The
+ * page is not the boundary — the browser holds the session cookie — so a test
+ * that only exercised `can()` would pass against an app where every admin can
+ * still remove members.
+ */
+describe("organizationOptions — the role table", () => {
+  it("should be installed, or Better Auth uses its own defaults", () => {
+    // Not decoration: the option missing is indistinguishable from a working
+    // app until somebody tries the endpoint. `adminAc` grants
+    // `member: ["update", "delete"]`, and that is what would be in force.
+    expect(build().roles).toBe(ORGANIZATION_ROLES);
+  });
+
+  /**
+   * Capability → the permission the matching endpoint checks, read from
+   * `plugins/organization/routes/crud-*.mjs` rather than assumed.
+   *
+   * `readInvitations` and `leave` are absent because neither has an endpoint
+   * counterpart: the pending list is this repo's own query
+   * (`listPendingInvitations`, since Better Auth's is unbounded), and
+   * `/organization/leave` runs no permission check at all — it is gated by the
+   * last-owner rule instead, which is about the organization's state and not
+   * about rank.
+   */
+  const ENDPOINT_PERMISSIONS = {
+    invite: { invitation: ["create"] },
+    revokeInvitation: { invitation: ["cancel"] },
+    changeRole: { member: ["update"] },
+    removeMember: { member: ["delete"] },
+  } as const;
+
+  for (const [capability, permission] of Object.entries(ENDPOINT_PERMISSIONS)) {
+    for (const role of Object.values(ROLES)) {
+      const allowed = can(role, capability as keyof typeof ORG_CAPABILITIES);
+
+      it(`should ${allowed ? "let" : "refuse"} ${role} at the endpoint behind ${capability}`, () => {
+        expect(ORGANIZATION_ROLES[role].authorize(permission).success).toBe(allowed);
+      });
+    }
+  }
+
+  /**
+   * The narrowing itself, stated once as a literal so the loop above cannot go
+   * green by agreeing with a matrix that was widened. This is the entire
+   * difference between this repo and Better Auth's stock `adminAc`.
+   */
+  it("should take member update and delete away from admin, and leave the rest", () => {
+    expect(ORGANIZATION_ROLES.admin.statements.member).toEqual(["create"]);
+    expect(ORGANIZATION_ROLES.admin.statements.invitation).toEqual(["create", "cancel"]);
+    expect(ORGANIZATION_ROLES.admin.statements.organization).toEqual(["update"]);
+  });
+
+  it("should leave the owner able to do both", () => {
+    expect(ORGANIZATION_ROLES.owner.authorize({ member: ["update", "delete"] }).success).toBe(true);
+  });
+});
+
+/**
+ * Becoming an owner is a promotion, not an invitation.
+ *
+ * Better Auth closes only the non-owner half of this
+ * (`YOU_ARE_NOT_ALLOWED_TO_INVITE_USER_WITH_THIS_ROLE`), so an owner inviting
+ * an owner is the case the hook exists for. The role select on the members page
+ * offers two options; a select is not a boundary.
+ */
+describe("organizationOptions — inviting as owner", () => {
+  const invitation = (role: string) =>
+    ({ invitation: { role, email: "invitee@example.com" } }) as never;
+
+  it("should refuse an invitation that hands out owner", async () => {
+    await expect(
+      build().organizationHooks?.beforeCreateInvitation?.(invitation(ROLES.owner)),
+    ).rejects.toMatchObject({ body: { code: OWNER_MUST_BE_PROMOTED } });
+  });
+
+  it("should refuse owner hidden in a comma-separated list", async () => {
+    // `parseRoles` joins multiple roles with commas before the hook sees them,
+    // so a membership check on the whole string would miss this.
+    await expect(
+      build().organizationHooks?.beforeCreateInvitation?.(invitation("member,owner")),
+    ).rejects.toMatchObject({ body: { code: OWNER_MUST_BE_PROMOTED } });
+  });
+
+  it("should allow the two roles an invitation may carry", async () => {
+    for (const role of [ROLES.member, ROLES.admin]) {
+      await expect(
+        build().organizationHooks?.beforeCreateInvitation?.(invitation(role)),
+      ).resolves.not.toThrow();
+    }
   });
 });
 

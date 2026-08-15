@@ -120,11 +120,45 @@ no describe mints more than three. Sign-ups are a separate bucket, since the key
 is `${ip}|${path}`, but `createAccount` still takes an address of its own.
 
 `expireInvitation` / `revokeInvitation` write the columns directly, the same way
-`markEmailVerified` does: the window is seven days and revoking needs the UI that
-ships in #37, so neither state is otherwise reachable inside one run. The refusal
+`markEmailVerified` does: the window is seven days, and revoking through the UI
+would spend a whole describe reaching a state one `UPDATE` gets to. The refusal
 they produce is still entirely better-auth's. Drive both as the **real
 recipient** — better-auth checks the invitation's state before the address, so a
 bystander sees the same screen and the test would pass for the wrong reason.
+
+`shortenInvitation` is the third of that family and the least obvious. It pulls
+`expiresAt` **in** to an hour from now, never past it, so that "resend extends
+the expiry" is an assertion rather than a formality: the window is seven days
+and SQLite stores whole seconds, so an invitation created and resent inside one
+second comes back byte-identical. It must not be `expireInvitation` — better-auth
+filters expired rows out of `findPendingInvitation`, so resending past one mints
+a _second_ invitation with a new id, which is the opposite of what that test is
+about.
+
+## Membership writes are asserted at the endpoint, not at a missing button
+
+`member-actions.spec.ts` drives the allow paths through the page and every deny
+path through `/api/auth/organization/*` with a real session cookie. That split
+is the point rather than a convenience: the page renders no control the reader
+lacks the role for, so a click-driven deny test asserts a button is absent —
+true, and no evidence at all about what the server would have answered. The
+browser holds that cookie, and the writes go straight to better-auth, so the
+endpoint is the boundary and the endpoint is what gets tested.
+
+Two of those cases fail against **stock better-auth**, whose `adminAc` grants
+`member: ["update", "delete"]` — an admin changing a role, and an admin removing
+somebody. Both were watched going red with `ORGANIZATION_ROLES.admin` reverted
+to `adminAc` before they were kept. They are the only thing standing between
+that narrowing and a silent regression on a version bump, so do not weaken them
+into status-only assertions.
+
+**Refused requests still spend the rate limit.** The limiter runs in
+better-auth's router hook, ahead of the handler, so a deny-path test costs the
+`mail` bucket exactly what an allow-path one does. The describe that provokes a
+429 on purpose mints its address **inside the test** rather than through
+`test.use`, because `retries: 1` would otherwise re-run it against the bucket
+the first attempt had already spent, and the calls expected to succeed would
+429 instead.
 
 ## A spec about a breakpoint proves it is at that breakpoint
 

@@ -120,17 +120,42 @@ export function readInvitationId(email: string): string {
 /**
  * Force an invitation into a terminal state, directly in the local D1.
  *
- * Expiry and revocation are otherwise unreachable from a browser inside one
- * test run: the window is seven days, and revoking needs the members UI that
- * ships in #37. Writing the column is the same shortcut `markEmailVerified`
+ * Expiry is unreachable from a browser inside one test run — the window is
+ * seven days. Writing the column is the same shortcut `markEmailVerified`
  * takes, and it exercises the real refusal — better-auth reads `status` and
  * `expiresAt` on every accept, so the screen under test is reached the way
  * production reaches it.
+ *
+ * Revocation *is* reachable now (`member-actions.spec.ts` drives the real
+ * control), so `revokeInvitation` below is a shortcut rather than the only way
+ * in — use it when a spec needs a revoked invitation to exist before testing
+ * something else, not when revoking is the subject.
  */
 export function expireInvitation(id: string) {
   execSync(
     `pnpm --filter @starter/web exec wrangler d1 execute ${D1_BINDING} --local ` +
       `--command "UPDATE invitation SET expiresAt = unixepoch() - 60 WHERE id = '${id}'"`,
+    { stdio: "pipe" },
+  );
+}
+
+/**
+ * Pull an invitation's expiry in to an hour from now — still pending, still
+ * usable, just closer to the edge.
+ *
+ * What makes "resend extends the expiry" an assertion rather than a formality.
+ * The window is seven days and SQLite stores whole seconds, so an invitation
+ * created and resent inside the same second comes back with a byte-identical
+ * `expiresAt` and `toBeGreaterThan` fails on a resend that worked perfectly.
+ *
+ * Deliberately **not** `expireInvitation`: better-auth's `findPendingInvitation`
+ * filters expired rows out, so resending past one creates a *second*
+ * invitation with a new id — the opposite of what the test is about.
+ */
+export function shortenInvitation(id: string) {
+  execSync(
+    `pnpm --filter @starter/web exec wrangler d1 execute ${D1_BINDING} --local ` +
+      `--command "UPDATE invitation SET expiresAt = unixepoch() + 3600 WHERE id = '${id}'"`,
     { stdio: "pipe" },
   );
 }
@@ -142,6 +167,52 @@ export function revokeInvitation(id: string) {
       `--command "UPDATE invitation SET status = 'canceled' WHERE id = '${id}'"`,
     { stdio: "pipe" },
   );
+}
+
+/**
+ * An invitation's `status` and `expiresAt`, straight from D1.
+ *
+ * What proves a **resend** did what better-auth says it does: the row keeps its
+ * id and only `expiresAt` moves, so the link already in somebody's mailbox goes
+ * on working. Read from the database rather than from the screen because the
+ * page renders a date and the window is seven days — resending twice on the
+ * same day moves the column without moving a pixel.
+ *
+ * It is also how a revoke is asserted, since `status = 'canceled'` is the whole
+ * of what changes and the row simply leaves the pending list afterwards.
+ */
+export function invitationRow(id: string): { status: string; expiresAt: number } {
+  const output = execSync(
+    `pnpm --filter @starter/web exec wrangler d1 execute ${D1_BINDING} --local ` +
+      `--json --command "SELECT status, expiresAt FROM invitation WHERE id = '${id}'"`,
+    { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] },
+  );
+
+  const row = JSON.parse(output.slice(output.indexOf("[")))?.[0]?.results?.[0];
+  if (!row) throw new Error(`No invitation ${id} in the local D1.`);
+
+  return { status: row.status, expiresAt: Number(row.expiresAt) };
+}
+
+/**
+ * `email`'s role in a seeded organization, or `null` when they are not in it.
+ *
+ * Both halves are assertions this suite needs: a role change is only proven by
+ * the column, and a removal is only proven by the row's absence — the list
+ * re-rendering without somebody could equally be a pagination accident.
+ */
+export function memberRole(email: string, slug: string): string | null {
+  const sql =
+    `SELECT role FROM member WHERE organizationId = 'e2e-org-${slug}' ` +
+    `AND userId = (SELECT id FROM user WHERE email = '${email}')`;
+
+  const output = execSync(
+    `pnpm --filter @starter/web exec wrangler d1 execute ${D1_BINDING} --local ` +
+      `--json --command "${sql}"`,
+    { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] },
+  );
+
+  return JSON.parse(output.slice(output.indexOf("[")))?.[0]?.results?.[0]?.role ?? null;
 }
 
 /** How many organizations `email` belongs to — the assertion a deny path needs. */
@@ -240,10 +311,12 @@ export function setActiveOrganization(email: string, slug: string) {
  * removed user goes on holding a session that names an organization they can no
  * longer read, until they sign in again.
  *
- * Written directly because the UI that removes members is #37. Deleting the row
- * rather than nulling the session is the point — nulling it would produce the
- * state the *foreign key* already produces on organization delete, which is a
- * different and already-correct path.
+ * Written directly rather than driven, even though the removal UI now exists:
+ * reaching this state through the product needs two signed-in people and a
+ * removal in the *other* one's session, which is the two-user lifecycle spec
+ * (#40). Deleting the row rather than nulling the session is the point —
+ * nulling it would produce the state the *foreign key* already produces on
+ * organization delete, which is a different and already-correct path.
  */
 export function removeMembership(email: string, slug: string) {
   const sql =

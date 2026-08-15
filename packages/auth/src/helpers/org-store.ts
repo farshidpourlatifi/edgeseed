@@ -1,5 +1,6 @@
 import { and, asc, count, desc, eq, exists, gt } from "drizzle-orm";
 import { invitation, member, type Database } from "@starter/db";
+import { ROLES } from "./roles";
 
 /** The row a page needs to know *which* organization it is looking at, and as whom. */
 export interface Membership {
@@ -63,6 +64,47 @@ export async function resolveMembership(
     .limit(1);
 
   return rows[0] ?? null;
+}
+
+/**
+ * How many owners an organization has.
+ *
+ * The members page renders one page of at most `PAGE_SIZE` rows, so it cannot
+ * count owners from what it is showing — the second owner may be on page three.
+ * And the answer changes three controls at once: whether the sole owner's
+ * "Leave" is offered or explained, whether their own role select can move off
+ * `owner`, and whether "Remove" appears on an owner's row at all.
+ *
+ * Deliberately a `count()` rather than a filtered `listMembers`, which would
+ * read whole rows — and deliberately **not** scoped by the caller's membership,
+ * unlike `listPendingInvitations`. The caller has already resolved that
+ * membership to get the id it passes, so a second check would be theatre; and
+ * the number is derived from the same `role` column the page renders beside
+ * every name, so there is nothing here to leak.
+ *
+ * Better Auth enforces the last-owner rule itself on every write
+ * (`YOU_CANNOT_LEAVE_THE_ORGANIZATION_AS_THE_ONLY_OWNER`). This is what lets
+ * the page *say so first* instead of offering a control that fails.
+ *
+ * **An exact match, because this product writes exactly one role per member.**
+ * Better Auth's `role` column can hold a comma-separated list, and its own
+ * last-owner check reads it as `role.split(",").includes("owner")` — but
+ * nothing here ever writes one: `creatorRole` is a single value, the invitation
+ * form offers one role, and the role change sends one. A downstream product
+ * that starts assigning multiple roles has to widen this, and the symptom would
+ * be a second owner going uncounted — telling the first they are the only one,
+ * which disables a control rather than opening anything.
+ */
+export async function countOwners(
+  db: Database,
+  input: { organizationId: string },
+): Promise<number> {
+  const rows = await db
+    .select({ value: count() })
+    .from(member)
+    .where(and(eq(member.organizationId, input.organizationId), eq(member.role, ROLES.owner)));
+
+  return rows[0]?.value ?? 0;
 }
 
 /**

@@ -129,8 +129,10 @@ async function apiSignIn(request: APIRequestContext, email: string) {
 }
 
 /**
- * Mint an invitation the way the product will once #37 ships a form: through
- * Better Auth's own session-authenticated endpoint.
+ * Mint an invitation the way the product does: through Better Auth's own
+ * session-authenticated endpoint, which is exactly what the invite dialog
+ * calls. This file is about what happens to the *link* afterwards, so it skips
+ * the form rather than re-testing it — `member-actions.spec.ts` drives that.
  *
  * `organizationId` is passed explicitly so the call names its target rather
  * than inheriting whichever organization the session happens to be in — since
@@ -356,10 +358,11 @@ test.describe("an invitation that can no longer be used", () => {
   test.use({ extraHTTPHeaders: { "cf-connecting-ip": clientIp() } });
 
   /**
-   * Expiry and revocation are written into D1 directly. The window is seven
-   * days and revoking needs the members UI that ships in #37, so neither state
-   * is otherwise reachable inside one run — but the refusal is entirely
-   * better-auth's: it re-reads `expiresAt` and `status` on every call.
+   * Expiry and revocation are written into D1 directly — the window is seven
+   * days, and revoking through the UI would spend a describe on scenery for a
+   * state one `UPDATE` reaches. The refusal is entirely better-auth's either
+   * way: it re-reads `expiresAt` and `status` on every call, so the screen
+   * under test is the one production produces.
    *
    * Both are driven as the **real recipient**, not as a bystander. Better Auth
    * checks the invitation's state before the address, so a stranger would see

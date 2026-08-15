@@ -37,8 +37,9 @@ export const INVITATION_ID_PARAM = "id";
  * Pinned rather than inherited. Better Auth defaults to 48 hours
  * (`getDate(orgOptions.invitationExpiresIn || 3600 * 48, "sec")` in
  * `crud-invites.mjs`), which kills an invitation sent on a Friday afternoon
- * before the recipient's Monday — and until the resend surface lands (#37)
- * there is nothing they can do about it.
+ * before the recipient's Monday. A resend can now revive one from the members
+ * page, but that costs somebody an interruption for a window that was simply
+ * too short.
  *
  * The longer window does not widen the exposure the way it would for a
  * verification or reset link, because the link alone grants nothing: accepting

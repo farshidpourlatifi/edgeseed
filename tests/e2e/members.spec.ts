@@ -15,9 +15,11 @@ import {
 /**
  * The organization members page — issue #36.
  *
- * Read-only: invite, resend, revoke, change-role, remove and leave are #37, so
- * nothing here clicks anything that mutates. What it does assert is the three
- * properties the page has to hold on its own.
+ * **Reading only.** The membership writes ship in #37 and are covered by
+ * `member-actions.spec.ts`; nothing here clicks anything that mutates, which
+ * keeps this file's subject the three properties the page has to hold on its
+ * own — and keeps its `mail` budget spent on scenery rather than on assertions
+ * that live elsewhere.
  *
  * **Bounded.** Every list is one page of at most `PAGE_SIZE` rows, because D1
  * bills rows scanned. An organization is filled past that boundary with
@@ -408,8 +410,10 @@ test.describe("a reader outside en-US gets the same page the server rendered", (
  * somewhere" sends the first case below to the switcher — which has nothing in
  * it, on a page that offers no way to create one.
  *
- * Both states are written straight into D1: the UI that removes a member is
- * #37, so neither is reachable through the product inside one run.
+ * Both states are written straight into D1. The UI that removes a member ships
+ * in #37, but reaching these *through* it needs a second signed-in person doing
+ * the removing — the two-user lifecycle spec (#40). Writing the rows keeps this
+ * file about which empty state is chosen, which is what it is for.
  */
 test.describe("a removed member is told which of the two things happened", () => {
   test.use({ extraHTTPHeaders: { "cf-connecting-ip": clientIp() } });
