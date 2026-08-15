@@ -101,6 +101,35 @@ describe("default deny on /api/v1", () => {
     const res = await appWith(null).request("/not-a-route");
     expect(res.status).toBe(401);
   });
+
+  /**
+   * The authenticated half of the same path, and the reason the terminal `all("*")`
+   * exists. Without it this app answers nothing at all for an unknown path — the
+   * request falls out of the mount, and in the real Worker
+   * `hono-react-router-adapter` then hands it to React Router, so an API client
+   * gets the branded HTML 404 page. Asserting the **body** is the point; status
+   * and content type were already 404/HTML before, which is exactly what made the
+   * leak survive review.
+   */
+  for (const principal of [SESSION, TOKEN]) {
+    it(`answers an unknown path with JSON for a ${principal.via} caller`, async () => {
+      const res = await appWith(principal).request("/not-a-route");
+
+      expect(res.status).toBe(404);
+      expect(res.headers.get("content-type")).toContain("application/json");
+      expect(await res.json()).toEqual({ error: "Not Found" });
+    });
+  }
+
+  it("leaves the advertised routes alone — the catch-all is last", async () => {
+    // `/health` is registered above the catch-all, so it must still win. Hono
+    // stops composing at the first handler that answers without calling next().
+    const res = await appWith(null).request("/health");
+    expect(res.status).toBe(200);
+
+    // And the catch-all adds no path to the spec, being a plain Hono route.
+    expect(await advertisedPaths()).not.toContain("/*");
+  });
 });
 
 describe("CSRF on /api/v1", () => {
