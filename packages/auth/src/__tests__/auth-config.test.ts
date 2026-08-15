@@ -202,3 +202,15 @@ describe("createAuth — client IP resolution (audit #11)", () => {
     expect(ipConfig()?.ipAddressHeaders).not.toContain("x-forwarded-for");
   });
 });
+
+/**
+ * `session-hooks.test.ts` proves the hook picks the right organization. This
+ * proves it is *installed* — the two are separate failures, and an uninstalled
+ * hook is the silent one: every request still succeeds, sessions just carry no
+ * active organization and every org-scoped page falls back forever.
+ */
+describe("createAuth — active organization on sign-in", () => {
+  it("should run a session-create hook, since Better Auth sets no active organization at sign-in", () => {
+    expect(build().options.databaseHooks?.session?.create?.before).toBeInstanceOf(Function);
+  });
+});

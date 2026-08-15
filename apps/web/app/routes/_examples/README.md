@@ -26,6 +26,13 @@ built from, which is why they guard even where they return nothing sensitive.
 | `dashboard-with-widgets.tsx` | Stats cards, activity table with empty state, quick action cards                           |
 | `settings-full.tsx`          | Tabbed settings (General/Team/Billing), profile with avatar, danger zone, team member list |
 
+Its Team tab has a **shipped** counterpart: `app/routes/dashboard.members.tsx`
+took the card, avatar and badge vocabulary from here and wired it to real
+members and invitations. The example keeps its "Invite your first teammate"
+button and the real page does not — sending an invitation has no UI yet (#37),
+and a control that does nothing is what issue #16 is about. Copy the layout from
+here; copy the wiring from there.
+
 ## Generating new designs with V0
 
 This project uses V0 (shadcn) for UI generation.

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { clientIp, markEmailVerified, waitForHydration } from "./helpers";
+import { clearActiveOrganization, clientIp, markEmailVerified, waitForHydration } from "./helpers";
 
 /**
  * A brand-new account creates its first organization, from the product surface.
@@ -76,11 +76,12 @@ const content = (page: Page) => page.getByRole("main");
 
 /**
  * The switcher's trigger is labelled with whichever organization is active, and
- * a **fresh session has none** — better-auth sets `activeOrganizationId` when an
- * organization is created, not when a session is, so `dashboard.tsx` falls back
- * to the first in the list. Matching either name keeps a spec that only needs to
- * *open* the switcher from depending on that fallback, or on the order
- * `listOrganizations` happens to return.
+ * which one that is depends on where in this file you are: better-auth sets
+ * `activeOrganizationId` when an organization is created, and `#36`'s session
+ * hook sets it at sign-in for an account that already has one — so an account
+ * that creates a second organization mid-spec moves the label. Matching either
+ * name keeps a spec that only needs to *open* the switcher from depending on
+ * that, or on the order `listOrganizations` happens to return.
  */
 const activeOrgName = new RegExp(`${ORG.name}|${SECOND_ORG.name}`);
 
@@ -237,5 +238,41 @@ test.describe("organization creation", () => {
     });
 
     expect(anonymous.status()).toBe(401);
+  });
+
+  /**
+   * The residual state, and the one the switcher used to lie about.
+   *
+   * `sessionDatabaseHooks` gives a new session an organization, so this is rare
+   * — but not impossible: a session minted before that hook shipped carries
+   * `null`, and so does one whose organization was deleted. The switcher used
+   * to answer by rendering `organizations[0]`, name **and checkmark**, which
+   * claims an organization is active when the session has selected none. A
+   * checkmark there means "this is where your writes go".
+   *
+   * Written straight into D1 because nothing in the product can produce it
+   * inside one run — see `clearActiveOrganization`. Kept last in this file: it
+   * mutates the session every test above signs into.
+   */
+  test("a session with no active organization is asked to pick, not given a guess", async ({
+    page,
+  }) => {
+    await signIn(page);
+    clearActiveOrganization(USER.email);
+    await page.reload();
+
+    const trigger = sidebar(page).getByRole("button", { name: /select organization/i });
+    await expect(trigger).toBeVisible({ timeout: 15000 });
+    // Not merely unlabelled — no organization's name is being presented as the
+    // active one.
+    await expect(sidebar(page).getByRole("button", { name: activeOrgName })).toHaveCount(0);
+
+    // Both organizations are still offered, and neither is marked as current.
+    // The marker is read from the accessibility tree, not from the icon: the
+    // tick is `aria-hidden` and `VisuallyHidden` carries the meaning.
+    await trigger.click();
+    await expect(page.getByRole("menuitem", { name: new RegExp(ORG.name) })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: new RegExp(SECOND_ORG.name) })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: /current organization/i })).toHaveCount(0);
   });
 });

@@ -189,6 +189,130 @@ export function giveOrganization(email: string, slug: string, name: string) {
 }
 
 /**
+ * Blank `activeOrganizationId` on every one of `email`'s sessions.
+ *
+ * The state a session carries when nothing has selected an organization for it:
+ * better-auth writes the column in create-organization, accept-invitation and
+ * set-active only, and `sessionDatabaseHooks` writes it at sign-in — so a
+ * session minted before that hook existed, or one whose organization was
+ * deleted, holds `null` while the account plainly has organizations.
+ *
+ * Unreachable through the product inside one run, which is the whole reason it
+ * is written directly: the same seam `markEmailVerified` and `expireInvitation`
+ * use, and for the same reason.
+ */
+export function clearActiveOrganization(email: string) {
+  const sql =
+    `UPDATE session SET activeOrganizationId = NULL ` +
+    `WHERE userId = (SELECT id FROM user WHERE email = '${email}')`;
+
+  execSync(
+    `pnpm --filter @starter/web exec wrangler d1 execute ${D1_BINDING} --local --command "${sql}"`,
+    { stdio: "pipe" },
+  );
+}
+
+/**
+ * Point every one of `email`'s sessions at a specific organization.
+ *
+ * The session hook picks the *oldest* membership, and two seeded rows written
+ * in the same second are tied — so a spec that needs to know which organization
+ * is active says so rather than betting on the tie-break.
+ */
+export function setActiveOrganization(email: string, slug: string) {
+  const sql =
+    `UPDATE session SET activeOrganizationId = 'e2e-org-${slug}' ` +
+    `WHERE userId = (SELECT id FROM user WHERE email = '${email}')`;
+
+  execSync(
+    `pnpm --filter @starter/web exec wrangler d1 execute ${D1_BINDING} --local --command "${sql}"`,
+    { stdio: "pipe" },
+  );
+}
+
+/**
+ * Delete `email`'s membership of a seeded organization, leaving their session
+ * still naming it.
+ *
+ * That combination is what better-auth's `removeMember` actually produces: it
+ * clears the active organization of the person *doing* the removing, and never
+ * of the person removed (`plugins/organization/routes/crud-members.mjs`). The
+ * removed user goes on holding a session that names an organization they can no
+ * longer read, until they sign in again.
+ *
+ * Written directly because the UI that removes members is #37. Deleting the row
+ * rather than nulling the session is the point — nulling it would produce the
+ * state the *foreign key* already produces on organization delete, which is a
+ * different and already-correct path.
+ */
+export function removeMembership(email: string, slug: string) {
+  const sql =
+    `DELETE FROM member WHERE organizationId = 'e2e-org-${slug}' ` +
+    `AND userId = (SELECT id FROM user WHERE email = '${email}')`;
+
+  execSync(
+    `pnpm --filter @starter/web exec wrangler d1 execute ${D1_BINDING} --local --command "${sql}"`,
+    { stdio: "pipe" },
+  );
+}
+
+/**
+ * Add `email` to an existing seeded organization, in a role of its own.
+ *
+ * `giveOrganization` makes an owner; this is what a second person looks like.
+ * Same `--local` D1 write, same derived `e2e-org-<slug>` id, and
+ * `INSERT OR IGNORE` so a re-run is a no-op rather than a duplicate membership.
+ */
+export function giveMembership(email: string, slug: string, role: "owner" | "admin" | "member") {
+  const orgId = `e2e-org-${slug}`;
+  const sql =
+    `INSERT OR IGNORE INTO member (id, organizationId, userId, role, createdAt) ` +
+    `SELECT '${orgId}-member-${role}-' || id, '${orgId}', id, '${role}', unixepoch() ` +
+    `FROM user WHERE email = '${email}';`;
+
+  execSync(
+    `pnpm --filter @starter/web exec wrangler d1 execute ${D1_BINDING} --local --command "${sql}"`,
+    { stdio: "pipe" },
+  );
+}
+
+/**
+ * Fill a seeded organization with `count` synthetic members.
+ *
+ * Pagination cannot be tested with three people in an organization, and
+ * registering twenty accounts through the API would spend most of a suite's
+ * wall-clock on scenery — and would charge twenty sign-ups to the credentials
+ * rate-limit class for rows nobody ever signs in as. These users exist only to
+ * be listed: no password, no session, no account row.
+ *
+ * The addresses are `<prefix>-NN@example.com`, which keeps them inside the
+ * pattern `loader-guards.spec.ts` asserts is absent from an unauthenticated
+ * response.
+ */
+export function fillOrganization(slug: string, prefix: string, count: number) {
+  const orgId = `e2e-org-${slug}`;
+  const rows = Array.from({ length: count }, (_, index) => {
+    const id = `${prefix}-${String(index).padStart(2, "0")}`;
+    // Distinct, increasing `createdAt`s. The list is ordered by that column, and
+    // a page boundary drawn through a block of ties is where a row gets served
+    // on both pages or neither — a flake that would read as a pagination bug.
+    const at = `unixepoch() + ${index + 1}`;
+    return (
+      `INSERT OR IGNORE INTO user (id, name, email, emailVerified, createdAt, updatedAt) ` +
+      `VALUES ('${id}', 'Filler ${index}', '${id}@example.com', 1, ${at}, ${at}); ` +
+      `INSERT OR IGNORE INTO member (id, organizationId, userId, role, createdAt) ` +
+      `VALUES ('${orgId}-${id}', '${orgId}', '${id}', 'member', ${at});`
+    );
+  });
+
+  execSync(
+    `pnpm --filter @starter/web exec wrangler d1 execute ${D1_BINDING} --local ` +
+      `--command "${rows.join(" ")}"`,
+    { stdio: "pipe" },
+  );
+}
+
+/**
  * A client address unique to this call, for `cf-connecting-ip`.
  *
  * Auth rate limiting keys on that header (audit #4, #11), and nothing sets it

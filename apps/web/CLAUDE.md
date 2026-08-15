@@ -104,6 +104,43 @@ ORGANIZATION_ALREADY_EXISTS` — **not** `ORGANIZATION_SLUG_ALREADY_TAKEN`,
   and a first-run card on `/dashboard`, which is the only path on a phone, since
   the sidebar is `hidden md:block`. `/organization/create` sits in the `default`
   rate-limit class (120/60s): it sends no mail and takes no credentials
+- **`/dashboard/members` has three states, and the two empty ones are not the
+  same empty.** The loader hands `session.activeOrganizationId` to
+  `resolveMembership` (`@starter/auth`), and what comes back decides: a
+  membership renders the lists, and a miss asks a **second** question —
+  do they belong _anywhere_ — because that is what splits the two empty states.
+  No memberships at all is the first-run "create your first organization" card;
+  one or more elsewhere is "you are not a member of this organization", which is
+  what a member removed by someone else sees, since better-auth clears the
+  _remover's_ active organization and never theirs. **Do not key that choice on
+  `activeOrganizationId != null`** — that asks whether the session named
+  something, not whether they still belong somewhere, and the two come apart on
+  exactly the case the states exist for: removed from your last organization,
+  you would be sent to a switcher with nothing in it, on a page that offers no
+  way to create one. Organization _deletion_ never showed it, because the
+  foreign key nulls the session field. The second lookup is a **boolean** —
+  rendering that other organization's roster instead would restore the guess the
+  switcher just stopped making. **The organization is never read from the
+  URL** — `?organizationId=` is inert here and `members.spec.ts` asserts it.
+  Both lists are bounded at `PAGE_SIZE` (`app/lib/pagination.ts`); the member
+  page comes from better-auth's `list-members`, which paginates, and the
+  invitations from `listPendingInvitations`, because its `list-invitations` does
+  not. **Pending invitations are admin-and-owner only** (`hasRole`), since the
+  rows carry addresses nobody in the organization has otherwise seen — a plain
+  member gets no section at all rather than an empty one. Every membership
+  write — invite, resend, revoke, change role, remove, leave — is #37, so the
+  page ships no control that would need one (issue #16)
+- **Every rendered date goes through `app/lib/format-date.ts`, and its locale is
+  pinned.** `toLocaleDateString(undefined, …)` asks the _runtime_ for a locale,
+  and a server-rendered page has two: the Worker answers `en-US`
+  ("Aug 15, 2026") while a British reader's browser answers `en-GB`
+  ("15 Aug 2026"). React then finds text it did not render and throws away the
+  server's markup for that subtree. **Nothing in CI can see it** — Playwright's
+  Chromium runs `en-US`, the same answer the Worker gives — so the guard is
+  `members.spec.ts`'s `locale: "en-GB"` block, which was seen red against the
+  original code. The same defect had been sitting unnoticed in the API-token
+  list. When this product grows a locale of its own, that module is the one
+  place that has to learn about it
 - Secrets: never in `wrangler.jsonc` — `.dev.vars` locally, `wrangler secret put` in production
 - Deploy only via `pnpm deploy:web` (runs the verify gate)
 

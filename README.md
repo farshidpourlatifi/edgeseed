@@ -55,11 +55,12 @@ Stated up front, because finding these after adopting a starter is worse than re
   `invitation.email` has no foreign key to `user`, so an invitation addressed to a deleted
   address needs an application-level sweep whoever adds that surface must write.
 - **Organization management is partly built.** Creating an organization, switching the
-  active one, and accepting an emailed invitation all work from the dashboard. What has no
-  UI yet is the other end of the invitation — there is no form to send one, no member list,
-  and no way to change a role or revoke an invitation, so an invitation has to be created
-  through the API today. The data model and role checks behind them are real. Tracked as
-  the Organizations epic.
+  active one, accepting an emailed invitation, and reading the member and pending-invitation
+  lists all work from the dashboard. What has no UI yet is every _write_ to a membership —
+  there is no form to send an invitation, and no way to change a role, remove a member,
+  revoke an invitation or leave, so an invitation still has to be created through the API
+  today. The data model and role checks behind them are real. Tracked as the Organizations
+  epic.
 - **The MCP Worker ships undeployed.** Its Agent is a Durable Object, billed by duration —
   deploy it when a product actually needs it.
 - **Dependency updates are manual.** Dependabot security updates are currently disabled.
