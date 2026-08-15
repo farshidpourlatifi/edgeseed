@@ -1,11 +1,38 @@
 import { and, asc, count, desc, eq, exists, gt } from "drizzle-orm";
-import { invitation, member, type Database } from "@starter/db";
+import { alias } from "drizzle-orm/sqlite-core";
+import { invitation, member, organization, user, type Database } from "@starter/db";
 import { ROLES } from "./roles";
 
 /** The row a page needs to know *which* organization it is looking at, and as whom. */
 export interface Membership {
   organizationId: string;
   /** Compare with `hasRole`, never inline — see `helpers/roles.ts`. */
+  role: string;
+}
+
+/** Safe-to-display view of an organization. */
+export interface OrganizationSummary {
+  id: string;
+  name: string;
+  slug: string;
+  logo: string | null;
+  createdAt: string;
+}
+
+/** One member of an organization, with the person behind the membership row. */
+export interface OrganizationMemberSummary {
+  id: string;
+  userId: string;
+  name: string;
+  email: string;
+  role: string;
+  createdAt: string;
+}
+
+/** Just enough of a membership row to decide what a write may do to it. */
+export interface MemberRef {
+  id: string;
+  userId: string;
   role: string;
 }
 
@@ -108,6 +135,221 @@ export async function countOwners(
 }
 
 /**
+ * "…and the caller belongs to that organization", as a clause rather than a
+ * second round trip.
+ *
+ * Every read below scopes itself with this, because an organization id arriving
+ * on a request is not proof of anything. `session.activeOrganizationId` survives
+ * a removal — `removeMember` nulls the session of the person doing the removing,
+ * and only when they remove *themselves*
+ * (`plugins/organization/routes/crud-members.mjs`) — and an API token carries an
+ * `organizationId` stamped when it was minted, which nothing revisits when its
+ * owner is thrown out. Both are stale values a caller can still present.
+ *
+ * Deliberately in the same query rather than a preceding `resolveMembership`
+ * call: the route does that too, but to learn the caller's *role*, and a guard
+ * that lives one layer up is not a guard (AGENTS.md, "Guard where the data is
+ * read"). The subquery is an indexed lookup on `member(organizationId)`.
+ *
+ * **The alias is load-bearing**, not tidiness: `listOrganizationMembers` selects
+ * from `member` and would otherwise join the subquery's `member` to its own,
+ * turning the guard into a tautology.
+ */
+function callerIsMember(db: Database, input: { userId: string; organizationId: string }) {
+  const viewer = alias(member, "viewer");
+
+  return exists(
+    db
+      .select({ one: viewer.id })
+      .from(viewer)
+      .where(and(eq(viewer.organizationId, input.organizationId), eq(viewer.userId, input.userId))),
+  );
+}
+
+/**
+ * What "pending" means for an invitation, in one place.
+ *
+ * Shared by the list and by the single-row lookup the revoke route resolves
+ * through, so that `GET` → `DELETE` is a closed loop: an id the list will never
+ * show is an id the write answers 404 for, rather than one that quietly
+ * succeeds against a spent row.
+ */
+function pendingIn(organizationId: string, now?: Date) {
+  return and(
+    eq(invitation.organizationId, organizationId),
+    eq(invitation.status, "pending"),
+    gt(invitation.expiresAt, now ?? new Date()),
+  );
+}
+
+/**
+ * One organization as the caller sees it, with the role they hold in it.
+ *
+ * Answers `null` for an organization the caller is not in, which is the same
+ * answer `resolveMembership` gives and means the same thing — so a route reading
+ * this needs no separate membership round trip; the join *is* the check.
+ */
+export async function getOrganizationForMember(
+  db: Database,
+  input: { userId: string; organizationId: string },
+): Promise<{ organization: OrganizationSummary; role: string } | null> {
+  const rows = await db
+    .select({
+      id: organization.id,
+      name: organization.name,
+      slug: organization.slug,
+      logo: organization.logo,
+      createdAt: organization.createdAt,
+      role: member.role,
+    })
+    .from(organization)
+    .innerJoin(member, eq(member.organizationId, organization.id))
+    .where(and(eq(organization.id, input.organizationId), eq(member.userId, input.userId)))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) return null;
+
+  return {
+    organization: {
+      id: row.id,
+      name: row.name,
+      slug: row.slug,
+      logo: row.logo,
+      createdAt: row.createdAt.toISOString(),
+    },
+    role: row.role,
+  };
+}
+
+/**
+ * One page of an organization's members, oldest first.
+ *
+ * Better Auth's `/organization/list-members` paginates properly and the members
+ * page uses it as-is — but it sits behind `orgSessionMiddleware`
+ * (`plugins/organization/call.mjs`), so it can only ever answer a caller holding
+ * a session cookie. `/api/v1` also serves bearer tokens, which have no session
+ * at all, so the same list has to be readable without one.
+ *
+ * The order matches what that endpoint is asked for on the members page
+ * (`createdAt` ascending), with `id` breaking ties — two rows seeded in the same
+ * second are otherwise ordered by nothing, and an unstable order pages a row
+ * twice while skipping another.
+ */
+export async function listOrganizationMembers(
+  db: Database,
+  input: { userId: string; organizationId: string; limit: number; offset: number },
+): Promise<Page<OrganizationMemberSummary>> {
+  const scope = and(eq(member.organizationId, input.organizationId), callerIsMember(db, input));
+
+  const [rows, totals] = await Promise.all([
+    db
+      .select({
+        id: member.id,
+        userId: member.userId,
+        name: user.name,
+        email: user.email,
+        role: member.role,
+        createdAt: member.createdAt,
+      })
+      .from(member)
+      .innerJoin(user, eq(user.id, member.userId))
+      .where(scope)
+      .orderBy(asc(member.createdAt), asc(member.id))
+      .limit(input.limit)
+      .offset(input.offset),
+    db.select({ value: count() }).from(member).where(scope),
+  ]);
+
+  return {
+    rows: rows.map((row) => ({
+      id: row.id,
+      userId: row.userId,
+      name: row.name,
+      email: row.email,
+      role: row.role,
+      createdAt: row.createdAt.toISOString(),
+    })),
+    total: totals[0]?.value ?? 0,
+  };
+}
+
+/**
+ * One membership row, but only if it is in the caller's own organization.
+ *
+ * The reason the API resolves its target itself instead of handing an id
+ * straight to better-auth. `remove-member` looks the id up **globally** and only
+ * compares organizations *after* running the last-owner check
+ * (`crud-members.mjs`), so a foreign member id can come back
+ * `YOU_CANNOT_LEAVE_THE_ORGANIZATION_AS_THE_ONLY_OWNER` instead of
+ * `MEMBER_NOT_FOUND` — which tells the caller whether an id they do not own
+ * belongs to an owner. `update-member-role` answers such an id 403 and
+ * `cancel-invitation` 400, so all three of them distinguish "absent" from
+ * "somebody else's". Resolving here collapses the two: a `null` is a 404 either
+ * way, and ids stop being a cross-tenant oracle.
+ */
+export async function findOrganizationMember(
+  db: Database,
+  input: { userId: string; organizationId: string; memberId: string },
+): Promise<MemberRef | null> {
+  const rows = await db
+    .select({ id: member.id, userId: member.userId, role: member.role })
+    .from(member)
+    .where(
+      and(
+        eq(member.id, input.memberId),
+        eq(member.organizationId, input.organizationId),
+        callerIsMember(db, input),
+      ),
+    )
+    .limit(1);
+
+  return rows[0] ?? null;
+}
+
+/**
+ * One pending invitation, but only if it is in the caller's own organization.
+ *
+ * The revoke route's 404 pre-check, and the same collapse
+ * `findOrganizationMember` performs: better-auth's `cancel-invitation` resolves
+ * the id globally and then fails on the *membership* lookup, so an id from
+ * another tenant is distinguishable from one that never existed.
+ */
+export async function findPendingInvitation(
+  db: Database,
+  input: { userId: string; organizationId: string; invitationId: string; now?: Date },
+): Promise<PendingInvitationSummary | null> {
+  const rows = await db
+    .select({
+      id: invitation.id,
+      email: invitation.email,
+      role: invitation.role,
+      expiresAt: invitation.expiresAt,
+      createdAt: invitation.createdAt,
+    })
+    .from(invitation)
+    .where(
+      and(
+        eq(invitation.id, input.invitationId),
+        pendingIn(input.organizationId, input.now),
+        callerIsMember(db, input),
+      ),
+    )
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    email: row.email,
+    role: row.role,
+    expiresAt: row.expiresAt?.toISOString() ?? null,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+/**
  * Pending invitations for one organization, bounded, newest first.
  *
  * Better Auth's `/organization/list-invitations` cannot be used for this: its
@@ -127,14 +369,8 @@ export async function countOwners(
  * better-auth reaches, since `null < new Date()` coerces to `0 < now` and
  * refuses.
  *
- * The `exists` clause is the **guard**, not decoration. A session's
- * `activeOrganizationId` is not proof of membership: `removeMember` nulls the
- * session of the person doing the removing only when they remove *themselves*
- * (`plugins/organization/routes/crud-members.mjs`), so someone else's removal
- * leaves the removed user holding a session that still names the organization.
- * Scoping the read by the caller's membership — rather than by the id they
- * arrived with — is what makes that stale value read nothing instead of a
- * tenant's invitee list.
+ * The `callerIsMember` clause is the **guard**, not decoration — see the note on
+ * that helper for why an organization id arriving on a request proves nothing.
  */
 export async function listPendingInvitations(
   db: Database,
@@ -147,19 +383,7 @@ export async function listPendingInvitations(
     now?: Date;
   },
 ): Promise<Page<PendingInvitationSummary>> {
-  const scope = and(
-    eq(invitation.organizationId, input.organizationId),
-    eq(invitation.status, "pending"),
-    gt(invitation.expiresAt, input.now ?? new Date()),
-    exists(
-      db
-        .select({ one: member.id })
-        .from(member)
-        .where(
-          and(eq(member.organizationId, input.organizationId), eq(member.userId, input.userId)),
-        ),
-    ),
-  );
+  const scope = and(pendingIn(input.organizationId, input.now), callerIsMember(db, input));
 
   const [rows, totals] = await Promise.all([
     db

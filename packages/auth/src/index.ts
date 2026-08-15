@@ -35,12 +35,28 @@ export {
 export type { GeneratedApiToken } from "./helpers/api-token";
 export { createApiToken, listApiTokens, revokeApiToken } from "./helpers/api-token-store";
 export type { ApiTokenSummary } from "./helpers/api-token-store";
-export { countOwners, listPendingInvitations, resolveMembership } from "./helpers/org-store";
-export type { Membership, Page, PendingInvitationSummary } from "./helpers/org-store";
+export {
+  countOwners,
+  findOrganizationMember,
+  findPendingInvitation,
+  getOrganizationForMember,
+  listOrganizationMembers,
+  listPendingInvitations,
+  resolveMembership,
+} from "./helpers/org-store";
+export type {
+  MemberRef,
+  Membership,
+  OrganizationMemberSummary,
+  OrganizationSummary,
+  Page,
+  PendingInvitationSummary,
+} from "./helpers/org-store";
 export {
   getPrincipal,
   ownedTokenFilter,
   principalMiddleware,
+  rejectRequest,
   requireInteractivePrincipal,
   requireOrganization,
   requirePrincipal,
