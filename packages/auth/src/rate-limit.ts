@@ -88,6 +88,14 @@ export const RATE_LIMIT_RULES = {
  * since it sends the verification mail. `/change-email` needs a session and is
  * here anyway: the cost being bounded is the message, not the credential.
  *
+ * `/organization/invite-member` is the same judgement made a second time. It is
+ * authenticated and permission-checked, so it is not the unauthenticated abuse
+ * `mail` was built for — but a compromised admin session pointed at a list of
+ * addresses spends the product's sending reputation exactly as fast, and that
+ * cost is what this class exists to bound. **One prefix covers invite and
+ * resend both**, because they are the same endpoint: `resend: true` reuses the
+ * existing invitation and only extends its expiry (`crud-invites.mjs`).
+ *
  * Order matters: the first matching prefix wins, so a longer path must precede
  * any prefix of it.
  */
@@ -97,6 +105,7 @@ const CLASSIFIERS: ReadonlyArray<{ prefix: string; class: RateLimitClass }> = [
   { prefix: "/request-password-reset", class: "mail" },
   { prefix: "/forget-password", class: "mail" },
   { prefix: "/change-email", class: "mail" },
+  { prefix: "/organization/invite-member", class: "mail" },
   { prefix: "/sign-in", class: "credentials" },
   { prefix: "/reset-password", class: "credentials" },
   { prefix: "/change-password", class: "credentials" },

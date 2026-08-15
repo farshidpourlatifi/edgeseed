@@ -1,5 +1,20 @@
 import { describe, it, expect } from "vitest";
-import { escapeHtml, passwordResetEmail, verificationEmail } from "../templates";
+import {
+  escapeHtml,
+  invitationEmail,
+  passwordResetEmail,
+  verificationEmail,
+  type TemplateOptions,
+} from "../templates";
+
+/** `invitationEmail` needs more than the shared two, so it joins the each below wrapped. */
+const invitationWithDefaults = (options: TemplateOptions) =>
+  invitationEmail({
+    ...options,
+    organizationName: "Northwind Trading",
+    inviterEmail: "owner@example.com",
+    expiresInDays: 7,
+  });
 
 /** The shape Better Auth actually produces — the `&` is the whole point. */
 const URL_WITH_CALLBACK = "https://app.test/api/auth/verify-email?token=abc123&callbackURL=%2F";
@@ -22,6 +37,7 @@ describe("escapeHtml", () => {
 describe.each([
   ["verificationEmail", verificationEmail],
   ["passwordResetEmail", passwordResetEmail],
+  ["invitationEmail", invitationWithDefaults],
 ] as const)("%s", (_name, template) => {
   const body = template({ url: URL_WITH_CALLBACK, productName: "Starter" });
 
@@ -62,5 +78,61 @@ describe("passwordResetEmail", () => {
   it("should reassure the reader that ignoring it leaves the password unchanged", () => {
     const body = passwordResetEmail({ url: "https://a.test", productName: "Starter" });
     expect(body.text).toContain("your password is unchanged");
+  });
+});
+
+describe("invitationEmail", () => {
+  const base = {
+    url: "https://app.test/accept-invitation?id=inv_1",
+    productName: "Starter",
+    organizationName: "Northwind Trading",
+    inviterEmail: "owner@example.com",
+    expiresInDays: 7,
+  };
+
+  /**
+   * The subject is the whole of what most recipients see before deciding. Both
+   * facts belong there: an organization name alone does not say who sent it, and
+   * an unexpected invitation is exactly the one worth spotting from the list.
+   */
+  it("should name the inviter and the organization in the subject", () => {
+    const body = invitationEmail(base);
+
+    expect(body.subject).toContain("owner@example.com");
+    expect(body.subject).toContain("Northwind Trading");
+    expect(body.subject).toContain("Starter");
+  });
+
+  it("should state the expiry it was given rather than a hardcoded one", () => {
+    expect(invitationEmail(base).text).toContain("expires in 7 days");
+    expect(invitationEmail({ ...base, expiresInDays: 30 }).text).toContain("expires in 30 days");
+  });
+
+  it("should say day, not days, for a one-day window", () => {
+    expect(invitationEmail({ ...base, expiresInDays: 1 }).text).toContain("expires in 1 day.");
+  });
+
+  /**
+   * `layout` inserts `body` raw so a template can emphasise part of it, which
+   * makes every interpolation there the template's own responsibility. An
+   * organization name is attacker-supplied — anyone who can create an
+   * organization chooses it — so this is the one that actually matters.
+   */
+  it("should escape an organization name containing markup", () => {
+    const body = invitationEmail({ ...base, organizationName: "<script>x</script>" });
+
+    expect(body.html).not.toContain("<script>");
+    expect(body.html).toContain("&lt;script&gt;");
+  });
+
+  it("should escape an inviter address containing markup", () => {
+    const body = invitationEmail({ ...base, inviterEmail: "<img src=x onerror=y>@e.test" });
+
+    expect(body.html).not.toContain("<img");
+    expect(body.html).toContain("&lt;img");
+  });
+
+  it("should tell the reader that ignoring it shares nothing with them", () => {
+    expect(invitationEmail(base).text).toContain("nothing is shared with you unless you accept");
   });
 });

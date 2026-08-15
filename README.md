@@ -54,9 +54,11 @@ Stated up front, because finding these after adopting a starter is worse than re
 - **There is no account-deletion surface.** Tenant foreign keys cascade, but
   `invitation.email` has no foreign key to `user`, so an invitation addressed to a deleted
   address needs an application-level sweep whoever adds that surface must write.
-- **Organization management is partly built.** Creating an organization and switching the
-  active one work from the dashboard. Members, invitations and role changes have no UI yet —
-  the data model and role checks behind them are real, but nothing renders them. Tracked as
+- **Organization management is partly built.** Creating an organization, switching the
+  active one, and accepting an emailed invitation all work from the dashboard. What has no
+  UI yet is the other end of the invitation — there is no form to send one, no member list,
+  and no way to change a role or revoke an invitation, so an invitation has to be created
+  through the API today. The data model and role checks behind them are real. Tracked as
   the Organizations epic.
 - **The MCP Worker ships undeployed.** Its Agent is a Durable Object, billed by duration —
   deploy it when a product actually needs it.

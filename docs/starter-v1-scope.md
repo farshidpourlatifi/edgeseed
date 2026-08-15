@@ -125,10 +125,11 @@ Must include:
 - membership model
 - session helpers
 - role helpers
+- the invitation transport: the organization plugin's `sendInvitationEmail`,
+  its expiry, and the accept path the link points at (`src/invitation.ts`)
 
 Should not include:
 
-- invitation flows (add when needed)
 - app-specific business permissions
 - billing logic
 
@@ -346,7 +347,6 @@ Only add these when a real product creates pressure:
 - `packages/contracts` (shared zod DTOs across boundaries)
 - `packages/domain` (shared pure business logic)
 - `packages/modules` (feature-module convention and starter modules)
-- invitation flow in auth
 - audit logging
 - file storage
 - billing and subscription system

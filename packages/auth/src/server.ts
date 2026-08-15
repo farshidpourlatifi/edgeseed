@@ -1,9 +1,9 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { organization } from "better-auth/plugins";
 import { PRODUCT_NAME } from "@starter/config/product";
 import type { Database } from "@starter/db";
 import { passwordResetEmail, verificationEmail, type EmailSender } from "@starter/email";
+import { organizationPlugin } from "./organization";
 import {
   AUTH_RATE_LIMIT_CUSTOM_RULES,
   createRateLimitStorage,
@@ -167,9 +167,10 @@ export function createAuth(opts: CreateAuthOptions) {
         : {}),
     },
     plugins: [
-      organization({
-        allowUserToCreateOrganization: true,
-        creatorRole: "owner",
+      organizationPlugin({
+        email: opts.email,
+        baseURL: opts.baseURL,
+        productName: PRODUCT_NAME,
       }),
     ],
   });

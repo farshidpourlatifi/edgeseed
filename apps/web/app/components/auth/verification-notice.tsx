@@ -11,6 +11,17 @@ import { AuthNotice } from "./auth-notice";
 interface VerificationNoticeProps {
   /** Where the link was sent. Shown back to the reader so a typo is obvious. */
   email: string;
+  /**
+   * Where the verified reader lands, when it is not the usual dashboard.
+   *
+   * The resend has to mint the **same destination** the original link carried,
+   * or an invitee who clicks "resend" is quietly moved from their invitation to
+   * the dashboard and the flow they were in is lost. Defaulting rather than
+   * requiring it keeps the two existing callers unchanged; those two drifting
+   * apart is what made `POST_VERIFICATION_REDIRECT` one constant in the first
+   * place.
+   */
+  callbackURL?: string;
 }
 
 /**
@@ -18,7 +29,10 @@ interface VerificationNoticeProps {
  * sign-up, and after a sign-in refused for an unverified address. The resend
  * action is the same knowledge in both, so it lives here rather than twice.
  */
-export function VerificationNotice({ email }: VerificationNoticeProps) {
+export function VerificationNotice({
+  email,
+  callbackURL = POST_VERIFICATION_REDIRECT,
+}: VerificationNoticeProps) {
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,7 +42,7 @@ export function VerificationNotice({ email }: VerificationNoticeProps) {
     try {
       const { error: resendError } = await authClient.sendVerificationEmail({
         email,
-        callbackURL: POST_VERIFICATION_REDIRECT,
+        callbackURL,
       });
       if (resendError) {
         setError(resendError.message ?? "Could not send the email");

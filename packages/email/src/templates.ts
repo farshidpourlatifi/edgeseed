@@ -64,6 +64,62 @@ export function passwordResetEmail({ url, productName }: TemplateOptions): Email
   };
 }
 
+export interface InvitationTemplateOptions extends TemplateOptions {
+  /** The organization the reader is being invited into. */
+  organizationName: string;
+  /**
+   * Who sent it. The address rather than the display name, because it is what
+   * lets a reader tell an invitation they were expecting from one they were not
+   * — a name is chosen by whoever typed it.
+   */
+  inviterEmail: string;
+  /**
+   * How long the link stays live, in days.
+   *
+   * Passed in rather than imported from `@starter/auth`: that package depends on
+   * this one, so reaching back would be a cycle. `INVITATION_EXPIRES_IN_DAYS` is
+   * the value every caller supplies.
+   */
+  expiresInDays: number;
+}
+
+export function invitationEmail({
+  url,
+  productName,
+  organizationName,
+  inviterEmail,
+  expiresInDays,
+}: InvitationTemplateOptions): EmailBody {
+  const plural = expiresInDays === 1 ? "day" : "days";
+  const footer =
+    `This invitation expires in ${expiresInDays} ${plural}. ` +
+    `If you were not expecting it, ignore this email — nothing is shared with you unless you accept.`;
+
+  return {
+    subject: `${inviterEmail} invited you to join ${organizationName} on ${productName}`,
+    text: [
+      `${inviterEmail} invited you to join ${organizationName} on ${productName}.`,
+      "",
+      url,
+      "",
+      footer,
+    ].join("\n"),
+    html: layout({
+      productName,
+      heading: `Join ${organizationName}`,
+      // `layout` inserts `body` raw so a template can emphasise part of it —
+      // every interpolation here is escaped at the point of use, the way
+      // the two templates above escape `productName`.
+      body:
+        `${escapeHtml(inviterEmail)} invited you to join ` +
+        `<strong>${escapeHtml(organizationName)}</strong> on ${escapeHtml(productName)}.`,
+      actionLabel: "Accept invitation",
+      url,
+      footer,
+    }),
+  };
+}
+
 interface LayoutOptions {
   productName: string;
   heading: string;

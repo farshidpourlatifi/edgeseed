@@ -511,6 +511,11 @@ since the binding is what enforces and the table is what the app reports.
   leaves the loose `default` bucket. Anything an **unauthenticated** caller can
   use to make the app send mail belongs in `mail` — that is why
   `/sign-up/email` sits there rather than with the credential endpoints.
+  `/organization/invite-member` is there too, despite being authenticated and
+  permission-checked: a compromised admin session spends the sending reputation
+  just as fast, and that cost is what the class bounds. **One prefix covers
+  invite and resend**, since `resend: true` is a body flag on the same endpoint
+  rather than a second path.
 - **Never make `enabled` conditional.** It is a literal `true`. Better Auth's
   own default is `isProduction`, which reads `NODE_ENV` — unset on Workers — and
   that alone is why the limiter did nothing for the life of the repo.
@@ -675,6 +680,12 @@ Defined in `apps/web/app/routes.ts` (explicit route config, not file-based routi
 - `/forgot-password` — requests a reset link; enumeration-safe notice
 - `/reset-password` — spends the link; dead-link state when the token is absent,
   expired, or already used
+- `/accept-invitation` — spends an organization invitation. The **one loader
+  that deliberately does not call `requireUser`**: the link arrives in a
+  mailbox, so the signed-out state is the point, and it discloses nothing an
+  anonymous caller did not already supply. Signed out it offers `/login` and
+  `/register` carrying `?invitation=<id>`, which both read to return the reader
+  here instead of `/dashboard`
 - `/dashboard` — layout with sidebar, topbar, auth guard
 - `/dashboard/settings` — profile, plus API token management
 - `*` — branded 404, written last for readability. **Not for correctness:**
@@ -1023,7 +1034,7 @@ that is deliberate starter surface.
   configure, and it is what `pnpm dev` does on localhost.
 - **Split origin** is opt-in via `MARKETING_URL`. Set it and `server/origins.ts`
   moves `/login`, `/register`, `/forgot-password`, `/reset-password`,
-  `/dashboard` and `/api` to `BETTER_AUTH_URL`'s origin, while `/` on the app
+  `/accept-invitation`, `/dashboard` and `/api` to `BETTER_AUTH_URL`'s origin, while `/` on the app
   origin bounces back to marketing. `APP_PATH_PREFIXES` is the canonical list —
   this one is a copy, so add a new product route to the code first.
 - **Setting it also closes the set of hostnames.** One that is neither
@@ -1109,7 +1120,8 @@ and neither declares nor reads the variable.
 `MARKETING_URL`. The split is driven by the variable, not by the route list, so
 declaring both hostnames without setting it deploys a Worker that answers
 the whole auth surface — `/login`, `/register`, `/forgot-password`,
-`/reset-password`, `/dashboard`, `/api/auth` — on **both** — `origins.ts`
+`/reset-password`, `/accept-invitation`, `/dashboard`, `/api/auth` — on
+**both** — `origins.ts`
 serves every request where it arrived and the "auth never constructs on the
 marketing origin" guarantee silently does not hold. This is the one half the
 code cannot catch, since a Worker cannot read its own `routes` list; setting the

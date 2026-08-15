@@ -2,7 +2,8 @@
 
 ## Why this exists
 
-Transactional email for the auth flows — verification and password reset.
+Transactional email for the auth flows — verification, password reset, and
+organization invitations.
 Cloudflare cannot do this: Email Routing is inbound only, and the Email Workers
 `send_email` binding rejects any recipient outside
 `allowed_destination_addresses`. So a third party is required, and this package
@@ -14,7 +15,7 @@ is the seam that keeps it swappable (`docs/adr/003-transactional-email.md`).
 - `src/resend.ts` — Resend transport: one `fetch` to `api.resend.com/emails`, no SDK
 - `src/logger-sender.ts` — the no-credentials fallback
 - `src/create.ts` — `createEmailSender()` picks a transport from env
-- `src/templates.ts` — verification and reset bodies, plus `escapeHtml`
+- `src/templates.ts` — verification, reset and invitation bodies, plus `escapeHtml`
 
 ## Rules
 
@@ -29,6 +30,16 @@ is the seam that keeps it swappable (`docs/adr/003-transactional-email.md`).
   as a 4xx per signup rather than one warning.
 - **Escape URLs in HTML.** Better Auth links carry `&callbackURL=`; a bare `&`
   in an `href` is invalid and some clients truncate the link there.
+- **`layout` escapes `heading`, `actionLabel` and `footer`, but inserts `body`
+  raw** so a template can emphasise part of it. That makes every interpolation
+  in a `body` the template's own job — and it matters more than it looks:
+  `invitationEmail` renders an organization name, which is chosen by whoever
+  created the organization. `escapeHtml` it at the point of use, the way the
+  existing templates do with `productName`.
+- **A template that names a duration takes it as a parameter.** `invitationEmail`
+  receives `expiresInDays` rather than importing it, because `@starter/auth`
+  depends on this package and reaching back would be a cycle — and because a
+  restated number is one that drifts from the expiry the server enforces.
 - Never put the API key in an error — `EmailSendError` carries status + body only.
 
 ## Testing

@@ -78,6 +78,89 @@ export function readPasswordResetToken(email: string): string {
 }
 
 /**
+ * Read the pending invitation for `email` out of the local D1.
+ *
+ * The same seam as `readPasswordResetToken`, for the same reason: the
+ * invitation link is delivered by email, and with no `RESEND_API_KEY` the
+ * message only reaches the dev server's log, which Playwright cannot read.
+ *
+ * It returns the **id**, not a URL, on purpose. The spec builds the link from
+ * `INVITATION_ACCEPT_PATH` itself — so if that constant and the
+ * `accept-invitation` entry in `routes.ts` ever disagree, the spec walks into
+ * the branded 404 the same way a real invitee would, and its assertions fail.
+ * Returning a ready-made URL here would make that walk decorative.
+ *
+ * Newest first: nothing purges accepted or expired rows
+ * (`docs/security-audit.md` #12), and an address can hold several across a run.
+ */
+export function readInvitationId(email: string): string {
+  const sql =
+    `SELECT id FROM invitation WHERE email = '${email.toLowerCase()}' ` +
+    `ORDER BY expiresAt DESC LIMIT 1`;
+
+  const output = execSync(
+    `pnpm --filter @starter/web exec wrangler d1 execute ${D1_BINDING} --local ` +
+      `--json --command "${sql}"`,
+    { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] },
+  );
+
+  const parsed = JSON.parse(output.slice(output.indexOf("[")));
+  const id: string | undefined = parsed?.[0]?.results?.[0]?.id;
+
+  if (!id) {
+    throw new Error(
+      `No invitation for ${email}. The invite either never reached better-auth ` +
+        `or it was rejected — check the response of the invite-member call.`,
+    );
+  }
+
+  return id;
+}
+
+/**
+ * Force an invitation into a terminal state, directly in the local D1.
+ *
+ * Expiry and revocation are otherwise unreachable from a browser inside one
+ * test run: the window is seven days, and revoking needs the members UI that
+ * ships in #37. Writing the column is the same shortcut `markEmailVerified`
+ * takes, and it exercises the real refusal — better-auth reads `status` and
+ * `expiresAt` on every accept, so the screen under test is reached the way
+ * production reaches it.
+ */
+export function expireInvitation(id: string) {
+  execSync(
+    `pnpm --filter @starter/web exec wrangler d1 execute ${D1_BINDING} --local ` +
+      `--command "UPDATE invitation SET expiresAt = unixepoch() - 60 WHERE id = '${id}'"`,
+    { stdio: "pipe" },
+  );
+}
+
+/** Same seam as `expireInvitation`, for the state a revoke would leave behind. */
+export function revokeInvitation(id: string) {
+  execSync(
+    `pnpm --filter @starter/web exec wrangler d1 execute ${D1_BINDING} --local ` +
+      `--command "UPDATE invitation SET status = 'canceled' WHERE id = '${id}'"`,
+    { stdio: "pipe" },
+  );
+}
+
+/** How many organizations `email` belongs to — the assertion a deny path needs. */
+export function membershipCount(email: string): number {
+  const sql =
+    `SELECT COUNT(*) AS n FROM member ` +
+    `WHERE userId = (SELECT id FROM user WHERE email = '${email}')`;
+
+  const output = execSync(
+    `pnpm --filter @starter/web exec wrangler d1 execute ${D1_BINDING} --local ` +
+      `--json --command "${sql}"`,
+    { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] },
+  );
+
+  const parsed = JSON.parse(output.slice(output.indexOf("[")));
+  return Number(parsed?.[0]?.results?.[0]?.n ?? -1);
+}
+
+/**
  * Give `email` an organization it owns, directly in the local D1.
  *
  * No longer a workaround for a missing flow: the app creates organizations for

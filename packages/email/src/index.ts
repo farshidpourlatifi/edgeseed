@@ -10,5 +10,5 @@ export type { ResendSenderOptions } from "./resend";
 export { EmailSendError } from "./sender";
 export type { EmailBody, EmailLogger, EmailMessage, EmailSender } from "./sender";
 
-export { escapeHtml, passwordResetEmail, verificationEmail } from "./templates";
-export type { TemplateOptions } from "./templates";
+export { escapeHtml, invitationEmail, passwordResetEmail, verificationEmail } from "./templates";
+export type { InvitationTemplateOptions, TemplateOptions } from "./templates";

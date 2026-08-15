@@ -82,6 +82,35 @@ creation path itself is what is under test.
 is a brand-new account creating its first organization with no seeded data, so
 seeding there would skip exactly the code the spec exists to cover.
 
+## Invitations
+
+`invitations.spec.ts` needs three things the other specs do not.
+
+**A session-authenticated API call must send `Origin`.** Better Auth's
+`validateOrigin` runs only when the request carries a cookie
+(`api/middlewares/origin-check.mjs`: `if (!(forceValidate || useCookies))
+return`), so an anonymous sign-in passes without one and every call after it
+answers `403 MISSING_OR_NULL_ORIGIN`. A browser always sends it; Playwright's
+`request` fixture never does. Sending it is not routing around the check —
+`appOrigin()` reads it from the project config rather than restating it.
+
+**Each invitation must target an address not already in that organization.**
+Better Auth refuses a second one with
+`USER_IS_ALREADY_A_MEMBER_OF_THIS_ORGANIZATION`, so a user who accepts in one
+block cannot be the subject of another — which is why that file has a named user
+per case rather than two shared ones.
+
+**`/organization/invite-member` is in the `mail` class** (3/60s per IP+path), so
+no describe mints more than three. Sign-ups are a separate bucket, since the key
+is `${ip}|${path}`, but `createAccount` still takes an address of its own.
+
+`expireInvitation` / `revokeInvitation` write the columns directly, the same way
+`markEmailVerified` does: the window is seven days and revoking needs the UI that
+ships in #37, so neither state is otherwise reachable inside one run. The refusal
+they produce is still entirely better-auth's. Drive both as the **real
+recipient** — better-auth checks the invitation's state before the address, so a
+bystander sees the same screen and the test would pass for the wrong reason.
+
 ## Testing a loader guard
 
 **Use `?_routes=` to reach a child loader on its own.** Single fetch resolves
