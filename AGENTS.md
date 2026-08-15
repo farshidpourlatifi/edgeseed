@@ -687,6 +687,9 @@ Defined in `apps/web/app/routes.ts` (explicit route config, not file-based routi
   `/register` carrying `?invitation=<id>`, which both read to return the reader
   here instead of `/dashboard`
 - `/dashboard` — layout with sidebar, topbar, auth guard
+- `/dashboard/members` — the active organization's members and its pending
+  invitations, both bounded. Read-only; every membership write is #37. The
+  invitations half is admin-and-owner only, since it carries invited addresses
 - `/dashboard/settings` — profile, plus API token management
 - `*` — branded 404, written last for readability. **Not for correctness:**
   React Router ranks branches by specificity and docks a splat by `splatPenalty`
@@ -742,6 +745,18 @@ caller and reads as deliberate.
 The dashboard layout loader returns `{ user, activeOrganizationId, organizations }`
 for its own rendering; child routes may read that through the parent, but they
 still guard themselves.
+
+**An org-scoped loader resolves its tenant with `resolveMembership`, never from
+the URL.** `session.activeOrganizationId` is the input, and the helper answers
+"is this caller a member of that organization, and as what" — `null` for no,
+which is a state to render, not a 500. Two facts make the round trip necessary
+rather than ceremonial: Better Auth sets the session field in
+create-organization, accept-invitation and set-active only, so
+`sessionDatabaseHooks` sets it at sign-in and a session predating that carries
+`null`; and `removeMember` clears the **remover's** session, never the removed
+member's, so the field can name an organization the caller has just been thrown
+out of. Reads still scope themselves — `listPendingInvitations` carries its own
+membership check — because the lookup is not the guard.
 
 ### Social login (GitHub + Google)
 

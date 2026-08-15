@@ -21,6 +21,7 @@ const ROUTES = [
   "/reset-password",
   "/accept-invitation",
   "/dashboard",
+  "/dashboard/members",
   "/dashboard/settings",
   // The splat. Any unmatched path compiles the same module, so warming it here
   // covers `not-found.spec.ts`, which uses a per-run path of its own.

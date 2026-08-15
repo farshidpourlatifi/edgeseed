@@ -35,6 +35,8 @@ export {
 export type { GeneratedApiToken } from "./helpers/api-token";
 export { createApiToken, listApiTokens, revokeApiToken } from "./helpers/api-token-store";
 export type { ApiTokenSummary } from "./helpers/api-token-store";
+export { listPendingInvitations, resolveMembership } from "./helpers/org-store";
+export type { Membership, Page, PendingInvitationSummary } from "./helpers/org-store";
 export {
   getPrincipal,
   ownedTokenFilter,

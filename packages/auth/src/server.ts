@@ -10,6 +10,7 @@ import {
   RATE_LIMIT_RULES,
   type RateLimiters,
 } from "./rate-limit";
+import { sessionDatabaseHooks } from "./session-hooks";
 
 export interface CreateAuthOptions {
   db: Database;
@@ -131,6 +132,13 @@ export function createAuth(opts: CreateAuthOptions) {
       customStorage: createRateLimitStorage(opts.rateLimiters),
       customRules: AUTH_RATE_LIMIT_CUSTOM_RULES,
     },
+    /**
+     * The only hook here, and it exists because Better Auth never sets
+     * `session.activeOrganizationId` at sign-in — see `session-hooks.ts` for
+     * which three endpoints do, and why the switcher disagreeing with the
+     * session was a defect rather than a cosmetic gap.
+     */
+    databaseHooks: sessionDatabaseHooks(opts.db),
     advanced: {
       ipAddress: {
         /**

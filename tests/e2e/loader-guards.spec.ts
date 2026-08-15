@@ -30,9 +30,19 @@ const CHILD_ONLY = [
   // template the next dashboard page is copied from. Without its own
   // child-only case, removing that guard leaves this suite and CI green.
   "/dashboard.data?_routes=routes%2Fdashboard._index",
+  // Members reads one tenant's people and invited addresses. Its loader
+  // resolves the organization from the session, so an unauthenticated caller
+  // has no organization to be scoped to — which is a redirect, not an empty
+  // list (#36).
+  "/dashboard/members.data?_routes=routes%2Fdashboard.members",
 ];
 
-const DATA_ROUTES = ["/dashboard.data", "/dashboard/settings.data", ...CHILD_ONLY];
+const DATA_ROUTES = [
+  "/dashboard.data",
+  "/dashboard/settings.data",
+  "/dashboard/members.data",
+  ...CHILD_ONLY,
+];
 
 test.describe("dashboard loaders refuse an unauthenticated caller", () => {
   for (const route of DATA_ROUTES) {
@@ -47,18 +57,22 @@ test.describe("dashboard loaders refuse an unauthenticated caller", () => {
     test(`${route} leaks no user fields`, async ({ request }) => {
       const body = await (await request.get(route)).text();
 
-      // The shapes these loaders return when they do answer.
+      // The shapes these loaders return when they do answer. `organizationId`
+      // covers two of them at once: the layout's `activeOrganizationId` and the
+      // members loader's own `organizationId`.
       expect(body).not.toContain("emailVerified");
       expect(body).not.toContain("@example.com");
-      expect(body).not.toContain("activeOrganizationId");
+      expect(body).not.toContain("organizationId");
       expect(body).not.toContain("tokens");
     });
   }
 
-  test("the HTML route redirects too", async ({ request }) => {
-    const res = await request.get("/dashboard/settings", { maxRedirects: 0 });
+  for (const route of ["/dashboard/settings", "/dashboard/members"]) {
+    test(`the HTML route ${route} redirects too`, async ({ request }) => {
+      const res = await request.get(route, { maxRedirects: 0 });
 
-    expect(res.status()).toBe(302);
-    expect(res.headers()["location"]).toContain("/login");
-  });
+      expect(res.status()).toBe(302);
+      expect(res.headers()["location"]).toContain("/login");
+    });
+  }
 });

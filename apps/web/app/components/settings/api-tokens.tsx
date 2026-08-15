@@ -13,6 +13,7 @@ import { Label } from "@starter/ui/components/ui/label";
 import { Spinner } from "@starter/ui/components/ui/spinner";
 import { Alert, AlertDescription, AlertTitle } from "@starter/ui/components/ui/alert";
 import { toast } from "sonner";
+import { formatDate, formatDateOrNever } from "~/lib/format-date";
 
 export interface ApiTokenSummary {
   id: string;
@@ -21,15 +22,6 @@ export interface ApiTokenSummary {
   lastUsedAt: string | null;
   expiresAt: string | null;
   createdAt: string;
-}
-
-function formatDate(value: string | null) {
-  if (!value) return "Never";
-  return new Date(value).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
 }
 
 export function ApiTokens({ tokens }: { tokens: ApiTokenSummary[] }) {
@@ -149,7 +141,7 @@ export function ApiTokens({ tokens }: { tokens: ApiTokenSummary[] }) {
                   <p className="truncate text-sm font-medium">{token.name}</p>
                   <p className="truncate font-mono text-xs text-muted-foreground">
                     {token.prefix}… · created {formatDate(token.createdAt)} · last used{" "}
-                    {formatDate(token.lastUsedAt)}
+                    {formatDateOrNever(token.lastUsedAt)}
                   </p>
                 </div>
                 <Button

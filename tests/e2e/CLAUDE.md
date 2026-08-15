@@ -82,6 +82,21 @@ creation path itself is what is under test.
 is a brand-new account creating its first organization with no seeded data, so
 seeding there would skip exactly the code the spec exists to cover.
 
+`giveMembership(email, slug, role)` adds a second person to a seeded
+organization, and `fillOrganization(slug, prefix, count)` fills one with
+synthetic members so a pagination assertion is not vacuous — with three people
+in an organization, a bounded list and an unbounded one render identically.
+Those synthetic users have no password and no `account` row: they exist to be
+listed, never signed in as, which also keeps twenty sign-ups off the
+credentials rate-limit bucket. Their `createdAt`s increase by design; the list
+is ordered by that column, and a page boundary drawn through a block of ties is
+where a row gets served on both pages or on neither.
+
+**A spec that asserts on a role badge must not name its accounts after roles.**
+`members.spec.ts` calls them Ana, Ben, Cai — an address of
+`e2e-mem-owner-…@example.com` satisfies `toContainText("owner")` on its own, so
+the badge could be missing entirely and the assertion would still pass.
+
 ## Invitations
 
 `invitations.spec.ts` needs three things the other specs do not.

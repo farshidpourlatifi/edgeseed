@@ -22,6 +22,7 @@ import {
   TooltipTrigger,
 } from "@starter/ui/components/ui/tooltip";
 import { ThemeToggle } from "@starter/ui/components/ui/theme-toggle";
+import { VisuallyHidden } from "@starter/ui/components/ui/visually-hidden";
 import {
   LayoutDashboard,
   Settings,
@@ -34,6 +35,7 @@ import {
   ChevronsUpDown,
   Plus,
   Check,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PRODUCT_NAME } from "@starter/config/product";
@@ -75,6 +77,7 @@ export async function loader({ context, request }: Route.LoaderArgs) {
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Members", href: "/dashboard/members", icon: Users },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
@@ -87,7 +90,21 @@ function OrganizationSwitcher({
   organizations: Array<{ id: string; name: string; slug: string }>;
   activeOrganizationId: string | null;
 }) {
-  const activeOrg = organizations.find((o) => o.id === activeOrganizationId) ?? organizations[0];
+  /**
+   * The session's organization, or none — **never a guess.**
+   *
+   * This used to fall back to `organizations[0]`, which put the checkmark on an
+   * organization the session had not selected and labelled the trigger with its
+   * name. The two are not the same claim: switching writes
+   * `session.activeOrganizationId`, so a rendered checkmark says "this is where
+   * your writes go", and it was saying that about a row chosen by list order.
+   *
+   * `sessionDatabaseHooks` (`@starter/auth`) is what makes this rare — a
+   * session now starts in an organization — but "rare" is not "never": a
+   * session minted before that hook still carries `null`, and so does one whose
+   * organization was deleted. Those get an honest prompt to pick one.
+   */
+  const activeOrg = organizations.find((o) => o.id === activeOrganizationId) ?? null;
   const [createOpen, setCreateOpen] = useState(false);
 
   async function switchOrg(orgId: string) {
@@ -100,7 +117,7 @@ function OrganizationSwitcher({
   // to make its first one, from whichever dashboard page it happens to be on.
   // The matching first-run card on `/dashboard` is what covers mobile, where
   // this sidebar is not rendered at all.
-  if (!activeOrg && organizations.length === 0) {
+  if (organizations.length === 0) {
     return <CreateOrganizationButton collapsed={collapsed} />;
   }
 
@@ -118,8 +135,13 @@ function OrganizationSwitcher({
             {!collapsed && (
               <>
                 <div className="flex flex-1 flex-col items-start text-left">
+                  {/*
+                    An instruction rather than a name, because there is nothing
+                    truthful to name here — the menu below is where the answer
+                    is, and it is one click away.
+                  */}
                   <span className="truncate text-sm font-medium">
-                    {activeOrg?.name ?? "No Org"}
+                    {activeOrg?.name ?? "Select organization"}
                   </span>
                 </div>
                 <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -146,7 +168,20 @@ function OrganizationSwitcher({
               <div className="ml-2 flex flex-1 flex-col">
                 <span className="text-sm font-medium">{org.name}</span>
               </div>
-              {activeOrg?.id === org.id && <Check className="h-4 w-4 text-primary" />}
+              {/*
+                The tick was the only thing saying which organization is
+                active, and it said it in pixels — nothing in the accessibility
+                tree carried it, so a screen reader read three identical menu
+                items. The hidden text is what a test can assert on too, which
+                is how "no checkmark on a guessed organization" became checkable
+                without reaching for a CSS selector.
+              */}
+              {activeOrg?.id === org.id && (
+                <>
+                  <Check className="h-4 w-4 text-primary" aria-hidden="true" />
+                  <VisuallyHidden>Current organization</VisuallyHidden>
+                </>
+              )}
             </DropdownMenuItem>
           ))}
           <DropdownMenuSeparator />

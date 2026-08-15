@@ -17,6 +17,7 @@ export default [
   route("accept-invitation", "routes/accept-invitation.tsx"),
   layout("routes/dashboard.tsx", [
     route("dashboard", "routes/dashboard._index.tsx"),
+    route("dashboard/members", "routes/dashboard.members.tsx"),
     route("dashboard/settings", "routes/dashboard.settings.tsx"),
   ]),
   // The catch-all, kept last for readability rather than for correctness.

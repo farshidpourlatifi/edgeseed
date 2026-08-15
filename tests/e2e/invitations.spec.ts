@@ -129,13 +129,15 @@ async function apiSignIn(request: APIRequestContext, email: string) {
 }
 
 /**
- * Mint an invitation the way the product will once #36 ships a form: through
+ * Mint an invitation the way the product will once #37 ships a form: through
  * Better Auth's own session-authenticated endpoint.
  *
- * `organizationId` is passed explicitly because a seeded membership leaves
- * `session.activeOrganizationId` unset, and `role` is passed because
- * `baseInvitationSchema` requires it — "the Better Auth default" is a value this
- * call has to state, not one it can omit.
+ * `organizationId` is passed explicitly so the call names its target rather
+ * than inheriting whichever organization the session happens to be in — since
+ * #36 a session starts in the caller's first one, and this file signs accounts
+ * in that own more than one. `role` is passed because `baseInvitationSchema`
+ * requires it: "the Better Auth default" is a value this call has to state, not
+ * one it can omit.
  */
 async function invite(request: APIRequestContext, email: string, organizationSlug: string) {
   const response = await request.post("/api/auth/organization/invite-member", {
@@ -207,11 +209,12 @@ test.describe("an invited teammate joins the organization", () => {
 
     /**
      * The stronger half of "and set that org active". This account already
-     * owned `OWN_ORG`, seeded first — so `dashboard.tsx`'s fallback to
-     * `organizations[0]` would render *that* name. Seeing the joined
-     * organization instead is what proves better-auth's own
-     * `setActiveOrganization` ran, which is also why nothing in the app calls
-     * `setActive` here.
+     * owned `OWN_ORG`, seeded first — so the session hook made *that* one
+     * active when they signed in, and the switcher renders whatever the
+     * session says with no fallback of its own (#36). Seeing the joined
+     * organization here therefore means the active id actually moved, which is
+     * better-auth's own `setActiveOrganization` running — and why nothing in
+     * the app calls `setActive` after accepting.
      */
     const switcher = sidebar(page).getByRole("button", { name: new RegExp(ORG.name) });
     await expect(switcher).toBeVisible({ timeout: 15000 });
