@@ -47,8 +47,10 @@ export default function DashboardIndex() {
         the question `auth.spec.ts` and `password-reset.spec.ts` ask of this
         page after signing in.
 
-        This is the first-run path, and the only one on a phone: the sidebar
-        carrying the switcher and its own create control is `hidden md:block`.
+        This is the first-run path — the one that says what to do rather than
+        merely offering a control to find. The sidebar carries the same action
+        for any dashboard page, and the topbar menu carries it on a phone, where
+        that sidebar is `hidden md:block` (#54).
       */}
       {organizations.length === 0 && (
         <EmptyState

@@ -422,8 +422,8 @@ test.describe("a removed member is told which of the two things happened", () =>
     await page.goto("/dashboard/members");
 
     // They belong nowhere, so this is the first-run state however they got
-    // here — and the control is in `<main>`, which is the only place a phone
-    // can reach, the sidebar being `hidden md:block`.
+    // here — and the control is in `<main>`, which every breakpoint reaches
+    // without opening anything, the sidebar being `hidden md:block`.
     await expect(page.getByText(/create your first organization/i)).toBeVisible({ timeout: 15000 });
     await expect(page.getByText(/not a member of this organization/i)).toHaveCount(0);
     await expect(

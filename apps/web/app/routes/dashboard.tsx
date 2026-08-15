@@ -52,7 +52,7 @@ export async function loader({ context, request }: Route.LoaderArgs) {
   const session = await requireUser(context, request);
 
   // Get user's organizations
-  let organizations: Array<{ id: string; name: string; slug: string }> = [];
+  let organizations: Organization[] = [];
   try {
     const orgs = await context.auth.api.listOrganizations({
       headers: request.headers,
@@ -81,42 +81,128 @@ const navigation = [
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
+type Organization = { id: string; name: string; slug: string };
+
+/**
+ * Point the session at another organization.
+ *
+ * `setActive` writes `session.activeOrganizationId` in D1, and **every** loader
+ * on the page resolves its tenant from that column — the members roster as much
+ * as the switcher's own label. So this is a full reload rather than a
+ * `revalidate()`: what changed is which tenant the whole page is about, not one
+ * component's state.
+ */
+async function switchOrganization(organizationId: string) {
+  await authClient.organization.setActive({ organizationId });
+  toast.success("Organization switched");
+  window.location.reload();
+}
+
+/**
+ * The organizations, as menu items — the switcher's contents without its
+ * trigger.
+ *
+ * Two surfaces render this and neither owns it: the sidebar switcher below, and
+ * the mobile topbar's hamburger menu, which is the **only** control a phone has
+ * for this since the sidebar is `hidden md:block` (#54). Extracted rather than
+ * copied because the marker logic is the part worth having in one place — see
+ * `activeOrg`.
+ *
+ * It deliberately does not own the create dialog. `onCreate` hands that back to
+ * the caller, which mounts `CreateOrganizationDialog` as a **sibling** of its
+ * own menu: Radix unmounts `DropdownMenuContent` on close and would take a
+ * dialog mounted in here with it, leaving a control that opens nothing.
+ */
+function OrganizationMenuItems({
+  organizations,
+  activeOrganizationId,
+  onCreate,
+}: {
+  organizations: Organization[];
+  activeOrganizationId: string | null;
+  onCreate: () => void;
+}) {
+  const activeOrg = activeOrganization(organizations, activeOrganizationId);
+
+  return (
+    <>
+      {organizations.length > 0 && (
+        <>
+          <DropdownMenuLabel>Organizations</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {organizations.map((org) => (
+            <DropdownMenuItem
+              key={org.id}
+              onClick={() => switchOrganization(org.id)}
+              className="cursor-pointer"
+            >
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
+                <Building2 className="h-4 w-4" />
+              </div>
+              <div className="ml-2 flex flex-1 flex-col">
+                <span className="text-sm font-medium">{org.name}</span>
+              </div>
+              {/*
+                The tick was the only thing saying which organization is
+                active, and it said it in pixels — nothing in the accessibility
+                tree carried it, so a screen reader read three identical menu
+                items. The hidden text is what a test can assert on too, which
+                is how "no checkmark on a guessed organization" became checkable
+                without reaching for a CSS selector.
+              */}
+              {activeOrg?.id === org.id && (
+                <>
+                  <Check className="h-4 w-4 text-primary" aria-hidden="true" />
+                  <VisuallyHidden>Current organization</VisuallyHidden>
+                </>
+              )}
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuSeparator />
+        </>
+      )}
+      <DropdownMenuItem onSelect={onCreate} className="cursor-pointer">
+        <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+        Create organization
+      </DropdownMenuItem>
+    </>
+  );
+}
+
+/**
+ * The session's organization, or none — **never a guess.**
+ *
+ * This used to fall back to `organizations[0]`, which put the checkmark on an
+ * organization the session had not selected and labelled the trigger with its
+ * name. The two are not the same claim: switching writes
+ * `session.activeOrganizationId`, so a rendered checkmark says "this is where
+ * your writes go", and it was saying that about a row chosen by list order.
+ *
+ * `sessionDatabaseHooks` (`@starter/auth`) is what makes this rare — a session
+ * now starts in an organization — but "rare" is not "never": a session minted
+ * before that hook still carries `null`, and so does one whose organization was
+ * deleted. Those get an honest prompt to pick one.
+ */
+function activeOrganization(organizations: Organization[], activeOrganizationId: string | null) {
+  return organizations.find((o) => o.id === activeOrganizationId) ?? null;
+}
+
 function OrganizationSwitcher({
   collapsed,
   organizations,
   activeOrganizationId,
 }: {
   collapsed: boolean;
-  organizations: Array<{ id: string; name: string; slug: string }>;
+  organizations: Organization[];
   activeOrganizationId: string | null;
 }) {
-  /**
-   * The session's organization, or none — **never a guess.**
-   *
-   * This used to fall back to `organizations[0]`, which put the checkmark on an
-   * organization the session had not selected and labelled the trigger with its
-   * name. The two are not the same claim: switching writes
-   * `session.activeOrganizationId`, so a rendered checkmark says "this is where
-   * your writes go", and it was saying that about a row chosen by list order.
-   *
-   * `sessionDatabaseHooks` (`@starter/auth`) is what makes this rare — a
-   * session now starts in an organization — but "rare" is not "never": a
-   * session minted before that hook still carries `null`, and so does one whose
-   * organization was deleted. Those get an honest prompt to pick one.
-   */
-  const activeOrg = organizations.find((o) => o.id === activeOrganizationId) ?? null;
+  const activeOrg = activeOrganization(organizations, activeOrganizationId);
   const [createOpen, setCreateOpen] = useState(false);
-
-  async function switchOrg(orgId: string) {
-    await authClient.organization.setActive({ organizationId: orgId });
-    toast.success("Organization switched");
-    window.location.reload();
-  }
 
   // No organizations, no switcher to render — but the account still needs a way
   // to make its first one, from whichever dashboard page it happens to be on.
-  // The matching first-run card on `/dashboard` is what covers mobile, where
-  // this sidebar is not rendered at all.
+  // The topbar menu carries the same item on a phone, where this sidebar is not
+  // rendered at all.
   if (organizations.length === 0) {
     return <CreateOrganizationButton collapsed={collapsed} />;
   }
@@ -154,47 +240,11 @@ function OrganizationSwitcher({
           align="start"
           side={collapsed ? "right" : "bottom"}
         >
-          <DropdownMenuLabel>Organizations</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          {organizations.map((org) => (
-            <DropdownMenuItem
-              key={org.id}
-              onClick={() => switchOrg(org.id)}
-              className="cursor-pointer"
-            >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
-                <Building2 className="h-4 w-4" />
-              </div>
-              <div className="ml-2 flex flex-1 flex-col">
-                <span className="text-sm font-medium">{org.name}</span>
-              </div>
-              {/*
-                The tick was the only thing saying which organization is
-                active, and it said it in pixels — nothing in the accessibility
-                tree carried it, so a screen reader read three identical menu
-                items. The hidden text is what a test can assert on too, which
-                is how "no checkmark on a guessed organization" became checkable
-                without reaching for a CSS selector.
-              */}
-              {activeOrg?.id === org.id && (
-                <>
-                  <Check className="h-4 w-4 text-primary" aria-hidden="true" />
-                  <VisuallyHidden>Current organization</VisuallyHidden>
-                </>
-              )}
-            </DropdownMenuItem>
-          ))}
-          <DropdownMenuSeparator />
-          {/*
-            `onSelect` sets state and the dialog is rendered as a **sibling** of
-            this menu, never inside the item: Radix unmounts the menu's content
-            on close, which would take a dialog mounted in here with it — the
-            control would open nothing.
-          */}
-          <DropdownMenuItem onSelect={() => setCreateOpen(true)} className="cursor-pointer">
-            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-            Create organization
-          </DropdownMenuItem>
+          <OrganizationMenuItems
+            organizations={organizations}
+            activeOrganizationId={activeOrganizationId}
+            onCreate={() => setCreateOpen(true)}
+          />
         </DropdownMenuContent>
       </DropdownMenu>
       <CreateOrganizationDialog open={createOpen} onOpenChange={setCreateOpen} />
@@ -212,7 +262,7 @@ function Sidebar({
   collapsed: boolean;
   onToggle: () => void;
   user: { name: string; email: string };
-  organizations: Array<{ id: string; name: string; slug: string }>;
+  organizations: Organization[];
   activeOrganizationId: string | null;
 }) {
   const location = useLocation();
@@ -387,11 +437,16 @@ function Sidebar({
 function Topbar({
   sidebarCollapsed,
   user,
+  organizations,
+  activeOrganizationId,
 }: {
   sidebarCollapsed: boolean;
   user: { name: string; email: string };
+  organizations: Organization[];
+  activeOrganizationId: string | null;
 }) {
   const location = useLocation();
+  const [createOpen, setCreateOpen] = useState(false);
   const initials = user.name
     .split(" ")
     .map((n) => n[0])
@@ -432,7 +487,21 @@ function Topbar({
               <Menu className="h-5 w-5" aria-hidden="true" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-[220px]">
+          <DropdownMenuContent align="start" className="w-[240px]">
+            {/*
+              Organizations first, above the navigation, because this menu is
+              the *only* place a phone can change tenant: the sidebar that
+              carries the switcher is `hidden md:block`, so before #54 there was
+              no control at all — including for the members page's
+              "not a member of this organization" state, whose whole answer is
+              to switch to another one.
+            */}
+            <OrganizationMenuItems
+              organizations={organizations}
+              activeOrganizationId={activeOrganizationId}
+              onCreate={() => setCreateOpen(true)}
+            />
+            <DropdownMenuSeparator />
             <DropdownMenuLabel>Navigation</DropdownMenuLabel>
             <DropdownMenuSeparator />
             {navigation.map((item) => (
@@ -453,6 +522,12 @@ function Topbar({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        {/*
+          A **sibling** of the menu, never inside it — same Radix constraint the
+          sidebar switcher documents: `DropdownMenuContent` unmounts on close and
+          would take a nested dialog with it.
+        */}
+        <CreateOrganizationDialog open={createOpen} onOpenChange={setCreateOpen} />
 
         {/* Breadcrumb */}
         <nav className="hidden text-sm text-muted-foreground md:flex" aria-label="Breadcrumb">
@@ -528,7 +603,12 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           activeOrganizationId={activeOrganizationId}
         />
       </div>
-      <Topbar sidebarCollapsed={sidebarCollapsed} user={user} />
+      <Topbar
+        sidebarCollapsed={sidebarCollapsed}
+        user={user}
+        organizations={organizations}
+        activeOrganizationId={activeOrganizationId}
+      />
       <main
         className={cn(
           "min-h-[calc(100vh-4rem)] p-4 transition-all duration-300 md:p-6",

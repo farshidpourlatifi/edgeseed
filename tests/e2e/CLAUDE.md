@@ -126,6 +126,24 @@ they produce is still entirely better-auth's. Drive both as the **real
 recipient** — better-auth checks the invitation's state before the address, so a
 bystander sees the same screen and the test would pass for the wrong reason.
 
+## A spec about a breakpoint proves it is at that breakpoint
+
+`mobile-organization-switcher.spec.ts` sets `viewport: { width: 375, height: 812 }`
+and every test opens by asserting `getByRole("complementary")` has count 0 — the
+sidebar, hidden by `hidden md:block`, and with it the desktop switcher.
+
+Without that assertion the file is worthless: the desktop control satisfies every
+locator in it, so a run at the default 1280px passes against an app with **no**
+mobile control at all. That is exactly how the gap survived #34's own coverage
+until #36 walked into it. Playwright's role engine skips anything hidden from the
+accessibility tree, so `display: none` really does mean count 0 here.
+
+Both halves were seen red before being kept: with the topbar's
+`OrganizationMenuItems` removed all three tests fail on the missing menu items,
+and with `CreateOrganizationDialog` moved _inside_ `DropdownMenuContent` the
+create case alone fails, because Radix unmounts the menu on close and takes the
+dialog with it.
+
 ## Testing a loader guard
 
 **Use `?_routes=` to reach a child loader on its own.** Single fetch resolves
