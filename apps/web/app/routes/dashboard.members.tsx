@@ -52,9 +52,30 @@ export async function loader({ context, request }: Route.LoaderArgs) {
   });
 
   if (!membership) {
-    return {
-      state: session.session.activeOrganizationId ? ("not-a-member" as const) : ("none" as const),
-    };
+    /*
+     * Which empty state turns on whether they belong **anywhere**, not on
+     * whether the session named something. Those come apart after a removal:
+     * better-auth clears the *remover's* active organization and never the
+     * removed member's, so someone thrown out of their only organization keeps
+     * a session naming it. Keyed on the session field, that reads as
+     * "not a member of this one" and offers a switcher with nothing in it —
+     * and on a phone, where the sidebar is `hidden md:block`, no way to create
+     * one either. Organization *deletion* does not show this, because the
+     * foreign key nulls the session field and lands on the create card.
+     *
+     * A second lookup, used as a **boolean**. Deliberately not as a fallback
+     * organization: the session named one, and quietly rendering a different
+     * tenant's roster instead would be a worse answer than saying what
+     * happened. It only runs on the miss path.
+     */
+    if (!session.session.activeOrganizationId) return { state: "none" as const };
+
+    const belongsElsewhere = await resolveMembership(context.db, {
+      userId: session.user.id,
+      organizationId: null,
+    });
+
+    return { state: belongsElsewhere ? ("not-a-member" as const) : ("none" as const) };
   }
 
   const canReadInvitations = hasRole(membership.role, ROLES.admin);
@@ -188,10 +209,17 @@ export default function MembersPage({ loaderData }: Route.ComponentProps) {
            * Saying so beats the first-run empty state, which would tell someone
            * with three other organizations that they have none.
            */
+          /*
+            The copy names no control. This state means the reader belongs to
+            at least one *other* organization, and the way to reach one is the
+            sidebar switcher — which is `hidden md:block`, so on a phone there
+            is none to point at. Naming it would make the sentence false on
+            exactly the device that cannot act on it.
+          */
           <EmptyState
             icon={<UserX className="h-10 w-10" />}
             title="You are not a member of this organization"
-            description="Your membership may have ended, or the organization may have been deleted. Pick another organization from the switcher."
+            description="Your membership may have ended, or the organization may have been deleted. Switch to one of your other organizations to continue."
           />
         ) : (
           <EmptyState

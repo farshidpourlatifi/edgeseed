@@ -7,6 +7,8 @@ import {
   giveOrganization,
   markEmailVerified,
   readInvitationId,
+  removeMembership,
+  setActiveOrganization,
   waitForHydration,
 } from "./helpers";
 
@@ -72,6 +74,10 @@ const CAI = user("cai", "E2E Members Cai");
 const DIA = user("dia", "E2E Members Dia");
 /** Belongs to no organization at all — the first-run empty state. */
 const EWA = user("ewa", "E2E Members Ewa");
+/** Removed from their **only** organization, mid-session. Belongs nowhere after. */
+const HAL = user("hal", "E2E Members Hal");
+/** Removed from the organization their session names, but still in another. */
+const IVY = user("ivy", "E2E Members Ivy");
 
 /** Invited, never registered: an address on `ORG`'s pending list and nothing more. */
 const INVITEE = `e2e-mem-fin-${RUN}@example.com`;
@@ -80,6 +86,12 @@ const EXPIRED_INVITEE = `e2e-mem-gus-${RUN}@example.com`;
 
 const ORG = { slug: `members-org-${RUN}`, name: "Members Trading" };
 const OTHER_ORG = { slug: `members-other-${RUN}`, name: "Unrelated Holdings" };
+/** `HAL`'s only organization, and the one they are removed from. */
+const SOLE_ORG = { slug: `members-sole-${RUN}`, name: "Sole Concern" };
+/** `IVY` is removed from this one… */
+const LEFT_ORG = { slug: `members-left-${RUN}`, name: "Departed Devices" };
+/** …and keeps this one. */
+const KEPT_ORG = { slug: `members-kept-${RUN}`, name: "Retained Robotics" };
 
 /** `giveOrganization` derives the row id from the slug; restated rather than guessed. */
 const orgId = (slug: string) => `e2e-org-${slug}`;
@@ -158,7 +170,7 @@ async function invite(request: APIRequestContext, email: string, organizationSlu
 }
 
 test.beforeAll(async ({ browser }) => {
-  for (const account of [ANA, BEN, CAI, DIA, EWA]) {
+  for (const account of [ANA, BEN, CAI, DIA, EWA, HAL, IVY]) {
     await createAccount(browser, account);
   }
 
@@ -168,6 +180,12 @@ test.beforeAll(async ({ browser }) => {
   fillOrganization(ORG.slug, `e2e-mem-fill-${RUN}`, FILLERS);
 
   giveOrganization(DIA.email, OTHER_ORG.slug, OTHER_ORG.name);
+
+  // The two removal cases get organizations of their own, so removing a
+  // membership below cannot disturb what any other block is asserting on.
+  giveOrganization(HAL.email, SOLE_ORG.slug, SOLE_ORG.name);
+  giveOrganization(IVY.email, LEFT_ORG.slug, LEFT_ORG.name);
+  giveOrganization(IVY.email, KEPT_ORG.slug, KEPT_ORG.name);
 
   // Two invitations, sent once and read by every block below — well inside the
   // `mail` class's three per minute, and behind an address of their own.
@@ -377,6 +395,60 @@ test.describe("a reader outside en-US gets the same page the server rendered", (
     await expect(memberRow(page, ANA.email)).toContainText(/joined [A-Z][a-z]{2} \d{1,2}, \d{4}/);
 
     expect(failures.filter((text) => /hydrat/i.test(text))).toEqual([]);
+  });
+});
+
+/**
+ * Which empty state a miss produces, and the two cases that split it.
+ *
+ * Better Auth's `removeMember` clears the active organization of the person
+ * *doing* the removing and never of the person removed, so a removed member
+ * keeps a session naming an organization they can no longer read. Keying the
+ * choice on "the session named something" rather than "they still belong
+ * somewhere" sends the first case below to the switcher — which has nothing in
+ * it, on a page that offers no way to create one.
+ *
+ * Both states are written straight into D1: the UI that removes a member is
+ * #37, so neither is reachable through the product inside one run.
+ */
+test.describe("a removed member is told which of the two things happened", () => {
+  test.use({ extraHTTPHeaders: { "cf-connecting-ip": clientIp() } });
+
+  test("removed from their only organization, they are offered a new one", async ({ page }) => {
+    await signIn(page, HAL.email);
+    setActiveOrganization(HAL.email, SOLE_ORG.slug);
+    removeMembership(HAL.email, SOLE_ORG.slug);
+
+    await page.goto("/dashboard/members");
+
+    // They belong nowhere, so this is the first-run state however they got
+    // here — and the control is in `<main>`, which is the only place a phone
+    // can reach, the sidebar being `hidden md:block`.
+    await expect(page.getByText(/create your first organization/i)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/not a member of this organization/i)).toHaveCount(0);
+    await expect(
+      page.getByRole("main").getByRole("button", { name: "Create organization" }),
+    ).toBeVisible();
+  });
+
+  test("removed from one of several, they are told to switch", async ({ page }) => {
+    await signIn(page, IVY.email);
+    setActiveOrganization(IVY.email, LEFT_ORG.slug);
+    removeMembership(IVY.email, LEFT_ORG.slug);
+
+    await page.goto("/dashboard/members");
+
+    // A membership remains, so "create your first" would be the wrong answer.
+    await expect(page.getByText(/not a member of this organization/i)).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(page.getByText(/create your first organization/i)).toHaveCount(0);
+
+    // And the roster of the organization they still belong to is *not* quietly
+    // rendered in its place — the session named one, and the page says so
+    // rather than guessing another.
+    await expect(membersList(page)).toHaveCount(0);
+    await expect(page.getByText(KEPT_ORG.name)).toHaveCount(0);
   });
 });
 
