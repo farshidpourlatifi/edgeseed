@@ -28,6 +28,7 @@
     "apps/web/server/origins.ts",
     "apps/web/server/security-headers.ts",
     "apps/web/app/lib/require-user.ts",
+    "apps/web/app/lib/org-slug.ts",
     "apps/web/app/lib/reset-password-link.ts",
     "apps/web/app/lib/reset-password-errors.ts",
     "apps/web/app/components/landing/hero-shader.ts",

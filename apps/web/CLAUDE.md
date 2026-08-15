@@ -56,6 +56,27 @@ The product: React Router v7 app + Hono API on a single Cloudflare Worker.
   to re-run verification, the gate audit #2 rests on. Covered by
   `tests/e2e/dashboard-controls.spec.ts`, which reloads and re-reads rather than
   trusting the toast
+- **The create-organization dialog is a _sibling_ of the switcher's dropdown,
+  never mounted inside the menu item that opens it.** Radix unmounts
+  `DropdownMenuContent` on close and would take a nested dialog with it — the
+  control would open nothing. `onSelect` sets state; the dialog reads it
+  (`app/components/organizations/create-organization-dialog.tsx`). Three facts
+  about better-auth 1.6.26 are load-bearing, all read from
+  `plugins/organization/routes/crud-org.mjs` rather than assumed: `slug` is
+  **required and never derived server-side** (hence `app/lib/org-slug.ts`, whose
+  empty result keeps submit disabled rather than sending a value the server
+  refuses); the create handler **makes the new organization active itself**, so
+  calling `setActive` after it is a redundant round trip and `revalidate()` is
+  what puts it on screen; and a colliding slug is `400
+ORGANIZATION_ALREADY_EXISTS` — **not** `ORGANIZATION_SLUG_ALREADY_TAKEN`,
+  which belongs to `/organization/check-slug` and `/organization/update`. The
+  collision renders under the slug field with the dialog left open, because a
+  toast-and-close discards the typed name to report that one field needs an
+  edit. A zero-org account gets the control in **two** places on purpose: the
+  sidebar (so any dashboard page has a way in — icon + tooltip when collapsed)
+  and a first-run card on `/dashboard`, which is the only path on a phone, since
+  the sidebar is `hidden md:block`. `/organization/create` sits in the `default`
+  rate-limit class (120/60s): it sends no mail and takes no credentials
 - Secrets: never in `wrangler.jsonc` — `.dev.vars` locally, `wrangler secret put` in production
 - Deploy only via `pnpm deploy:web` (runs the verify gate)
 

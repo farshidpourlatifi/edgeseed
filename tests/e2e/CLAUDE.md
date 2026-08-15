@@ -70,11 +70,17 @@ cause.
 ## Seeding an organization
 
 `giveOrganization(email, slug, name)` writes `organization` + `member` rows into
-the local D1 directly, the same way `markEmailVerified` flips a column. It is not
-a shortcut around a UI flow — **there is no flow**: nothing in the app creates an
-organization, and `OrganizationSwitcher` renders `null` until the user owns one,
-so without this seam the switcher and everything inside it are unreachable from a
-browser. Delete it when the Organizations epic (#24) lands a real creation path.
+the local D1 directly, the same way `markEmailVerified` flips a column.
+
+It **is** a shortcut around a UI flow, and that is now deliberate. Issue #34
+landed a real creation path, so the helper is no longer the only way to reach an
+org-owning state — it is the _fast_ way. Use it when a spec needs an
+organization to exist before testing something else; do not use it when the
+creation path itself is what is under test.
+
+**`organizations.spec.ts` must never call it.** The epic's acceptance criterion
+is a brand-new account creating its first organization with no seeded data, so
+seeding there would skip exactly the code the spec exists to cover.
 
 ## Testing a loader guard
 

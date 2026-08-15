@@ -54,9 +54,10 @@ Stated up front, because finding these after adopting a starter is worse than re
 - **There is no account-deletion surface.** Tenant foreign keys cascade, but
   `invitation.email` has no foreign key to `user`, so an invitation addressed to a deleted
   address needs an application-level sweep whoever adds that surface must write.
-- **Organization management has no UI.** The data model and role checks are real; the
-  "Create organization" control is deliberately disabled with the reason next to it rather
-  than faked.
+- **Organization management is partly built.** Creating an organization and switching the
+  active one work from the dashboard. Members, invitations and role changes have no UI yet —
+  the data model and role checks behind them are real, but nothing renders them. Tracked as
+  the Organizations epic.
 - **The MCP Worker ships undeployed.** Its Agent is a Durable Object, billed by duration —
   deploy it when a product actually needs it.
 - **Dependency updates are manual.** Dependabot security updates are currently disabled.

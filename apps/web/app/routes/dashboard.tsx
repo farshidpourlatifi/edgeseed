@@ -38,6 +38,10 @@ import {
 import { toast } from "sonner";
 import { PRODUCT_NAME } from "@starter/config/product";
 import { BrandMark } from "~/components/brand/brand-mark";
+import {
+  CreateOrganizationButton,
+  CreateOrganizationDialog,
+} from "~/components/organizations/create-organization-dialog";
 
 export async function loader({ context, request }: Route.LoaderArgs) {
   // Guards this loader's own data only. Every child loader calls `requireUser`
@@ -84,6 +88,7 @@ function OrganizationSwitcher({
   activeOrganizationId: string | null;
 }) {
   const activeOrg = organizations.find((o) => o.id === activeOrganizationId) ?? organizations[0];
+  const [createOpen, setCreateOpen] = useState(false);
 
   async function switchOrg(orgId: string) {
     await authClient.organization.setActive({ organizationId: orgId });
@@ -91,71 +96,74 @@ function OrganizationSwitcher({
     window.location.reload();
   }
 
+  // No organizations, no switcher to render — but the account still needs a way
+  // to make its first one, from whichever dashboard page it happens to be on.
+  // The matching first-run card on `/dashboard` is what covers mobile, where
+  // this sidebar is not rendered at all.
   if (!activeOrg && organizations.length === 0) {
-    return null;
+    return <CreateOrganizationButton collapsed={collapsed} />;
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          className={cn("w-full justify-start gap-2", collapsed ? "px-2" : "px-3")}
-        >
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <Building2 className="h-4 w-4" />
-          </div>
-          {!collapsed && (
-            <>
-              <div className="flex flex-1 flex-col items-start text-left">
-                <span className="truncate text-sm font-medium">{activeOrg?.name ?? "No Org"}</span>
-              </div>
-              <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-            </>
-          )}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        className="w-[240px]"
-        align="start"
-        side={collapsed ? "right" : "bottom"}
-      >
-        <DropdownMenuLabel>Organizations</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {organizations.map((org) => (
-          <DropdownMenuItem
-            key={org.id}
-            onClick={() => switchOrg(org.id)}
-            className="cursor-pointer"
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            className={cn("w-full justify-start gap-2", collapsed ? "px-2" : "px-3")}
           >
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
               <Building2 className="h-4 w-4" />
             </div>
-            <div className="ml-2 flex flex-1 flex-col">
-              <span className="text-sm font-medium">{org.name}</span>
-            </div>
-            {activeOrg?.id === org.id && <Check className="h-4 w-4 text-primary" />}
-          </DropdownMenuItem>
-        ))}
-        <DropdownMenuSeparator />
-        {/*
-          Disabled rather than wired up or removed. Creating an organization is
-          the first workstream of the Organizations epic (#24) — slug handling,
-          the creator's membership row and active-org selection all come with
-          it — so the honest state until then is a control that says why it
-          cannot be used, not one that reports a success nothing performed.
-        */}
-        <DropdownMenuItem disabled className="flex-col items-start gap-1">
-          <span className="flex items-center">
+            {!collapsed && (
+              <>
+                <div className="flex flex-1 flex-col items-start text-left">
+                  <span className="truncate text-sm font-medium">
+                    {activeOrg?.name ?? "No Org"}
+                  </span>
+                </div>
+                <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </>
+            )}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          className="w-[240px]"
+          align="start"
+          side={collapsed ? "right" : "bottom"}
+        >
+          <DropdownMenuLabel>Organizations</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {organizations.map((org) => (
+            <DropdownMenuItem
+              key={org.id}
+              onClick={() => switchOrg(org.id)}
+              className="cursor-pointer"
+            >
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
+                <Building2 className="h-4 w-4" />
+              </div>
+              <div className="ml-2 flex flex-1 flex-col">
+                <span className="text-sm font-medium">{org.name}</span>
+              </div>
+              {activeOrg?.id === org.id && <Check className="h-4 w-4 text-primary" />}
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuSeparator />
+          {/*
+            `onSelect` sets state and the dialog is rendered as a **sibling** of
+            this menu, never inside the item: Radix unmounts the menu's content
+            on close, which would take a dialog mounted in here with it — the
+            control would open nothing.
+          */}
+          <DropdownMenuItem onSelect={() => setCreateOpen(true)} className="cursor-pointer">
             <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
             Create organization
-          </span>
-          <span className="text-xs text-muted-foreground">
-            Not available yet — organization management is still being built.
-          </span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <CreateOrganizationDialog open={createOpen} onOpenChange={setCreateOpen} />
+    </>
   );
 }
 

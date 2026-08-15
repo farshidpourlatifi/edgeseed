@@ -51,7 +51,9 @@ test.beforeAll(async ({ browser }) => {
   await expect(page.getByText(/check your email/i)).toBeVisible({ timeout: 15000 });
   markEmailVerified(USER.email);
 
-  // The org switcher renders nothing without one, and the app cannot create one.
+  // Seeded rather than created through the dialog: this spec is about the other
+  // dashboard controls, and writing the rows directly is faster than driving a
+  // flow that `organizations.spec.ts` already owns end to end.
   giveOrganization(USER.email, ORG.slug, ORG.name);
 
   await context.close();
@@ -159,11 +161,18 @@ test.describe("dashboard controls", () => {
     // The notification bell is gone rather than opening nothing.
     await expect(page.getByRole("button", { name: "View notifications" })).toHaveCount(0);
 
-    // Organization creation is visibly unavailable, not a "coming soon" toast.
+    // Organization creation is wired now (issue #34), so the item is enabled
+    // and opens something. The full creation journey belongs to
+    // `organizations.spec.ts`; what this asserts is that the control is no
+    // longer the disabled placeholder it shipped as — and that the dialog
+    // survives the menu closing, which is the Radix trap a nested mount hits.
     await page.getByRole("button", { name: new RegExp(ORG.name) }).click();
     const createOrg = page.getByRole("menuitem", { name: /create organization/i });
     await expect(createOrg).toBeVisible();
-    await expect(createOrg).toBeDisabled();
-    await expect(page.getByText(/organization management is still being built/i)).toBeVisible();
+    await expect(createOrg).toBeEnabled();
+    await expect(page.getByText(/organization management is still being built/i)).toHaveCount(0);
+
+    await createOrg.click();
+    await expect(page.getByRole("dialog")).toBeVisible({ timeout: 15000 });
   });
 });
