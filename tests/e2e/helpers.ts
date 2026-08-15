@@ -80,11 +80,12 @@ export function readPasswordResetToken(email: string): string {
 /**
  * Give `email` an organization it owns, directly in the local D1.
  *
- * The app has no way to create one — that is the whole point of issue #16, and
- * building it is the Organizations epic (#24). But `OrganizationSwitcher`
- * renders nothing until the user has at least one org, so without this seam
- * the switcher and its disabled "Create organization" item are unreachable
- * from a browser and cannot be tested at all.
+ * No longer a workaround for a missing flow: the app creates organizations for
+ * real as of issue #34, and `organizations.spec.ts` drives that path from the
+ * product surface with no seeding at all — which is the epic's acceptance
+ * criterion. This stays because it is *faster*. A spec that merely needs an org
+ * to exist before testing something else should write the rows rather than
+ * spend a dialog round trip on scenery.
  *
  * Mirrors the shape `packages/cli/src/db-seed.ts` writes, and is `--local`
  * only for the same reason.
