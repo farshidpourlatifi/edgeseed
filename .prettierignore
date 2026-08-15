@@ -8,3 +8,14 @@ packages/db/migrations/
 # depend on that default staying put.
 **/.react-router/
 **/.wrangler/
+
+# Scratch plan documents, gitignored by `docs/plans/.gitignore` (`*`).
+#
+# It has to be listed *here* because Prettier reads the **root** .gitignore and
+# never a nested one — so the folder is invisible to git and fully visible to
+# `prettier --check .`. A plan doc nobody could see in `git status` failed the
+# verify gate for two sessions in one afternoon, and the second one lost time
+# proving the file was innocent before finding the mechanism.
+#
+# Nothing in there is tracked, so this costs no format coverage.
+docs/plans/
