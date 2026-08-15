@@ -99,11 +99,29 @@ ORGANIZATION_ALREADY_EXISTS` — **not** `ORGANIZATION_SLUG_ALREADY_TAKEN`,
   which belongs to `/organization/check-slug` and `/organization/update`. The
   collision renders under the slug field with the dialog left open, because a
   toast-and-close discards the typed name to report that one field needs an
-  edit. A zero-org account gets the control in **two** places on purpose: the
-  sidebar (so any dashboard page has a way in — icon + tooltip when collapsed)
-  and a first-run card on `/dashboard`, which is the only path on a phone, since
-  the sidebar is `hidden md:block`. `/organization/create` sits in the `default`
+  edit. A zero-org account gets the control in **three** places on purpose: the
+  sidebar (so any dashboard page has a way in — icon + tooltip when collapsed),
+  the mobile topbar menu (the sidebar is `hidden md:block`, so a phone reaches
+  nothing in it), and a first-run card on `/dashboard`, which is the one that
+  says what to do rather than waiting to be found.
+  `/organization/create` sits in the `default`
   rate-limit class (120/60s): it sends no mail and takes no credentials
+- **Switching organizations lives in two surfaces, and the mobile one is not
+  optional.** `OrganizationMenuItems` (`app/routes/dashboard.tsx`) is the menu
+  body — org rows with the `VisuallyHidden` "Current organization" marker, plus
+  the create item — and both the sidebar switcher and the topbar hamburger
+  render it. The topbar copy shipped because the sidebar is `hidden md:block`,
+  so a phone had **no** way to change tenant at all, including from the members
+  page's "not a member of this organization" state whose entire answer is to
+  switch to another one (#54, a gap left by #34). Two things are load-bearing:
+  each surface mounts its **own** `CreateOrganizationDialog` as a sibling of its
+  **own** menu — the component takes `onCreate` rather than owning a dialog,
+  precisely so a caller cannot mount one inside a `DropdownMenuItem` — and
+  `switchOrganization` ends in `window.location.reload()`, not `revalidate()`,
+  because `setActive` changes which tenant **every** loader on the page is
+  about. `tests/e2e/mobile-organization-switcher.spec.ts` drives it at 375px and
+  asserts the sidebar is absent there, so the spec fails if the mobile control
+  is ever removed _or_ if the sidebar stops being the thing that hides
 - **`/dashboard/members` has three states, and the two empty ones are not the
   same empty.** The loader hands `session.activeOrganizationId` to
   `resolveMembership` (`@starter/auth`), and what comes back decides: a

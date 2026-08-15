@@ -22,10 +22,11 @@ import { slugify } from "~/lib/org-slug";
 /**
  * Creating an organization — the whole form, in one place.
  *
- * Two surfaces open it and neither owns it: the sidebar's organization switcher
+ * Three surfaces open it and none owns it: the sidebar's organization switcher
  * (and, for an account with none, the control that stands in for the switcher),
- * and the first-run empty state on `/dashboard`. The sidebar is `hidden md:block`,
- * so the dashboard card is the only path on a phone.
+ * the mobile topbar's hamburger menu, and the first-run empty state on
+ * `/dashboard`. The sidebar is `hidden md:block`, so the topbar menu and that
+ * card are what a phone has (#54).
  *
  * Three things about better-auth 1.6.26 are load-bearing here, all verified in
  * `plugins/organization/routes/crud-org.mjs` rather than remembered:
@@ -262,10 +263,10 @@ export function CreateOrganizationDialog({
 /**
  * A button that opens the dialog, for the surfaces that need one.
  *
- * The switcher's dropdown does **not** use this — a dialog mounted inside a
- * `DropdownMenuItem` is unmounted the moment the menu closes, so that surface
- * drives `CreateOrganizationDialog` from its own state with the dialog as a
- * sibling of the menu.
+ * Neither dropdown uses this — the sidebar switcher's or the mobile topbar's. A
+ * dialog mounted inside a `DropdownMenuItem` is unmounted the moment the menu
+ * closes, so both drive `CreateOrganizationDialog` from their own state with the
+ * dialog as a sibling of the menu.
  *
  * `collapsed` mirrors the sidebar nav items: icon plus a tooltip carrying the
  * label, so narrowing the sidebar does not take the action away with the text.

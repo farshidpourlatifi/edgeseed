@@ -58,10 +58,10 @@ export async function loader({ context, request }: Route.LoaderArgs) {
      * better-auth clears the *remover's* active organization and never the
      * removed member's, so someone thrown out of their only organization keeps
      * a session naming it. Keyed on the session field, that reads as
-     * "not a member of this one" and offers a switcher with nothing in it —
-     * and on a phone, where the sidebar is `hidden md:block`, no way to create
-     * one either. Organization *deletion* does not show this, because the
-     * foreign key nulls the session field and lands on the create card.
+     * "not a member of this one" and sends them to a switcher with nothing in
+     * it, on a page whose only other offer is one they have already taken.
+     * Organization *deletion* does not show this, because the foreign key nulls
+     * the session field and lands on the create card.
      *
      * A second lookup, used as a **boolean**. Deliberately not as a fallback
      * organization: the session named one, and quietly rendering a different
@@ -210,11 +210,13 @@ export default function MembersPage({ loaderData }: Route.ComponentProps) {
            * with three other organizations that they have none.
            */
           /*
-            The copy names no control. This state means the reader belongs to
-            at least one *other* organization, and the way to reach one is the
-            sidebar switcher — which is `hidden md:block`, so on a phone there
-            is none to point at. Naming it would make the sentence false on
-            exactly the device that cannot act on it.
+            The copy names no control, and still should not. This state means
+            the reader belongs to at least one *other* organization, and every
+            breakpoint reaches those somewhere different: the sidebar switcher
+            on desktop, the topbar menu on a phone, since the sidebar is
+            `hidden md:block`. Naming either would make the sentence false on
+            the other. It used to name none because on a phone there *was* no
+            control to point at — that half is closed (#54); this half is not.
           */
           <EmptyState
             icon={<UserX className="h-10 w-10" />}
