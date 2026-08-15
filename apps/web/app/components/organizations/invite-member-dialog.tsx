@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useRevalidator } from "react-router";
 import { UserPlus } from "lucide-react";
 import { toast } from "sonner";
@@ -80,6 +80,15 @@ export function InviteMemberDialog({
    */
   const [failure, setFailure] = useState<{ email: string; message: string } | null>(null);
   const [isSending, setIsSending] = useState(false);
+  /**
+   * Same reason as the role field in `member-actions.tsx`: up to three surfaces
+   * mount this dialog on one page — the card header, the sole-member prompt and
+   * the invitations empty state — so a literal `id` is a duplicate waiting for
+   * two of them to render together.
+   */
+  const emailFieldId = useId();
+  const roleFieldId = useId();
+  const errorId = `${emailFieldId}-error`;
 
   const submitted = email.trim().toLowerCase();
   const canSubmit = submitted.length > 0;
@@ -143,30 +152,30 @@ export function InviteMemberDialog({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="invite-email">Email</Label>
+            <Label htmlFor={emailFieldId}>Email</Label>
             <Input
-              id="invite-email"
+              id={emailFieldId}
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={isSending}
               maxLength={254}
               autoComplete="email"
-              aria-describedby={error ? "invite-email-error" : undefined}
+              aria-describedby={error ? errorId : undefined}
               aria-invalid={error ? true : undefined}
               className="h-11"
             />
             {error && (
-              <p id="invite-email-error" role="alert" className="text-sm text-destructive">
+              <p id={errorId} role="alert" className="text-sm text-destructive">
                 {error}
               </p>
             )}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="invite-role">Role</Label>
+            <Label htmlFor={roleFieldId}>Role</Label>
             <Select value={role} onValueChange={setRole} disabled={isSending}>
-              <SelectTrigger id="invite-role" className="h-11">
+              <SelectTrigger id={roleFieldId} className="h-11">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

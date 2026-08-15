@@ -108,18 +108,30 @@ const memberRow = (page: Page, email: string) =>
  */
 const appOrigin = () => new URL(test.info().project.use.baseURL!).origin;
 
-async function createAccount(browser: Browser, account: { name: string; email: string }) {
-  const context = await browser.newContext({
-    extraHTTPHeaders: { "cf-connecting-ip": clientIp() },
-  });
+/**
+ * Register every account through one context, then verify them in one call.
+ *
+ * **A context per account and a `markEmailVerified` per account is what times
+ * these hooks out.** Each of those D1 helpers spawns
+ * `pnpm → wrangler → miniflare`, seconds apiece, and Playwright gives a
+ * `beforeAll` 30 seconds total. `cf-connecting-ip` still varies **per request**
+ * — `/sign-up/email` is in the `mail` class at three a minute, and a shared
+ * address would throttle the fourth account — which is exactly why the header
+ * goes on the call rather than on the context.
+ */
+async function createAccounts(browser: Browser, accounts: { name: string; email: string }[]) {
+  const context = await browser.newContext();
 
-  const response = await context.request.post("/api/auth/sign-up/email", {
-    data: { name: account.name, email: account.email, password: PASSWORD },
-  });
-  expect(response.ok(), await response.text()).toBe(true);
+  for (const account of accounts) {
+    const response = await context.request.post("/api/auth/sign-up/email", {
+      data: { name: account.name, email: account.email, password: PASSWORD },
+      headers: { "cf-connecting-ip": clientIp() },
+    });
+    expect(response.ok(), await response.text()).toBe(true);
+  }
 
-  markEmailVerified(account.email);
   await context.close();
+  markEmailVerified(accounts.map((account) => account.email));
 }
 
 async function signIn(page: Page, email: string) {
@@ -203,9 +215,16 @@ async function findMemberId(
 }
 
 test.beforeAll(async ({ browser }) => {
-  for (const account of [NIA, OMAR, PIA, RAJ, SAM, TOM, UNA, VIC, WYN]) {
-    await createAccount(browser, account);
-  }
+  /*
+   * Seeding is a dozen `wrangler d1 execute` spawns and nine registrations, and
+   * Playwright's default hook budget is 30s — which is a limit on *test* work,
+   * not a claim that seeding this much is reasonable in half a minute. It is
+   * raised rather than worked around, because the alternative is a suite that
+   * passes on a fast machine and times out on a CI runner.
+   */
+  test.setTimeout(180_000);
+
+  await createAccounts(browser, [NIA, OMAR, PIA, RAJ, SAM, TOM, UNA, VIC, WYN]);
 
   giveOrganization(NIA.email, ORG.slug, ORG.name);
   giveMembership(OMAR.email, ORG.slug, "admin");
@@ -248,6 +267,11 @@ test.describe("an owner runs the roster from the page", () => {
       await dialog.getByRole("combobox", { name: "Role" }).click();
       await page.getByRole("option", { name: to }).click();
       await dialog.getByRole("button", { name: "Save role" }).click();
+
+      // The write finishes before the dialog goes, so a dialog still on screen
+      // means the success path stopped short — which is what left the button
+      // live for a second click while `revalidate()` was still in flight.
+      await expect(dialog).toBeHidden({ timeout: 15000 });
     }
 
     await setRole("Admin");

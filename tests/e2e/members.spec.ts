@@ -121,25 +121,34 @@ const invitationsHeading = (page: Page) =>
   page.getByRole("heading", { name: "Pending invitations" });
 
 /**
- * Create a verified account through the API, behind an address of its own.
+ * Register every account through the API, then verify them in one call.
  *
  * The registration form is `auth.spec.ts`'s subject; these accounts only need
- * to exist. Each gets its own `cf-connecting-ip` because `/sign-up/email` is
- * rate-limited in the `mail` class.
+ * to exist. `cf-connecting-ip` varies **per request** because `/sign-up/email`
+ * is rate-limited in the `mail` class at three a minute — a shared address
+ * would throttle the fourth account.
+ *
+ * **One context and one verification call, not one of each per account.** Both
+ * were per-account until this hook started timing out in CI: each
+ * `markEmailVerified` spawns `pnpm → wrangler → miniflare`, seconds apiece, and
+ * Playwright allows a `beforeAll` 30 seconds. The failure surfaced as
+ * "browser context closed" during teardown, which is the timeout's aftermath
+ * and reads nothing like its cause.
  */
-async function createAccount(browser: Browser, account: { name: string; email: string }) {
-  const context = await browser.newContext({
-    extraHTTPHeaders: { "cf-connecting-ip": clientIp() },
-  });
+async function createAccounts(browser: Browser, accounts: { name: string; email: string }[]) {
+  const context = await browser.newContext();
 
-  const response = await context.request.post("/api/auth/sign-up/email", {
-    data: { name: account.name, email: account.email, password: PASSWORD },
-  });
-  expect(response.ok(), await response.text()).toBe(true);
+  for (const account of accounts) {
+    const response = await context.request.post("/api/auth/sign-up/email", {
+      data: { name: account.name, email: account.email, password: PASSWORD },
+      headers: { "cf-connecting-ip": clientIp() },
+    });
+    expect(response.ok(), await response.text()).toBe(true);
+  }
 
-  // `requireEmailVerification` withholds the session, so no session was minted.
-  markEmailVerified(account.email);
   await context.close();
+  // `requireEmailVerification` withholds the session, so no session was minted.
+  markEmailVerified(accounts.map((account) => account.email));
 }
 
 /**
@@ -172,9 +181,16 @@ async function invite(request: APIRequestContext, email: string, organizationSlu
 }
 
 test.beforeAll(async ({ browser }) => {
-  for (const account of [ANA, BEN, CAI, DIA, EWA, HAL, IVY]) {
-    await createAccount(browser, account);
-  }
+  /*
+   * Raised from Playwright's 30s default, which this hook exceeded in CI the
+   * moment another heavy spec ran ahead of it. Seeding here is seven
+   * registrations plus a dozen `wrangler d1 execute` spawns — `fillOrganization`
+   * alone writes forty rows — and none of that is test work the default budget
+   * was meant to bound.
+   */
+  test.setTimeout(180_000);
+
+  await createAccounts(browser, [ANA, BEN, CAI, DIA, EWA, HAL, IVY]);
 
   giveOrganization(ANA.email, ORG.slug, ORG.name);
   giveMembership(BEN.email, ORG.slug, "admin");

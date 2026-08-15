@@ -11,19 +11,29 @@ import { expect, type Locator } from "@playwright/test";
 const D1_BINDING = "DB";
 
 /**
- * Mark an address verified directly in the local D1.
+ * Mark one address — or a whole batch — verified directly in the local D1.
  *
  * The verification link is a signed token delivered by email, and with no
  * `RESEND_API_KEY` in CI the message is only written to the dev server's log —
  * which a Playwright test cannot read. Flipping the column is the seam that
  * keeps the rest of the journey (register → refused → verified → in) testable.
  *
+ * **Take the array form when seeding more than one account.** Every helper in
+ * this file spawns `pnpm → wrangler → miniflare`, which costs seconds rather
+ * than milliseconds, and a `beforeAll` that calls this once per account pays
+ * that toll per account. `members.spec.ts` did, and its hook ran out the 30s
+ * Playwright allows a hook the moment a second heavy spec ran ahead of it in
+ * CI — a timeout whose aftermath ("browser context closed") reads nothing like
+ * its cause.
+ *
  * Local-only by construction: same `--local` invocation the seed uses.
  */
-export function markEmailVerified(email: string) {
+export function markEmailVerified(email: string | string[]) {
+  const list = (Array.isArray(email) ? email : [email]).map((one) => `'${one}'`).join(", ");
+
   execSync(
     `pnpm --filter @starter/web exec wrangler d1 execute ${D1_BINDING} --local ` +
-      `--command "UPDATE user SET emailVerified = 1 WHERE email = '${email}'"`,
+      `--command "UPDATE user SET emailVerified = 1 WHERE email IN (${list})"`,
     { stdio: "pipe" },
   );
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useRevalidator } from "react-router";
 import { LogOut, MoreHorizontal, ShieldCheck, UserMinus } from "lucide-react";
 import { toast } from "sonner";
@@ -108,6 +108,15 @@ export function MemberActions({
   const [dialog, setDialog] = useState<"role" | "remove" | "leave" | null>(null);
   const [role, setRole] = useState<string>(member.role);
   const [isWorking, setIsWorking] = useState(false);
+  /**
+   * One of these renders per member row, so a literal `id` is a duplicate id
+   * twenty times over on a full page — and `htmlFor` then resolves to whichever
+   * copy the document happens to reach first, which is not necessarily the one
+   * inside the open dialog. `useId` rather than `member.id` because it is the
+   * hook built for this and it survives hydration; the member id would work
+   * today and would stop the moment two dialogs shared a member.
+   */
+  const roleFieldId = useId();
 
   /*
    * The last owner is offered both of the controls that concern them, and
@@ -134,11 +143,20 @@ export function MemberActions({
 
   if (!showChangeRole && !showRemove && !showLeave) return null;
 
-  /** One place where a rejected call becomes a sentence, for all three writes. */
+  /**
+   * One place where a rejected call becomes a sentence, for all three writes.
+   *
+   * **`onSuccess` is awaited, and its type says so.** Declared `() => void` it
+   * silently dropped the promise of an `async` callback: `finally` then cleared
+   * `isWorking` while `revalidate()` was still in flight, so the dialog stayed
+   * open with its button live and a second click could fire a second write —
+   * which then reported an error over the top of a success. `invitation-actions.tsx`
+   * awaits inside `try` for the same reason; this now matches it.
+   */
   async function run(
     action: "changeRole" | "remove" | "leave",
     call: () => Promise<{ error?: { code?: string; status?: number } | null }>,
-    onSuccess: () => void,
+    onSuccess: () => void | Promise<void>,
   ) {
     setIsWorking(true);
     try {
@@ -147,7 +165,7 @@ export function MemberActions({
         toast.error(memberActionMessage(action, error));
         return;
       }
-      onSuccess();
+      await onSuccess();
     } finally {
       setIsWorking(false);
     }
@@ -289,9 +307,9 @@ export function MemberActions({
           </DialogHeader>
 
           <div className="space-y-2">
-            <Label htmlFor="member-role">Role</Label>
+            <Label htmlFor={roleFieldId}>Role</Label>
             <Select value={role} onValueChange={setRole} disabled={isWorking}>
-              <SelectTrigger id="member-role" className="h-11">
+              <SelectTrigger id={roleFieldId} className="h-11">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
