@@ -19,6 +19,7 @@ const ROUTES = [
   "/register",
   "/forgot-password",
   "/reset-password",
+  "/accept-invitation",
   "/dashboard",
   "/dashboard/settings",
   // The splat. Any unmatched path compiles the same module, so warming it here

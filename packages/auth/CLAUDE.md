@@ -9,6 +9,8 @@ from here instead of configuring Better Auth themselves.
 ## Layout
 
 - `src/server.ts` — `createAuth()`; social providers are enabled conditionally when their credentials are present
+- `src/organization.ts` — the organization plugin's options, extracted so the invitation sender can be asserted on (`organization()` captures its argument and exposes only `id`/`endpoints`/`schema`)
+- `src/invitation.ts` — the accept path, the id parameter, the expiry, and `invitationAcceptUrl`. A **leaf with no imports**, because `apps/web/app/lib/auth-redirects.ts` re-exports it into the browser bundle
 - `src/rate-limit.ts` — the rate-limit policy table plus the adapter from Workers `[[ratelimits]]` bindings to Better Auth's storage contract (audit #4)
 - `src/middleware.ts` — `authMiddleware` creates `db` + `auth` per request and stores them on the Hono context (`c.get("db")` / `c.get("auth")`)
 - `src/client.ts` — Better Auth browser client (used by `apps/web/app/lib/auth-client.ts`)
@@ -45,7 +47,12 @@ holds the reasoning, including why KV and `secondaryStorage` were both rejected.
   is why this repo had no rate limiting at all.
 - **A path's class is `CLASSIFIERS`, and mail is the strict one.** Anything an
   unauthenticated caller can use to make the app send a message belongs there,
-  `/sign-up/email` included.
+  `/sign-up/email` included — and so does `/organization/invite-member`, which
+  is authenticated but is still the app sending mail on someone's say-so. That
+  one prefix covers **resend too**: `resend: true` is a body flag on the same
+  endpoint, not a second path, so there is nothing else to classify. At 3/60s
+  it will bite the invite form in #37 — surface the 429 as "too quickly" there,
+  rather than loosening the class.
 - **Changing a number means changing it in three places** — the table here and
   `simple` in both `wrangler.jsonc` files. The table is canonical; the bindings
   are what enforce.
@@ -66,7 +73,8 @@ holds the reasoning, including why KV and `secondaryStorage` were both rejected.
 ## Testing
 
 - Helpers are pure or mockable — tested in `src/__tests__/` with a stubbed Hono context
-- **Coverage target: 100% for `src/helpers/` and `src/rate-limit.ts`**; `server.ts`/`middleware.ts`/`client.ts` are thin config wrappers exercised by the e2e auth suite (`tests/e2e/auth.spec.ts`), no unit target
+- **Coverage target: 100% for `src/helpers/`, `src/rate-limit.ts` and `src/invitation.ts`**; `server.ts`/`middleware.ts`/`client.ts` are thin config wrappers exercised by the e2e auth suite (`tests/e2e/auth.spec.ts`), no unit target
+- **`organization.ts` is configuration, so it is tested like `auth-config.test.ts` tests configuration** — nothing in it fails loudly when wrong. A missing `requireEmailVerificationOnInvitation` still serves every request; it just lets an unproven address into an organization. `invitationAcceptUrl` carries the one leg no e2e can reach, since the emailed link only ever reaches the dev server's log
 - **`rate-limit.ts` sits at 88% mutation score, and the remaining survivors were checked by hand — do not chase the number.** Four are the message text inside `unreachable()`; one is `AUTH_RATE_LIMIT_CUSTOM_RULES` being module-level, which per-test coverage cannot attribute; the other six are equivalent mutants in `normalizeIp`, where the redundancy is real but harmless (the IPv4 guard is also reachable through the IPv4-mapped branch, `fill("")` is indistinguishable after `padStart`, and the destructuring defaults only fire on a path that ignores the value). Killing them would mean asserting on error strings or deleting guards that make the code readable
 - **Rate-limit tests drive `auth.handler()`, not `auth.options`.** Every part of audit #4 was configuration that looked present and did nothing, so an assertion on the options object would have passed throughout. A POST with an empty JSON body answers 400 from validation without touching D1, which is what makes a real-handler test possible with no database
 - Every new helper ships with tests for its deny path, not just its allow path

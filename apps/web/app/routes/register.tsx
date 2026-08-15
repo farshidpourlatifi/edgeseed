@@ -1,7 +1,12 @@
 import { useState } from "react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { authClient } from "~/lib/auth-client";
-import { POST_VERIFICATION_REDIRECT } from "~/lib/auth-redirects";
+import {
+  INVITATION_PARAM,
+  POST_VERIFICATION_REDIRECT,
+  invitationAcceptPath,
+  invitationAuthPath,
+} from "~/lib/auth-redirects";
 import { Button } from "@starter/ui/components/ui/button";
 import {
   Card,
@@ -21,6 +26,21 @@ import { BrandMark } from "~/components/brand/brand-mark";
 import { VerificationNotice } from "~/components/auth/verification-notice";
 
 export default function RegisterPage() {
+  const [searchParams] = useSearchParams();
+  /**
+   * An invitee creating the account the invitation was addressed to.
+   *
+   * This is the leg `POST_VERIFICATION_REDIRECT` exists to protect: sign-up
+   * mints no session, so the reader's next step is the verification link, and
+   * whatever `callbackURL` that link carries is where they end up. Sending them
+   * to the dashboard would drop the invitation on the floor after they had
+   * already done the work of creating an account for it.
+   */
+  const invitationId = searchParams.get(INVITATION_PARAM)?.trim();
+  const destination = invitationId
+    ? invitationAcceptPath(invitationId)
+    : POST_VERIFICATION_REDIRECT;
+
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -54,7 +74,7 @@ export default function RegisterPage() {
         name,
         email,
         password,
-        callbackURL: POST_VERIFICATION_REDIRECT,
+        callbackURL: destination,
       });
       if (signUpError) {
         setError(signUpError.message ?? "Sign up failed");
@@ -75,7 +95,7 @@ export default function RegisterPage() {
   async function handleSocialSignIn(provider: "github" | "google") {
     await authClient.signIn.social({
       provider,
-      callbackURL: "/dashboard",
+      callbackURL: destination,
     });
   }
 
@@ -103,9 +123,14 @@ export default function RegisterPage() {
         <CardContent className="space-y-6">
           {pendingEmail ? (
             <>
-              <VerificationNotice email={pendingEmail} />
+              {/* The resend must mint the same destination the first link
+                  carried, or it silently drops the invitation. */}
+              <VerificationNotice email={pendingEmail} callbackURL={destination} />
               <p className="text-center text-sm text-muted-foreground">
-                <Link to="/login" className="font-medium text-foreground hover:underline">
+                <Link
+                  to={invitationId ? invitationAuthPath("/login", invitationId) : "/login"}
+                  className="font-medium text-foreground hover:underline"
+                >
                   Back to sign in
                 </Link>
               </p>
@@ -272,7 +297,12 @@ export default function RegisterPage() {
 
               <p className="text-center text-sm text-muted-foreground">
                 Already have an account?{" "}
-                <Link to="/login" className="font-medium text-foreground hover:underline">
+                {/* Carries the invitation across, the same way /login's
+                    "Sign up" link does — the reader may bounce either way. */}
+                <Link
+                  to={invitationId ? invitationAuthPath("/login", invitationId) : "/login"}
+                  className="font-medium text-foreground hover:underline"
+                >
                   Sign in
                 </Link>
               </p>

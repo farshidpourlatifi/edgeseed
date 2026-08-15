@@ -9,6 +9,12 @@ export default [
   // emailed link resolves against it, so the two must not drift.
   // `tests/e2e/password-reset.spec.ts` fails if they do.
   route("reset-password", "routes/reset-password.tsx"),
+  // Path is `INVITATION_ACCEPT_PATH`, owned by `@starter/auth/invitation` and
+  // re-exported from `app/lib/auth-redirects.ts`. The invitation email links
+  // straight here, so a drift between the two is a link that 404s in a mailbox
+  // where nothing can report it — `tests/e2e/invitations.spec.ts` walks the
+  // constant for exactly that reason.
+  route("accept-invitation", "routes/accept-invitation.tsx"),
   layout("routes/dashboard.tsx", [
     route("dashboard", "routes/dashboard._index.tsx"),
     route("dashboard/settings", "routes/dashboard.settings.tsx"),

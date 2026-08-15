@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./server": "./src/server.ts",
     "./client": "./src/client.ts",
+    "./invitation": "./src/invitation.ts",
     "./middleware": "./src/middleware.ts",
     "./rate-limit": "./src/rate-limit.ts"
   },

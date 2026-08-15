@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { authClient } from "~/lib/auth-client";
+import { INVITATION_PARAM, invitationAcceptPath, invitationAuthPath } from "~/lib/auth-redirects";
 import { Button } from "@starter/ui/components/ui/button";
 import {
   Card,
@@ -21,6 +22,16 @@ import { toast } from "sonner";
 import { VerificationNotice } from "~/components/auth/verification-notice";
 
 export default function LoginPage() {
+  const [searchParams] = useSearchParams();
+  /**
+   * Set when the reader arrived from an invitation they could not accept signed
+   * out. It carries an id, never a path, so `destination` can only ever be
+   * `/accept-invitation` or `/dashboard` — there is nothing here an attacker
+   * could steer at another origin.
+   */
+  const invitationId = searchParams.get(INVITATION_PARAM)?.trim();
+  const destination = invitationId ? invitationAcceptPath(invitationId) : "/dashboard";
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -50,7 +61,7 @@ export default function LoginPage() {
         }
       } else if (data) {
         toast.success("Signed in successfully");
-        window.location.href = "/dashboard";
+        window.location.href = destination;
       }
     } catch {
       setError("Sign in failed");
@@ -62,7 +73,7 @@ export default function LoginPage() {
   async function handleSocialSignIn(provider: "github" | "google") {
     await authClient.signIn.social({
       provider,
-      callbackURL: "/dashboard",
+      callbackURL: destination,
     });
   }
 
@@ -90,7 +101,9 @@ export default function LoginPage() {
         <CardContent className="space-y-6">
           {unverifiedEmail ? (
             <>
-              <VerificationNotice email={unverifiedEmail} />
+              {/* An invitee whose address is unverified resends from here, and
+                  the new link has to land back on the invitation too. */}
+              <VerificationNotice email={unverifiedEmail} callbackURL={destination} />
               <p className="text-center text-sm text-muted-foreground">
                 <button
                   type="button"
@@ -217,7 +230,12 @@ export default function LoginPage() {
 
               <p className="text-center text-sm text-muted-foreground">
                 Don&apos;t have an account?{" "}
-                <Link to="/register" className="font-medium text-foreground hover:underline">
+                {/* Carries the invitation across, or an invitee who realises
+                    they have no account loses it on the way to /register. */}
+                <Link
+                  to={invitationId ? invitationAuthPath("/register", invitationId) : "/register"}
+                  className="font-medium text-foreground hover:underline"
+                >
                   Sign up
                 </Link>
               </p>

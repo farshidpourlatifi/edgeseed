@@ -336,7 +336,10 @@ declared in both wrangler files and required by `sharedEnvSchema` — so a Worke
 missing one refuses every request rather than serving an unthrottled auth
 surface. Per IP and path, per 60 seconds: **mail 3** (`/sign-up/email`,
 `/send-verification-email`, `/request-password-reset`, `/forget-password`,
-`/change-email`), **credentials 10** (`/sign-in/**`, `/reset-password`,
+`/change-email`, and — added 2026-08-15 with #35 —
+`/organization/invite-member`, which covers resend too, since `resend: true` is
+a body flag on that same endpoint rather than a second path),
+**credentials 10** (`/sign-in/**`, `/reset-password`,
 `/change-password`), and
 **default 120** for everything else under `/api/auth`, so an endpoint a future
 Better Auth version adds arrives limited rather than unlimited.

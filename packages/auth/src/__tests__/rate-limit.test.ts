@@ -90,6 +90,37 @@ describe("rate limit policy", () => {
   });
 
   /**
+   * Invitations, which are the second time that judgement has been made.
+   *
+   * They are authenticated *and* permission-checked, so they are not the
+   * unauthenticated abuse the class was built for — but a compromised admin
+   * session pointed at a list of addresses spends the sending reputation just
+   * as fast, and that is the cost `mail` bounds. Left in `default` they would
+   * sit at 120/60s, which is not a limit on outbound mail in any useful sense.
+   *
+   * **Resend is asserted through the same prefix on purpose**: `resend: true` is
+   * a body flag on `/organization/invite-member`, not a second endpoint, so one
+   * classifier covers both and a test naming a separate resend path would be
+   * asserting on a URL that does not exist.
+   */
+  it("counts organization invitations, and their resends, against the mail class", () => {
+    expect(rateLimitClassFor("/organization/invite-member")).toBe("mail");
+  });
+
+  /**
+   * The deny path for that entry: it must not drag the rest of the organization
+   * surface into the strict bucket. Creating an org, switching the active one
+   * and listing members send no mail, and 3/60s would make the dashboard
+   * unusable.
+   */
+  it("leaves the rest of the organization surface in the default class", () => {
+    expect(rateLimitClassFor("/organization/create")).toBe("default");
+    expect(rateLimitClassFor("/organization/set-active")).toBe("default");
+    expect(rateLimitClassFor("/organization/accept-invitation")).toBe("default");
+    expect(rateLimitClassFor("/organization/list-invitations")).toBe("default");
+  });
+
+  /**
    * Every remaining entry in `CLASSIFIERS`, stated independently of the table.
    * Without these, a classifier can be deleted outright and nothing goes red —
    * which is how `/change-email` came to be missing from the audit's own

@@ -103,9 +103,9 @@ same-named secret at deploy time, so never set both.)
 - everything else is served where it arrived
 
 App paths are an allowlist — `APP_PATH_PREFIXES` in that file, currently
-`/login`, `/register`, `/forgot-password`, `/reset-password`, `/dashboard`,
-`/api`. Add to it when you add a route that belongs to the product rather than
-the marketing site.
+`/login`, `/register`, `/forgot-password`, `/reset-password`,
+`/accept-invitation`, `/dashboard`, `/api`. Add to it when you add a route that
+belongs to the product rather than the marketing site.
 
 Forgetting is not a cosmetic bug. An app route missing from this list is
 **served** on the marketing origin instead of redirected, and the page's own

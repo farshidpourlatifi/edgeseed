@@ -25,6 +25,11 @@ export const APP_PATH_PREFIXES = [
   "/register",
   "/forgot-password",
   "/reset-password",
+  // The invitation link is absolute and already names the app origin, so this
+  // entry is not what makes the happy path work. It is what catches the reader
+  // who reaches the marketing host anyway — a forwarded link, a mail client
+  // rewriting the host, a bookmark from before the split.
+  "/accept-invitation",
   "/dashboard",
   "/api",
 ] as const;
