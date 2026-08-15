@@ -74,6 +74,16 @@ async function signIn(page: Page) {
 const sidebar = (page: Page) => page.getByRole("complementary");
 const content = (page: Page) => page.getByRole("main");
 
+/**
+ * The switcher's trigger is labelled with whichever organization is active, and
+ * a **fresh session has none** — better-auth sets `activeOrganizationId` when an
+ * organization is created, not when a session is, so `dashboard.tsx` falls back
+ * to the first in the list. Matching either name keeps a spec that only needs to
+ * *open* the switcher from depending on that fallback, or on the order
+ * `listOrganizations` happens to return.
+ */
+const activeOrgName = new RegExp(`${ORG.name}|${SECOND_ORG.name}`);
+
 test.describe("organization creation", () => {
   test("a new account creates its first organization with no seeded data", async ({ page }) => {
     await signIn(page);
@@ -173,12 +183,50 @@ test.describe("organization creation", () => {
     // Recoverable: fixing the slug clears the error and the create goes through.
     await slugField.fill(SECOND_ORG.slug);
     await expect(dialog.getByRole("alert")).toHaveCount(0);
+    await expect(slugField).not.toHaveAttribute("aria-invalid", "true");
     await submit.click();
 
     await expect(dialog).toBeHidden({ timeout: 15000 });
     await expect(
       sidebar(page).getByRole("button", { name: new RegExp(SECOND_ORG.name) }),
     ).toBeVisible({ timeout: 15000 });
+  });
+
+  /**
+   * The error belongs to a slug, not to the form. Editing the **name** moves
+   * the suggested slug just as surely as editing the slug does, so a refusal
+   * raised against the old suggestion must not go on describing the new one —
+   * it named a slug that was no longer being submitted, while submit stayed
+   * enabled. Only reachable on a still-suggested slug, so this collides
+   * without touching the slug field at all.
+   */
+  test("a collision stops describing a slug the name has moved away from", async ({ page }) => {
+    await signIn(page);
+
+    await sidebar(page).getByRole("button", { name: activeOrgName }).click();
+    await page.getByRole("menuitem", { name: /create organization/i }).click();
+
+    const dialog = page.getByRole("dialog");
+    const nameField = dialog.getByLabel("Name", { exact: true });
+    const slugField = dialog.getByLabel("Slug", { exact: true });
+    const submit = dialog.getByRole("button", { name: "Create organization" });
+
+    // The name alone suggests a slug that is already taken.
+    await nameField.fill(ORG.name);
+    await expect(slugField).toHaveValue(ORG.slug);
+    await submit.click();
+    await expect(dialog.getByRole("alert")).toContainText(/already taken/i, { timeout: 15000 });
+
+    // Renaming moves the suggestion to a free slug; the refusal must go with it.
+    await nameField.fill("Southwind Freight");
+    await expect(slugField).toHaveValue("southwind-freight");
+    await expect(dialog.getByRole("alert")).toHaveCount(0);
+    await expect(slugField).not.toHaveAttribute("aria-invalid", "true");
+
+    // And it comes back if the name lands on the taken slug again, rather than
+    // waiting for a submit to rediscover it.
+    await nameField.fill(ORG.name);
+    await expect(dialog.getByRole("alert")).toContainText(/already taken/i);
   });
 
   test("an unauthenticated caller cannot create an organization", async ({ request }) => {

@@ -72,7 +72,15 @@ export function CreateOrganizationDialog({
    * flag exists to avoid.
    */
   const [slugTouched, setSlugTouched] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  /**
+   * The last refusal, **and the slug it was about**. Kept as a pair rather than
+   * a bare message so the error can be derived instead of cleared: a message
+   * that has to be cleared by hand is cleared by whichever handler remembered
+   * to, and the name field — which moves the suggested slug just as surely as
+   * the slug field does — did not. The alert then went on naming a slug that
+   * was no longer the one being submitted, with submit still enabled.
+   */
+  const [failure, setFailure] = useState<{ slug: string; message: string } | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
   const trimmedName = name.trim();
@@ -100,12 +108,19 @@ export function CreateOrganizationDialog({
    */
   const submittedSlug = slugify(displayedSlug);
   const canSubmit = trimmedName.length > 0 && submittedSlug.length > 0;
+  /**
+   * Shown only while it still describes what would be sent. Deriving it means
+   * the message and the field cannot disagree, whichever input moved — and a
+   * user who types a taken slug back in is told again, rather than having to
+   * resubmit to rediscover it.
+   */
+  const error = failure?.slug === submittedSlug ? failure.message : null;
 
   function reset() {
     setName("");
     setSlug("");
     setSlugTouched(false);
-    setError(null);
+    setFailure(null);
   }
 
   /**
@@ -134,7 +149,7 @@ export function CreateOrganizationDialog({
     if (!canSubmit || isCreating) return;
 
     setIsCreating(true);
-    setError(null);
+    setFailure(null);
     try {
       const { error: createError } = await authClient.organization.create({
         name: trimmedName,
@@ -142,11 +157,13 @@ export function CreateOrganizationDialog({
       });
 
       if (createError) {
-        setError(
-          createError.code === SLUG_TAKEN
-            ? "That slug is already taken. Try another."
-            : (createError.message ?? "Could not create the organization"),
-        );
+        setFailure({
+          slug: submittedSlug,
+          message:
+            createError.code === SLUG_TAKEN
+              ? "That slug is already taken. Try another."
+              : (createError.message ?? "Could not create the organization"),
+        });
         return;
       }
 
@@ -195,7 +212,6 @@ export function CreateOrganizationDialog({
               onChange={(e) => {
                 setSlugTouched(true);
                 setSlug(e.target.value);
-                setError(null);
               }}
               onBlur={handleSlugBlur}
               disabled={isCreating}
