@@ -2,6 +2,8 @@ import { Cloud, GitBranch, Globe, ShieldCheck, Tag, Terminal } from "lucide-reac
 
 import { PRODUCT_NAME } from "@starter/config/product";
 
+import { DEMO_VIDEO } from "./demo";
+
 /**
  * The end-to-end walkthrough film — the one artefact that proves the pitch.
  *
@@ -25,10 +27,12 @@ import { PRODUCT_NAME } from "@starter/config/product";
  *   says what the film shows for anyone who will not or cannot play it, and
  *   `aria-label` names the video for assistive tech.
  *
- * Identity is derived (`PRODUCT_NAME`), and the asset lives at a generic
- * `/demo.*` path, so `pnpm init:product` rebrands the page without touching
- * this file and a downstream clone swaps its own film in by replacing two files
- * in `public/`.
+ * Identity is derived (`PRODUCT_NAME`), and the film itself is **gated**: it is
+ * EdgeSeed-branded pixels no rebrand can rewrite, so the section renders only
+ * when the product declares one via `PRODUCT_DEMO_VIDEO` (`./demo.ts`), which
+ * `init:product` clears like `PRODUCT_REPO_URL`. A clone gets no section — and
+ * can delete the two `public/demo.*` files — rather than republishing the
+ * starter's identity on its own landing page (issue #32).
  */
 const chapters = [
   { icon: Globe, text: "Starts on this landing page." },
@@ -43,6 +47,10 @@ const chapters = [
 ] as const;
 
 export function DemoVideo() {
+  // Absent, not disabled, when the product ships no film — a clone renders
+  // nothing here rather than the starter's branded walkthrough (issue #32).
+  if (!DEMO_VIDEO) return null;
+
   return (
     <section id="demo" className="scroll-mt-16 border-b bg-muted/30">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-12 px-4 py-20 sm:px-6 md:py-24">
@@ -68,10 +76,10 @@ export function DemoVideo() {
                 controls
                 preload="none"
                 playsInline
-                poster="/demo-poster.webp"
+                poster={DEMO_VIDEO.poster}
                 aria-label={`${PRODUCT_NAME} walkthrough: from git clone to a deployed Cloudflare Worker`}
               >
-                <source src="/demo.mp4" type="video/mp4" />
+                <source src={DEMO_VIDEO.src} type="video/mp4" />
                 {/* Shown only by a browser that cannot play the source at all —
                     the chapter list beside it carries the actual content. */}
                 Your browser can't play this video. It walks through {PRODUCT_NAME} from git clone

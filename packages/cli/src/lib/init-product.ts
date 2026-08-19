@@ -242,6 +242,37 @@ export function stampProductRepo(source: string, repoUrl: string): string {
 }
 
 /**
+ * The demo-video path currently stamped in `product.ts`.
+ *
+ * Read for the same reason as `currentProductRepo`: the script verifies its own
+ * clear through this, so a reformatted declaration fails loudly instead of
+ * leaving the clone's landing page playing the starter's branded film — the
+ * MP4-shaped version of the issue #32 leak, which no other rewrite can catch.
+ */
+export function currentProductDemoVideo(productSource: string): string | null {
+  return productSource.match(/export const PRODUCT_DEMO_VIDEO = "([^"]*)"/)?.[1] ?? null;
+}
+
+/**
+ * Clear `PRODUCT_DEMO_VIDEO` in `packages/config/src/product.ts`.
+ *
+ * Always cleared, never restamped: unlike the repo URL there is no `--repo`
+ * equivalent, because the film is EdgeSeed-branded pixels a clone cannot inherit
+ * meaningfully. Empty makes the landing page drop the whole section (`demo.ts`
+ * returns `null`), so a clone that forgets to add its own ships one fewer
+ * section — never the starter's walkthrough on its own product (issue #32).
+ *
+ * A function replacement for the `$&`/`$1` reason `stampProductRepo` documents,
+ * though the value here is a constant.
+ */
+export function stampProductDemoVideo(source: string): string {
+  return source.replace(
+    /export const PRODUCT_DEMO_VIDEO = "[^"]*"/,
+    () => `export const PRODUCT_DEMO_VIDEO = ""`,
+  );
+}
+
+/**
  * Rewrite a `wrangler.jsonc`: rename the Worker, localise the database name and
  * id, and remove any custom domain.
  *

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it, expect } from "vitest";
 import {
+  currentProductDemoVideo,
   currentProductRepo,
   currentProductSlug,
   deriveDisplayName,
@@ -10,6 +11,7 @@ import {
   parseInitArgs,
   redactForMessage,
   UNVERIFIABLE_VALUE,
+  stampProductDemoVideo,
   stampProductIdentity,
   stampProductRepo,
   stampWranglerConfig,
@@ -219,6 +221,66 @@ describe("stampProductRepo", () => {
 
     expect(currentProductSlug(out)).toBe("acme");
     expect(currentProductRepo(out)).toBe("");
+  });
+});
+
+describe("currentProductDemoVideo", () => {
+  it("reads the path the script will verify against", () => {
+    expect(currentProductDemoVideo('export const PRODUCT_DEMO_VIDEO = "/demo.mp4";')).toBe(
+      "/demo.mp4",
+    );
+  });
+
+  it("reads the empty default a clone is left with", () => {
+    expect(currentProductDemoVideo('export const PRODUCT_DEMO_VIDEO = "";')).toBe("");
+  });
+
+  it("returns null when the declaration is missing", () => {
+    expect(currentProductDemoVideo('export const PRODUCT_SLUG = "acme";')).toBeNull();
+  });
+
+  // Distinguishing "" from null is what lets the script tell a successful clear
+  // from a rewrite that silently matched nothing — the check that keeps the
+  // starter's branded film off a clone's landing page.
+  it("returns null rather than empty when the declaration is reformatted", () => {
+    expect(currentProductDemoVideo("export const PRODUCT_DEMO_VIDEO = '';")).toBeNull();
+  });
+});
+
+describe("stampProductDemoVideo", () => {
+  const source = 'export const PRODUCT_DEMO_VIDEO = "/demo.mp4";';
+
+  it("clears the starter's film so a clone ships no section", () => {
+    const out = stampProductDemoVideo(source);
+
+    expect(out).toBe('export const PRODUCT_DEMO_VIDEO = "";');
+    expect(out).not.toContain("/demo.mp4");
+  });
+
+  it("is idempotent on an already-cleared declaration", () => {
+    const cleared = 'export const PRODUCT_DEMO_VIDEO = "";';
+    expect(stampProductDemoVideo(cleared)).toBe(cleared);
+  });
+
+  it("round-trips to empty through currentProductDemoVideo", () => {
+    expect(currentProductDemoVideo(stampProductDemoVideo(source))).toBe("");
+  });
+
+  it("composes with the identity and repo stamps without either undoing another", () => {
+    const product = [
+      'export const PRODUCT_NAME = "Starter";',
+      'export const PRODUCT_SLUG = "starter";',
+      'export const PRODUCT_REPO_URL = "https://github.com/upstream/starter";',
+      'export const PRODUCT_DEMO_VIDEO = "/demo.mp4";',
+    ].join("\n");
+
+    const out = stampProductDemoVideo(
+      stampProductRepo(stampProductIdentity(product, { slug: "acme", displayName: "Acme" }), ""),
+    );
+
+    expect(currentProductSlug(out)).toBe("acme");
+    expect(currentProductRepo(out)).toBe("");
+    expect(currentProductDemoVideo(out)).toBe("");
   });
 });
 

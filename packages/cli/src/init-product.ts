@@ -8,10 +8,12 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import {
+  currentProductDemoVideo,
   currentProductRepo,
   currentProductSlug,
   INIT_USAGE,
   parseInitArgs,
+  stampProductDemoVideo,
   stampProductIdentity,
   stampProductRepo,
   stampWranglerConfig,
@@ -54,7 +56,9 @@ rewrite("package.json", (c) =>
 );
 
 rewrite(PRODUCT_FILE, (c) =>
-  stampProductRepo(stampProductIdentity(c, { slug: name, displayName }), repoUrl),
+  stampProductDemoVideo(
+    stampProductRepo(stampProductIdentity(c, { slug: name, displayName }), repoUrl),
+  ),
 );
 
 // Read the file back and prove the stamps landed. Every rewrite here is a
@@ -67,16 +71,19 @@ rewrite(PRODUCT_FILE, (c) =>
 const stamped = readFileSync(PRODUCT_FILE, "utf8");
 const stampedSlug = currentProductSlug(stamped);
 const stampedRepo = currentProductRepo(stamped);
+const stampedDemo = currentProductDemoVideo(stamped);
 
-if (stampedSlug !== name || stampedRepo !== repoUrl) {
+if (stampedSlug !== name || stampedRepo !== repoUrl || stampedDemo !== "") {
   console.error(`
 Stamping ${PRODUCT_FILE} did not take effect:
-  PRODUCT_SLUG      expected ${JSON.stringify(name)}, found ${JSON.stringify(stampedSlug)}
-  PRODUCT_REPO_URL  expected ${JSON.stringify(repoUrl)}, found ${JSON.stringify(stampedRepo)}
+  PRODUCT_SLUG       expected ${JSON.stringify(name)}, found ${JSON.stringify(stampedSlug)}
+  PRODUCT_REPO_URL   expected ${JSON.stringify(repoUrl)}, found ${JSON.stringify(stampedRepo)}
+  PRODUCT_DEMO_VIDEO expected "", found ${JSON.stringify(stampedDemo)}
 
-Both are rewritten by regex against the declarations as written. Restore them to
+All are rewritten by regex against the declarations as written. Restore them to
 the one-line \`export const NAME = "value";\` form and re-run — do not leave this
-half-stamped, or the clone keeps the starter's identity.`);
+half-stamped, or the clone keeps the starter's identity (a stale PRODUCT_DEMO_VIDEO
+plays the starter's branded film on your own landing page).`);
   process.exit(1);
 }
 
@@ -144,6 +151,12 @@ ${
 The landing page under apps/web/app/components/landing/ is starter marketing.
 Every reference to the starter's own identity is now derived — but the copy is
 still about the starter, so replace it with your product's when you have one.
+
+The demo-video section is now hidden: PRODUCT_DEMO_VIDEO was cleared, since the
+film is EdgeSeed-branded footage no rename can rewrite. Delete
+apps/web/public/demo.mp4 and demo-poster.webp, or record your own walkthrough,
+drop it in as /your-film.mp4 (+ /your-film-poster.webp), and set
+PRODUCT_DEMO_VIDEO to it in packages/config/src/product.ts.
 
 Only if you deploy this alongside another product in the SAME Cloudflare
 account: change the namespace_id values under "ratelimits" in both wrangler
