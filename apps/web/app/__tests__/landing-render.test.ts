@@ -157,3 +157,44 @@ describe("a product that declares a repository", () => {
     expect(html).not.toContain("git clone");
   });
 });
+
+/**
+ * The demo-video section is product-owned, and its absence is the point.
+ *
+ * The film is EdgeSeed-branded footage no rename can rewrite, so the section
+ * renders only when the product declares one via `PRODUCT_DEMO_VIDEO` — cleared
+ * by `init:product`. A component that hardcoded the `<video>` would pass
+ * `landing-demo.test.ts` (which only tests the helper), so this renders the
+ * component against a mocked-empty constant — the same thing this file does for
+ * the repository affordances, and the only check that catches a gate the
+ * component forgets to apply (issue #32).
+ */
+async function renderDemo(demoVideo: string): Promise<string> {
+  vi.resetModules();
+  vi.doMock("@starter/config/product", () => ({
+    PRODUCT_NAME: "Acme Cloud",
+    PRODUCT_SLUG: "acme-cloud",
+    MCP_SERVER_NAME: "Acme Cloud MCP",
+    PRODUCT_REPO_URL: "",
+    PRODUCT_DEMO_VIDEO: demoVideo,
+  }));
+
+  const { DemoVideo } = await import("../components/landing/demo-video");
+  return renderToStaticMarkup(createElement(DemoVideo));
+}
+
+describe("a product that declares no demo film", () => {
+  it("renders no demo section at all", async () => {
+    expect(await renderDemo("")).toBe("");
+  });
+});
+
+describe("a product that declares a demo film", () => {
+  it("renders the section, its source and its poster", async () => {
+    const html = await renderDemo("/demo.mp4");
+
+    expect(html).toContain("Watch it go from clone to deployed");
+    expect(html).toContain('src="/demo.mp4"');
+    expect(html).toContain('poster="/demo-poster.webp"');
+  });
+});

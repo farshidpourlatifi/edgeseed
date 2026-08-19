@@ -16,9 +16,9 @@ OAuth 2.1-gated MCP server — wired together with tests, quality gates and gate
 **[Live demo → edgeseed.dev](https://edgeseed.dev)** · the app itself runs at
 [app.edgeseed.dev](https://app.edgeseed.dev), and this repository is what deployed it.
 
-|                    Landing — dark                    |                   Signed in — light                    |
-| :--------------------------------------------------: | :----------------------------------------------------: |
-| ![EdgeSeed landing page](./docs/assets/landing.webp) | ![EdgeSeed settings page](./docs/assets/settings.webp) |
+|                      Landing — dark                       |                     Signed in — light                     |
+| :-------------------------------------------------------: | :-------------------------------------------------------: |
+| ![EdgeSeed landing page](./docs/assets/landing-dark.webp) | ![EdgeSeed dashboard](./docs/assets/dashboard-light.webp) |
 
 One shot per theme on purpose: light, dark and system all ship, driven by CSS variables
 and a cookie — no flash of the wrong theme on first paint.
@@ -71,6 +71,23 @@ Stated up front, because finding these after adopting a starter is worse than re
 - **No downstream product has battle-tested this yet** (as of 2026-08). The starter
   deploys itself to production — that is what the live badge shows — but nothing with
   real users runs on it. Treat it as young.
+
+## See it in action
+
+### One command to your own product
+
+`pnpm init:product borealis` rewrites the product name across the app, both Worker
+names and both database names — the landing page included:
+
+![pnpm init:product borealis](./docs/assets/init-product.gif)
+
+![Borealis landing page after init:product](./docs/assets/new-product-landing-light.webp)
+
+### Running locally
+
+Both Workers on your machine, serving requests against a local D1:
+
+![Local dev servers](./docs/assets/dev.gif)
 
 ## Quick start
 

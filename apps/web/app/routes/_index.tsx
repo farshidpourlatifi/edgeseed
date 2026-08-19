@@ -1,5 +1,6 @@
 import { SiteHeader } from "~/components/landing/site-header";
 import { Hero } from "~/components/landing/hero";
+import { DemoVideo } from "~/components/landing/demo-video";
 import { Features } from "~/components/landing/features";
 import { Surfaces } from "~/components/landing/surfaces";
 import { Architecture } from "~/components/landing/architecture";
@@ -26,6 +27,7 @@ export default function HomePage() {
       <SiteHeader />
       <main className="flex-1">
         <Hero />
+        <DemoVideo />
         <Features />
         <Surfaces />
         <Architecture />
