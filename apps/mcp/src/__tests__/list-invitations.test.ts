@@ -215,4 +215,22 @@ describe("list_invitations tool", () => {
   it("takes a target and a window, and nothing that names a person", () => {
     expect(Object.keys(register(ANA).shape).sort()).toEqual(["limit", "offset", "organizationId"]);
   });
+
+  /**
+   * The regression test for a suite that would have failed on a date.
+   *
+   * `listPendingInvitations` filters on `expiresAt > new Date()`, and the
+   * fixture seeds expiries relative to a fixed `NOW` — so with a live clock
+   * these rows silently expire on 2026-08-26 and every assertion above starts
+   * failing for a reason nothing in the diff explains. Extending the expiry
+   * would only move that date; the fixture freezes `Date` instead, and this
+   * asserts the freeze wins over whatever the machine says.
+   */
+  it("reads the same under a wall clock years past the seeded expiry", async () => {
+    fixture.close();
+    vi.useFakeTimers({ now: new Date("2031-01-01T00:00:00.000Z"), toFake: ["Date"] });
+    fixture = seedOrganizations();
+
+    await expect(payload(ANA, { organizationId: ORG })).resolves.toMatchObject({ total: 2 });
+  });
 });

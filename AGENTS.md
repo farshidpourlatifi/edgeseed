@@ -594,6 +594,12 @@ only thing standing between this rule and a silent regression on a version bump.
 - **A capability that maps to a Better Auth permission needs the role table to
   agree**, and `organization.test.ts` asserts every role × capability pair
   against `authorize()` so it cannot quietly not.
+- **A capability-gated _read_ carries the capability into its query**, not just
+  into the route above it. `callerIsMember` takes an optional `capability` and
+  the invitation reads pass one, derived through `rolesGranting()` — the same
+  "guard where the data is read" rule that put membership in the clause, applied
+  to the role, since a demotion between the `can()` call and the read would
+  otherwise still return the addresses.
 - **The last-owner rule is state, not rank.** Better Auth enforces it on leave,
   demote and remove; the page reads `countOwners` so it can say so in advance
   rather than offering a control that fails.

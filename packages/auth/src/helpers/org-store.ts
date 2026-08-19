@@ -1,7 +1,7 @@
-import { and, asc, count, desc, eq, exists, gt } from "drizzle-orm";
+import { and, asc, count, desc, eq, exists, gt, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { invitation, member, organization, user, type Database } from "@starter/db";
-import { ROLES } from "./roles";
+import { ROLES, rolesGranting, type OrgCapability } from "./roles";
 
 /** The row a page needs to know *which* organization it is looking at, and as whom. */
 export interface Membership {
@@ -154,15 +154,40 @@ export async function countOwners(
  * **The alias is load-bearing**, not tidiness: `listOrganizationMembers` selects
  * from `member` and would otherwise join the subquery's `member` to its own,
  * turning the guard into a tautology.
+ *
+ * **`capability` narrows it to "…and their role still permits this", in the same
+ * statement.** A route that calls `can()` first and reads second is guarding one
+ * layer up, which is the thing this helper exists to avoid: the role it checked
+ * is a value read in an earlier query, and a demotion landing between the two
+ * leaves the read returning rows the caller may no longer see. Membership had
+ * exactly this problem and was fixed exactly this way — the role is simply the
+ * other half of the same row.
+ *
+ * It does not make the `can()` call at the route redundant, and is not meant to:
+ * that one decides which refusal the caller *hears* and keeps a doomed request
+ * from costing a round trip. This one decides what the database hands back.
+ * Omit `capability` where the read needs membership alone — the member roster is
+ * readable by every member, so `listOrganizationMembers` passes nothing.
  */
-function callerIsMember(db: Database, input: { userId: string; organizationId: string }) {
+function callerIsMember(
+  db: Database,
+  input: { userId: string; organizationId: string; capability?: OrgCapability },
+) {
   const viewer = alias(member, "viewer");
 
   return exists(
     db
       .select({ one: viewer.id })
       .from(viewer)
-      .where(and(eq(viewer.organizationId, input.organizationId), eq(viewer.userId, input.userId))),
+      .where(
+        and(
+          eq(viewer.organizationId, input.organizationId),
+          eq(viewer.userId, input.userId),
+          // Derived from `ORG_CAPABILITIES`, never an `IN ('owner','admin')`
+          // literal — a second copy of the matrix that stops moving with it.
+          ...(input.capability ? [inArray(viewer.role, rolesGranting(input.capability))] : []),
+        ),
+      ),
   );
 }
 
@@ -393,7 +418,7 @@ export async function findPendingInvitation(
       and(
         eq(invitation.id, input.invitationId),
         pendingIn(input.organizationId, input.now),
-        callerIsMember(db, input),
+        callerIsMember(db, { ...input, capability: "revokeInvitation" }),
       ),
     )
     .limit(1);
@@ -444,7 +469,10 @@ export async function listPendingInvitations(
     now?: Date;
   },
 ): Promise<Page<PendingInvitationSummary>> {
-  const scope = and(pendingIn(input.organizationId, input.now), callerIsMember(db, input));
+  const scope = and(
+    pendingIn(input.organizationId, input.now),
+    callerIsMember(db, { ...input, capability: "readInvitations" }),
+  );
 
   const [rows, totals] = await Promise.all([
     db

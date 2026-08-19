@@ -30,3 +30,8 @@ never re-introduce.
 ## Testing
 
 - No coverage target — these helpers are validated by every suite that uses them.
+- **`fake-d1.ts` is the exception and has its own tests** (`__tests__/fake-d1.test.ts`).
+  It is typed as a `D1Database`, so its shapes are a promise to every consumer —
+  and `first(columnName)` / `raw({ columnNames: true })` are called by no suite
+  here, so nothing else would notice them drifting from what D1 answers. A double
+  nobody checks is a double that can lie.

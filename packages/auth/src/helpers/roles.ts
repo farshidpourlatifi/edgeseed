@@ -90,6 +90,23 @@ export function can(userRole: string, capability: OrgCapability): boolean {
 }
 
 /**
+ * Every role that `can()` answers `true` for — the matrix read backwards.
+ *
+ * Exists so a **query** can enforce a capability without restating who holds
+ * it. `can(role, capability)` answers one role at a time, which is all a render
+ * or a route needs; a `WHERE` clause needs the set, and the alternative is an
+ * `IN ('owner','admin')` literal in SQL that no longer moves when
+ * `ORG_CAPABILITIES` does.
+ *
+ * Derived from `ROLES` through `can()` rather than listed, so it inherits the
+ * hierarchy — and inherits failing closed with it: a capability nobody holds
+ * yields an empty set, which matches nothing rather than everything.
+ */
+export function rolesGranting(capability: OrgCapability): Role[] {
+  return Object.values(ROLES).filter((role) => can(role, capability));
+}
+
+/**
  * The refusal code for an invitation that tried to hand out `owner`.
  *
  * A statement about the matrix, so it lives with it rather than beside the hook

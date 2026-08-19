@@ -1,3 +1,4 @@
+import { vi } from "vitest";
 import { createDb } from "@starter/db";
 import { createFakeD1, epochSeconds } from "@starter/testing/fake-d1";
 import { createFakeEnv } from "@starter/testing/fake-env";
@@ -25,6 +26,18 @@ export const OTHER_ORG = "org_holdings";
 export const NO_SUCH_ORG = "org_does_not_exist";
 
 const DAY = 24 * 60 * 60 * 1000;
+/**
+ * The instant this whole fixture is written from — seeded rows, asserted
+ * timestamps and the clock the code under test reads, all the same value.
+ *
+ * **`seedOrganizations` freezes `Date` to it, and `close()` restores the real
+ * one.** Not tidiness: `listPendingInvitations` filters on
+ * `expiresAt > now ?? new Date()`, so with a live clock the seeded pending
+ * invitations below expire on 2026-08-26 and this suite starts failing on a
+ * date rather than on a change. Extending `FUTURE` would only move the bomb;
+ * freezing removes it, and keeps the fixed ISO strings the assertions use
+ * honest at the same time.
+ */
 const NOW = new Date("2026-08-19T00:00:00.000Z");
 export const FUTURE = new Date(NOW.getTime() + 7 * DAY);
 export const PAST = new Date(NOW.getTime() - DAY);
@@ -32,6 +45,17 @@ export const PAST = new Date(NOW.getTime() - DAY);
 export type Fixture = ReturnType<typeof seedOrganizations>;
 
 export function seedOrganizations() {
+  // Only `Date` is faked — faking timers as well would stall anything in the
+  // stack that schedules one, and nothing here needs them advanced.
+  //
+  // `setSystemTime` rather than the `now` option, and that is load-bearing:
+  // `useFakeTimers({ now })` does **not** re-apply `now` when a fake clock is
+  // already installed, so a re-seed inside a test would silently keep the
+  // previous instant. The regression test at the foot of
+  // `list-invitations.test.ts` was red against the `now` form.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
+
   const d1 = createFakeD1();
 
   const addUser = (user: McpProps, name: string) =>
@@ -110,6 +134,10 @@ export function seedOrganizations() {
       const env = createFakeEnv({ DB: d1 });
       return { db: createDb(env.DB as D1Database), user };
     },
-    close: () => d1.close(),
+    /** Every test calls this in `afterEach` — it releases the frozen clock too. */
+    close: () => {
+      vi.useRealTimers();
+      d1.close();
+    },
   };
 }

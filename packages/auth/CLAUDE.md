@@ -144,6 +144,17 @@ holds the reasoning, including why KV and `secondaryStorage` were both rejected.
   read. **The `alias` inside it is load-bearing** — `listOrganizationMembers`
   selects from `member`, so an un-aliased subquery would join to its own row and
   the guard would be a tautology.
+- **Its optional `capability` is the same argument applied to the role.** A route
+  that calls `can()` and then reads is guarding one layer up: the role it checked
+  came from an earlier statement, so a demotion landing between the two leaves the
+  read returning rows the caller may no longer see. Both invitation reads
+  (`listPendingInvitations`, `findPendingInvitation`) therefore carry the
+  capability into the `WHERE` clause, derived through `rolesGranting()` so the
+  matrix stays the only copy — never an `IN ('owner','admin')` literal. It does
+  **not** make the route's `can()` redundant: that decides which refusal the
+  caller hears and saves a doomed round trip, while this decides what D1 hands
+  back. Reads needing membership alone pass no capability, because the member
+  roster is readable by every member.
 - **`listOrganizationsForMember` exists because Better Auth's own list is both
   session-bound and unbounded.** `/organization/list-organizations` sits behind
   `orgSessionMiddleware`, so it can only answer a caller holding a cookie — and

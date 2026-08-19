@@ -29,6 +29,7 @@ export {
   PRODUCT_REFUSAL_CODES,
   can,
   hasRole,
+  rolesGranting,
 } from "./helpers/roles";
 export type { OrgCapability, Role } from "./helpers/roles";
 export { PAGE_SIZE } from "./pagination";

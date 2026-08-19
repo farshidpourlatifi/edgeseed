@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createDb, type Database } from "@starter/db";
 import { createFakeD1, epochSeconds } from "@starter/testing/fake-d1";
-import { listOrganizationsForMember } from "../helpers/org-store";
+import {
+  findPendingInvitation,
+  listOrganizationsForMember,
+  listPendingInvitations,
+} from "../helpers/org-store";
+import { ORG_CAPABILITIES, ROLES, can, rolesGranting } from "../helpers/roles";
 import { PAGE_SIZE } from "../pagination";
 
 /**
@@ -204,5 +209,138 @@ describe("listOrganizationsForMember", () => {
         "extra_1",
       ]);
     });
+  });
+});
+
+/**
+ * The capability guard, enforced by the query rather than by the caller.
+ *
+ * A route that calls `can()` and then reads is guarding one layer up: the role
+ * it checked came from an earlier statement, so a demotion landing between the
+ * two leaves the read returning invitation addresses the caller may no longer
+ * see. These assert the refusal comes from the `WHERE` clause — the caller here
+ * never calls `can()` at all, which is exactly the state a mid-flight demotion
+ * produces.
+ */
+describe("capability enforcement inside the invitation queries", () => {
+  const PENDING_UNTIL = new Date("2026-08-26T00:00:00.000Z");
+
+  function addInvitation(id: string, organizationId: string) {
+    d1.insert("invitation", {
+      id,
+      organizationId,
+      email: `${id}@example.com`,
+      role: "member",
+      status: "pending",
+      inviterId: "ana",
+      expiresAt: epochSeconds(PENDING_UNTIL),
+      createdAt: epochSeconds(NOW),
+    });
+  }
+
+  /** `now` is injected, so "pending" is a value the test picks, not the clock. */
+  const invitations = (userId: string) =>
+    listPendingInvitations(db, {
+      userId,
+      organizationId: "trading",
+      limit: PAGE_SIZE,
+      offset: 0,
+      now: NOW,
+    });
+
+  beforeEach(() => {
+    addInvitation("inv_1", "trading");
+    addInvitation("inv_2", "trading");
+  });
+
+  it.each(Object.values(ROLES))("answers a %s what the matrix says it may see", async (role) => {
+    d1.insert("member", {
+      id: `mem_${role}`,
+      organizationId: "trading",
+      userId: "dia",
+      role,
+      createdAt: epochSeconds(NOW),
+    });
+
+    const page = await invitations("dia");
+
+    expect(page.total).toBe(can(role, "readInvitations") ? 2 : 0);
+  });
+
+  /*
+   * The race, made deterministic: the rows are read by somebody who is a member
+   * of the organization and holds a role that does not permit it. No `can()`
+   * call stands between them and the query — which is the state a demotion
+   * lands the caller in — and the query is what refuses.
+   */
+  it("returns no addresses to a demoted admin, with no can() call in the way", async () => {
+    d1.insert("member", {
+      id: "mem_demoted",
+      organizationId: "trading",
+      userId: "dia",
+      role: ROLES.member,
+      createdAt: epochSeconds(NOW),
+    });
+
+    const page = await invitations("dia");
+
+    expect(page).toEqual({ rows: [], total: 0 });
+  });
+
+  it("hides the count as well as the rows", async () => {
+    d1.insert("member", {
+      id: "mem_plain",
+      organizationId: "trading",
+      userId: "dia",
+      role: ROLES.member,
+      createdAt: epochSeconds(NOW),
+    });
+
+    // A total leaking past an empty page would report how many addresses exist
+    // to somebody refused the addresses themselves.
+    expect((await invitations("dia")).total).toBe(0);
+  });
+
+  // Same rows, reached through the revoke path's target lookup.
+  it.each(Object.values(ROLES))(
+    "resolves a revoke target only for %s if permitted",
+    async (role) => {
+      d1.insert("member", {
+        id: `mem_rev_${role}`,
+        organizationId: "trading",
+        userId: "dia",
+        role,
+        createdAt: epochSeconds(NOW),
+      });
+
+      const found = await findPendingInvitation(db, {
+        userId: "dia",
+        organizationId: "trading",
+        invitationId: "inv_1",
+        now: NOW,
+      });
+
+      expect(found === null).toBe(!can(role, "revokeInvitation"));
+    },
+  );
+});
+
+describe("rolesGranting", () => {
+  it("is the matrix read backwards, not a second copy of it", () => {
+    for (const capability of Object.keys(ORG_CAPABILITIES) as Array<
+      keyof typeof ORG_CAPABILITIES
+    >) {
+      expect(rolesGranting(capability).sort()).toEqual(
+        Object.values(ROLES)
+          .filter((role) => can(role, capability))
+          .sort(),
+      );
+    }
+  });
+
+  it("inherits the hierarchy", () => {
+    expect(rolesGranting("readInvitations").sort()).toEqual([ROLES.admin, ROLES.owner].sort());
+    expect(rolesGranting("changeRole")).toEqual([ROLES.owner]);
+    expect(rolesGranting("leave").sort()).toEqual(Object.values(ROLES).sort());
   });
 });

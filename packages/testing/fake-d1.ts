@@ -21,9 +21,10 @@ import { DatabaseSync } from "node:sqlite";
  *
  * What it does **not** model — reach for e2e against real D1 rather than
  * assuming these work: `batch()` (drizzle only uses it for explicit
- * `db.batch`), transactions and savepoints, `meta` counters (`rows_read`,
- * `changes`), D1's row-size and statement limits, and the network latency that
- * makes an N+1 read expensive. It also does not enforce D1's refusal of
+ * `db.batch`, and this throws rather than pretending), transactions and
+ * savepoints, `meta` counters (`rows_read`, `changes`), `dump()`,
+ * `withSession()`, D1's row-size and statement limits, and the network latency
+ * that makes an N+1 read expensive. It also does not enforce D1's refusal of
  * `PRAGMA foreign_keys` — SQLite accepts it, so a migration carrying one still
  * passes here and fails remotely (AGENTS.md, "Schema changes").
  */
@@ -77,16 +78,22 @@ function migrationStatements(dir: string): string[] {
 }
 
 /**
- * The `D1PreparedStatement` surface drizzle's D1 driver actually calls.
+ * The `D1PreparedStatement` surface, including the two argument-taking overloads.
  *
- * `raw()` is the hot one: a `select` with fields goes through `values()`, which
- * expects arrays in column order rather than objects. `all()` and `run()` are
- * the fieldless paths, and `first()` is there for callers that reach past
- * drizzle.
+ * `raw()` is the hot one: a `select` with fields goes through drizzle's
+ * `values()`, which expects arrays in column order rather than objects. `all()`
+ * and `run()` are the fieldless paths.
+ *
+ * **`first(columnName)` and `raw({ columnNames: true })` are implemented rather
+ * than ignored**, even though drizzle calls neither. A fake typed as
+ * `D1Database` that quietly dropped their arguments would answer `{ value: 7 }`
+ * where D1 answers `7`, and `[[7]]` where D1 answers `[["value"], [7]]` — a
+ * double that cuts a corner the real one does not is a test that lies
+ * (AGENTS.md, Liskov substitution).
  */
 function prepareOn(sqlite: DatabaseSync, sql: string) {
   const bound = (params: unknown[]) => {
-    const statement = () => {
+    const prepare = () => {
       const prepared = sqlite.prepare(sql);
       // Timestamps are stored as integers and drizzle maps them with
       // `new Date(value)`, which a BigInt would throw on.
@@ -96,14 +103,38 @@ function prepareOn(sqlite: DatabaseSync, sql: string) {
     const args = params as never[];
 
     return {
-      all: async () => ({ results: statement().all(...args), success: true, meta: {} }),
-      raw: async () =>
-        (statement().all(...args) as Record<string, unknown>[]).map((row) => Object.values(row)),
+      all: async () => ({ results: prepare().all(...args), success: true, meta: {} }),
+
+      raw: async (options?: { columnNames?: boolean }) => {
+        const statement = prepare();
+        const rows = (statement.all(...args) as Record<string, unknown>[]).map((row) =>
+          Object.values(row),
+        );
+        if (!options?.columnNames) return rows;
+
+        // `name` rather than `column`: it is the *result* name, so an aliased
+        // `a AS value` reports `value`, which is what D1 sends. Read off the
+        // statement rather than off row zero, so an empty result still carries
+        // its header row the way D1's does.
+        return [statement.columns().map((column) => column.name), ...rows];
+      },
+
       run: async () => {
-        statement().run(...args);
+        prepare().run(...args);
         return { results: [], success: true, meta: {} };
       },
-      first: async () => statement().get(...args) ?? null,
+
+      first: async (columnName?: string) => {
+        const row = prepare().get(...args) as Record<string, unknown> | undefined;
+        if (row === undefined) return null;
+        if (columnName === undefined) return row;
+
+        // D1 throws rather than answering `undefined` for a column the result
+        // does not have, and a test asserting `undefined` would be asserting
+        // this file's behaviour rather than D1's.
+        if (!(columnName in row)) throw new Error(`D1_ERROR: no such column: ${columnName}`);
+        return row[columnName];
+      },
     };
   };
 
@@ -142,8 +173,9 @@ export function createFakeD1(): D1Database & FakeD1 {
     close: () => sqlite.close(),
   };
 
-  // The real binding carries `dump`, `withSession` and the `meta` counters that
-  // the doc comment above says are absent. Substitutable on every path drizzle
-  // exercises, which is the contract these tests depend on.
+  // Cast because `dump`, `withSession` and the populated `meta` counters are
+  // absent — the doc comment above is the list. Everything a statement answers
+  // is D1-shaped, overloads included, so a test cannot pass against a shape the
+  // real binding would not produce.
   return fake as unknown as D1Database & FakeD1;
 }
