@@ -55,19 +55,24 @@ jobs:
       # its tag has to name the version installed from package.json. A mismatch
       # fails e2e with "Executable doesn't exist", which reads as a broken test
       # run rather than a stale tag — so it is caught here, by name, instead.
-      - name: Playwright container tag must match the pinned version
+      - name: Playwright container tags must match the pinned version
         run: |
           pinned=$(node -p "require('./package.json').devDependencies['@playwright/test']")
-          tagged=$(sed -n 's|.*mcr\.microsoft\.com/playwright:v\([0-9][0-9.]*\)-.*|\1|p' .github/workflows/ci.yml | head -1)
-          if [ -z "$tagged" ]; then
-            echo "::error::no Playwright container image found in .github/workflows/ci.yml"
+          # Every workflow, not just ci.yml — release.yml runs the same image,
+          # and a tag that drifted only there would surface for the first time
+          # during a release, which is the worst moment to learn it.
+          tags=$(sed -n 's|.*mcr\.microsoft\.com/playwright:v\([0-9][0-9.]*\)-.*|\1|p' .github/workflows/*.yml | sort -u)
+          if [ -z "$tags" ]; then
+            echo "::error::no Playwright container image found in .github/workflows/"
             exit 1
           fi
-          if [ "$pinned" != "$tagged" ]; then
-            echo "::error::package.json pins @playwright/test $pinned but ci.yml runs the v$tagged image"
-            exit 1
-          fi
-          echo "Playwright $pinned matches the container image tag"
+          for tagged in $tags; do
+            if [ "$pinned" != "$tagged" ]; then
+              echo "::error::package.json pins @playwright/test $pinned but a workflow runs the v$tagged image"
+              exit 1
+            fi
+          done
+          echo "Playwright $pinned matches every container image tag"
 
   e2e:
     runs-on: ubuntu-latest
@@ -98,13 +103,32 @@ jobs:
     # runtime (e2e itself is ~4 minutes) — long enough to absorb a slow install,
     # short enough that a wedged runner fails the same morning.
     timeout-minutes: 30
+    # A container job defaults `run` to `sh`, not `bash` — the runner falls back
+    # when it resolves the shell inside the image, and Ubuntu's `/bin/sh` is
+    # dash. Nothing in this job needs bash today, which is luck rather than
+    # design: the next step to use `pipefail`, `<<<` or `[[` would fail with an
+    # error that never mentions containers. Pinned so it cannot.
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+      # **No `cache: pnpm` here, unlike the two jobs above, and that is
+      # deliberate.** A container job runs with `HOME=/github/home` rather than
+      # the runner's `/home/runner`, so `pnpm store path` resolves somewhere the
+      # host jobs never wrote — every run logged `pnpm cache is not found`, then
+      # spent 27s–2m44s tarring and uploading ~198MB anyway. Worse, the key is
+      # just OS+arch+lockfile hash, so that upload *overwrote* the entry
+      # `quality` and `drift` legitimately hit, which is why the stored size
+      # alternated between 192MB and 198MB.
+      #
+      # It bought nothing to begin with: `pnpm install --frozen-lockfile` took
+      # 8s in this job **with the cache missing**. Caching a 200MB store to save
+      # eight seconds is a bad trade even when it works.
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
       - run: pnpm install --frozen-lockfile
       # The dev server reads apps/web/.dev.vars, which is gitignored and so
       # absent here. `authMiddleware` validates the env on every request and

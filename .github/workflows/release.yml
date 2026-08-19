@@ -46,6 +46,34 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    # Same image and reasoning as ci.yml's `e2e` job: `pnpm verify` ends in the
+    # Playwright suite, and installing browser dependencies with
+    # `--with-deps` means `apt-get` against a mirror that intermittently stops
+    # answering. On CI that produced a 26s-to-43m37s spread on one step. A
+    # release is the worst place to discover it — the tag is already pushed by
+    # then, so a hung install blocks the deploy with no way forward but a rerun.
+    #
+    # The tag is asserted against package.json by ci.yml's `drift` job, which
+    # scans every workflow file, so this one cannot drift on its own.
+    #
+    # Two things this job needs that the image does not carry: `gh` (installed
+    # below, since two release guards call it) and a writable bin directory for
+    # gitleaks (`--user 1001` is not root, so `/usr/local/bin` is out).
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.2-noble
+      options: --user 1001
+    timeout-minutes: 40
+    # **A container job's default `run` shell is `sh`, not `bash`.** The runner
+    # resolves `bash` on the host image but falls back to `sh` inside a
+    # container, and Ubuntu's `/bin/sh` is dash — which has neither
+    # `set -o pipefail` nor `<<<` here-strings. Both appear in the tag guards
+    # below, so without this every release fails on its first guard, and the
+    # error (`set: Illegal option -o pipefail`) says nothing about containers.
+    # Verified from a real run: the container job logged `shell: sh -e {0}`
+    # while the host jobs logged `shell: /usr/bin/bash -e {0}`.
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -60,11 +88,38 @@ jobs:
           persist-credentials: false
 
       - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+      # No `cache: pnpm`, for the reason ci.yml's `e2e` job spells out: a
+      # container runs with `HOME=/github/home`, so the pnpm store lands
+      # somewhere the cache never sees — it misses on restore and then spends
+      # half a minute uploading ~198MB regardless. The install is ~8s either way.
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
-          cache: pnpm
       - run: pnpm install --frozen-lockfile
+
+      # The runner image ships `gh`; this container does not. Installed rather
+      # than worked around so the two guards below stay exactly as they were —
+      # rewriting a release guard to dodge a missing binary is how a guard
+      # quietly stops guarding.
+      #
+      # Same shape as the gitleaks install: pinned version, checksum verified,
+      # extracted somewhere this user can write. Bump the two together — a stale
+      # hash fails the download, loudly.
+      - name: Install gh
+        env:
+          GH_CLI_VERSION: 2.97.0
+          GH_CLI_SHA256: a2c9b8497e1f85b1ad0dfcb78b5a622e098801b8e461e459e88e1ee12f018112
+        run: |
+          archive="$RUNNER_TEMP/gh.tar.gz"
+          curl -sSfL --retry 3 \
+            "https://github.com/cli/cli/releases/download/v${GH_CLI_VERSION}/gh_${GH_CLI_VERSION}_linux_amd64.tar.gz" \
+            -o "$archive"
+          echo "${GH_CLI_SHA256}  ${archive}" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/bin"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/bin" --strip-components=2 \
+            "gh_${GH_CLI_VERSION}_linux_amd64/bin/gh"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/gh" --version
 
       # Four guards, all before anything is deployed, because none of these
       # failures is fixable afterwards.
@@ -147,8 +202,13 @@ jobs:
             "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
             -o "$archive"
           echo "${GITLEAKS_SHA256}  ${archive}" | sha256sum -c -
-          sudo tar -xzf "$archive" -C /usr/local/bin gitleaks
-          gitleaks version
+          # `$RUNNER_TEMP/bin` rather than `/usr/local/bin`: this job runs in a
+          # container as uid 1001, which is not root and has no sudo. The
+          # directory is already on PATH from the gh step above.
+          mkdir -p "$RUNNER_TEMP/bin"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/bin" gitleaks
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/gitleaks" version
 
       # A scanner that finds nothing passes every scan. Pinning a version and
       # checksumming the download prove *which* binary ran, never that it still
@@ -176,8 +236,6 @@ jobs:
             exit 1
           fi
           echo "Canary detected: the scanner works."
-
-      - run: pnpm exec playwright install --with-deps chromium
 
       # `verify` ends in e2e, which boots the dev server against
       # apps/web/.dev.vars — gitignored, so absent here, and authMiddleware
