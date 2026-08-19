@@ -7,14 +7,19 @@
  * page with three members in it and obvious in a table of cases.
  */
 
+import { PAGE_SIZE } from "@starter/auth/pagination";
+
 /**
  * Rows per page, for every list on the members page.
  *
- * D1 bills rows scanned, so the number is a cost decision rather than a layout
- * one: 20 keeps a page's read inside one screen's worth of rows for an
- * organization of any size, and the pager is what reaches the rest.
+ * Re-exported rather than declared, because the number is not this page's to
+ * choose: it bounds the reads in `@starter/auth`'s org stores, which
+ * `/api/v1/organization/*` and the MCP list tools go through as well — a copy
+ * here would be a second home for one cost decision. The leaf subpath is
+ * deliberate: reaching it through the package index would pull better-auth into
+ * the browser bundle, the same rule `auth-redirects.ts` follows.
  */
-export const PAGE_SIZE = 20;
+export { PAGE_SIZE };
 
 export interface Pager {
   /** 1-based, and always within `[1, pageCount]`. */

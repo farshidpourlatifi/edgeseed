@@ -554,7 +554,12 @@ The rate limiter keys on that value, so widening the list does not merely dirty
 audit data — it hands an attacker a fresh bucket per request.
 
 MCP tools read identity from `ctx.user` (the OAuth grant), never from tool
-arguments.
+arguments. An organization id **is** allowed as a tool argument — MCP is
+stateless here, with no "set active organization" — but it is a **target**, not a
+credential: `list_members` and `list_invitations` each resolve it through
+`getOrganizationForMember` before reading, and a foreign organization and a
+nonexistent one get the identical refusal, so an id is not a cross-tenant oracle.
+`list_organizations` is what hands a client the ids it may target.
 
 ### Organization roles
 
@@ -577,7 +582,8 @@ only thing standing between this rule and a silent regression on a version bump.
 - **Add a capability to `ORG_CAPABILITIES` first**, then render from it. The API
   imports it (`server/api-organization.ts` derives both its `can()` gates and the
   `capabilities` it reports from the object itself, so a new entry needs no edit
-  there); MCP tools (#39) are to do the same rather than restate it.
+  there); the MCP list tools derive their reported capabilities and their
+  `readInvitations` gate from it the same way (#39).
 - **The API is the one surface where product code does sit between the caller and
   Better Auth**, so it enforces twice on purpose: `can()` decides which refusal is
   heard first and keeps a doomed write from costing a round trip, and the

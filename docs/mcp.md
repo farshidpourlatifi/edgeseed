@@ -13,16 +13,59 @@ Object: [costs-and-limits.md](./costs-and-limits.md).
 
 ## What a client gets
 
-Two tools today, matching `/api/v1`:
+Five tools today. Most mirror an `/api/v1` route, and the "Matches" column says
+which — but **parity is an obligation on new routes rather than a claim that the
+two surfaces line up today**. It has a hole in each direction, both deliberate:
+the organization _writes_ have no tool (see below), and `list_organizations` has
+no route to mirror, because `/api/v1` takes the tenant from the credential while
+an OAuth grant carries none.
 
-| Tool           | Matches              | Returns                                            |
-| -------------- | -------------------- | -------------------------------------------------- |
-| `health_check` | `GET /api/v1/health` | `{ status, version }`                              |
-| `whoami`       | `GET /api/v1/me`     | `{ userId, email }` of the authenticated principal |
+| Tool                 | Matches                                | Returns                                                         |
+| -------------------- | -------------------------------------- | --------------------------------------------------------------- |
+| `health_check`       | `GET /api/v1/health`                   | `{ status, version }`                                           |
+| `whoami`             | `GET /api/v1/me`                       | `{ userId, email }` of the authenticated principal              |
+| `list_organizations` | (no API twin — see below)              | `{ organizations, total }`, each with `role` and `capabilities` |
+| `list_members`       | `GET /api/v1/organization/members`     | `{ members, total }`                                            |
+| `list_invitations`   | `GET /api/v1/organization/invitations` | `{ invitations, total }` — pending only, admin+                 |
+
+The organization tools are **read-only**. Membership writes go through Better
+Auth's own endpoints so that the rate limiter and `ORGANIZATION_ROLES` stay the
+single enforcement point; a mutating tool has to answer that first.
 
 `whoami` reads identity from the OAuth grant (`ctx.user`), never from a tool
 argument — a tool must not take the caller's word for who they are. Every tool
 you add follows that rule; see [Adding a tool](#adding-a-tool).
+
+### How a tool targets an organization
+
+**MCP here is stateless — there is no "set active organization".** `/api/v1` can
+take the tenant from the credential, because a session carries
+`activeOrganizationId` and a token is minted inside one organization; an OAuth
+grant carries neither. So `list_members` and `list_invitations` take an
+`organizationId` argument.
+
+That argument is a **target, never a credential**, and three rules keep the
+distinction real:
+
+- **`list_organizations` needs no target** and is where a client gets its ids. It
+  is scoped to the grant, so a client never has to guess one.
+- **Membership is re-checked server-side before any read.** Each targeted tool
+  resolves the id through `getOrganizationForMember` first, and the stores it
+  then calls scope themselves as well — the guard is where the data is read, not
+  one layer up.
+- **A foreign organization and a nonexistent one get the identical refusal.** Both
+  resolve to nothing inside the caller's own memberships, so an id cannot be used
+  to probe another tenant. This is the same collapse `/api/v1` performs with its
+  404s.
+
+Identity is never an argument. Passing `userId` or `email` to any of these tools
+changes nothing — the query is keyed on `ctx.user.userId`, and there are tests
+that pass one attacker-chosen value per tool to prove it.
+
+Both lists are bounded at 20 rows (`limit`/`offset`, `limit` defaulting to and
+capped at 20). D1 bills rows scanned, so an MCP client cannot read the same rows
+in bigger gulps than the API or the members page can; a `limit` above the cap is
+**refused**, not silently clamped.
 
 **Transport is Streamable HTTP only**, served at `/mcp`. There is no `/sse`
 endpoint — an earlier one never actually served SSE and was removed. If a client
@@ -152,15 +195,27 @@ Before the first deploy:
 
 ## Adding a tool
 
-The convention is one tool per public `/api/v1` route ("MCP parity"). Adding one
-is additive — a new file registered in `registerTools`, never an edit to a
-working tool:
+The convention is one tool per public `/api/v1` route ("MCP parity") — binding on
+routes you add, and not in reverse: a tool with no API twin is fine where MCP's
+shape genuinely differs, and needs a line in this doc saying why. Adding one is
+additive — a new file registered in `registerTools`, never an edit to a working
+tool:
 
 1. Create `apps/mcp/src/tools/<name>.ts` exporting
    `register<Name>Tool(server, ctx)`.
 2. Register it in `apps/mcp/src/tools/index.ts`.
 3. Scope every query by `ctx.user.userId` — the OAuth grant, never an argument.
-4. Add a test in `apps/mcp/src/__tests__/` against the stubbed `McpServer`.
+   An organization id may be a _target_; verify membership before reading it,
+   and refuse a foreign one exactly as you refuse an absent one.
+4. Bound every list. Spread `pageArgs` from `tools/pagination.ts` into the input
+   shape rather than declaring a limit of your own.
+5. Refuse with `rejectTool` from `tools/reject.ts`, never `HTTPException` — a
+   tool call has no status code, and throwing turns a caller's mistake into a
+   reported server fault.
+6. Add a test in `apps/mcp/src/__tests__/` against the stubbed `McpServer`. A
+   tool that reads tenant data gets a test that targets an organization the
+   caller is not in, driven by `createFakeD1()` so the refusal comes from a real
+   `WHERE` clause rather than from a mock.
 
 ---
 
@@ -183,6 +238,10 @@ These are the non-obvious guarantees, each with a reason it exists:
   resolve to the victim's account. A mismatch is `403`.
 - **Rejection happens before consent.** A request this server would not honour
   is refused without asking a user to approve it.
+- **An organization id in a tool argument is a target, not a claim.** Every
+  targeted read verifies membership server-side first, and answers a foreign
+  organization exactly as it answers one that does not exist — see
+  [How a tool targets an organization](#how-a-tool-targets-an-organization).
 - **The consent POST is CSRF-protected** by Better Auth's session cookie and its
   form CSRF middleware — which is armed only because a header-only `request` copy
   is passed through `auth.api.*`. Removing that silently disarms it.

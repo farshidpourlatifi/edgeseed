@@ -33,8 +33,8 @@ export function hasRole(userRole: string, requiredRole: Role): boolean {
  * Every surface reads it through `can()`: the members page decides which
  * controls exist, and `organization.ts` derives the Better Auth role table that
  * refuses the request when someone posts to the endpoint anyway. The API
- * (#38) and the MCP tools (#39) are to import this rather than restate it —
- * two matrices that agree today are two matrices that disagree after the first
+ * (#38) and the MCP list tools (#39) import this rather than restate it — two
+ * matrices that agree today are two matrices that disagree after the first
  * edit.
  *
  * Three things it says, which the code below cannot say on its own:

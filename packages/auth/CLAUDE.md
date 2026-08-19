@@ -11,6 +11,7 @@ from here instead of configuring Better Auth themselves.
 - `src/server.ts` — `createAuth()`; social providers are enabled conditionally when their credentials are present
 - `src/organization.ts` — the organization plugin's options, extracted so the invitation sender can be asserted on (`organization()` captures its argument and exposes only `id`/`endpoints`/`schema`)
 - `src/invitation.ts` — the accept path, the id parameter, the expiry, and `invitationAcceptUrl`. A **leaf with no imports**, because `apps/web/app/lib/auth-redirects.ts` re-exports it into the browser bundle
+- `src/pagination.ts` — `PAGE_SIZE`, the bound on every org-scoped list. Another **leaf with no imports**, for the same reason: `apps/web/app/lib/pagination.ts` re-exports it into the browser bundle. It lives here rather than in the web app because the stores it bounds do, and three surfaces read it — the members page, `/api/v1/organization/*` and the MCP list tools
 - `src/rate-limit.ts` — the rate-limit policy table plus the adapter from Workers `[[ratelimits]]` bindings to Better Auth's storage contract (audit #4)
 - `src/session-hooks.ts` — the one `databaseHooks` entry: gives a new session an active organization, because Better Auth gives it none
 - `src/middleware.ts` — `authMiddleware` creates `db` + `auth` per request and stores them on the Hono context (`c.get("db")` / `c.get("auth")`)
@@ -19,7 +20,7 @@ from here instead of configuring Better Auth themselves.
 - `src/helpers/session.ts` — `getSession()` / `requireSession()` (throws `HTTPException(401)`)
 - `src/helpers/api-token.ts` — pure crypto: mint, hash, parse `Authorization`, usability check
 - `src/helpers/api-token-store.ts` — `listApiTokens` / `createApiToken` / `revokeApiToken`; keeps drizzle out of `apps/web`
-- `src/helpers/org-store.ts` — the org-scoped reads Better Auth either does not paginate, does not filter, or will not serve without a session: `resolveMembership`, `countOwners`, `listPendingInvitations`, plus `getOrganizationForMember` / `listOrganizationMembers` / `findOrganizationMember` / `findPendingInvitation` for `/api/v1/organization/*`
+- `src/helpers/org-store.ts` — the org-scoped reads Better Auth either does not paginate, does not filter, or will not serve without a session: `resolveMembership`, `countOwners`, `listPendingInvitations`, plus `getOrganizationForMember` / `listOrganizationMembers` / `findOrganizationMember` / `findPendingInvitation` for `/api/v1/organization/*`, and `listOrganizationsForMember` for the MCP `list_organizations` tool
 - `src/helpers/principal.ts` — `principalMiddleware` + `requirePrincipal` / `requireInteractivePrincipal` / `requireOrganization`, and `rejectRequest`, the one refusal envelope every guard and API route answers in
 
 ## API tokens
@@ -143,6 +144,18 @@ holds the reasoning, including why KV and `secondaryStorage` were both rejected.
   read. **The `alias` inside it is load-bearing** — `listOrganizationMembers`
   selects from `member`, so an un-aliased subquery would join to its own row and
   the guard would be a tautology.
+- **`listOrganizationsForMember` exists because Better Auth's own list is both
+  session-bound and unbounded.** `/organization/list-organizations` sits behind
+  `orgSessionMiddleware`, so it can only answer a caller holding a cookie — and
+  the MCP Worker has an OAuth grant, not a session — and it reads every
+  membership an account has ever accumulated. Same split, same reasons, as
+  `listOrganizationMembers` and `listPendingInvitations`. It carries **no**
+  `callerIsMember` clause and that is correct rather than an omission: it takes
+  no organization id, so there is no target to check — the rows come from
+  `member` filtered by `userId`, and the join _is_ the guard, exactly as in
+  `getOrganizationForMember`. Its order is the canonical one (oldest membership
+  first, `id` breaking ties), so its first row is the organization
+  `session-hooks.ts` would put a new session in.
 - **`findOrganizationMember` and `findPendingInvitation` are why the API can
   answer 404.** Better Auth resolves both ids **globally** and compares
   organizations afterwards, so a foreign id gets three different answers —
@@ -166,7 +179,8 @@ holds the reasoning, including why KV and `secondaryStorage` were both rejected.
 
 - Helpers are pure or mockable — tested in `src/__tests__/` with a stubbed Hono context
 - **Coverage target: 100% for `src/helpers/`, `src/rate-limit.ts` and `src/invitation.ts`**; `server.ts`/`middleware.ts`/`client.ts` are thin config wrappers exercised by the e2e auth suite (`tests/e2e/auth.spec.ts`), no unit target
-- **The drizzle stores have no unit tests, and that is the standing precedent** — there is no D1 in unit tests, so `api-token-store.ts` and `org-store.ts` are mocked at their consumers and proven by e2e (`api-tokens.spec.ts`, `members.spec.ts`). Their deny paths are e2e cases, not vitest ones: cross-tenant reads and the admin-only invitations list live in `members.spec.ts`. Read the "100% for `src/helpers/`" target with that exception in mind rather than as a claim these files are covered
+- **The drizzle stores are mostly proven by e2e, and that is still the default** — `api-token-store.ts` and most of `org-store.ts` are mocked at their consumers and exercised for real in `api-tokens.spec.ts`, `members.spec.ts` and `organization-api.spec.ts`. Their deny paths are e2e cases, not vitest ones: cross-tenant reads and the admin-only invitations list live in `members.spec.ts`. Read the "100% for `src/helpers/`" target with that exception in mind rather than as a claim these files are covered
+- **`listOrganizationsForMember` is the documented exception, added with #39.** The default above holds only while every store is reachable through an HTTP route a Playwright spec can drive, and this one is not: it exists for the MCP list tools, which sit behind an OAuth 2.1 grant no e2e spec obtains. Left to the precedent it would be the one tenancy-scoped read in the repo that nothing exercises. So `org-store.test.ts` drives it against `createFakeD1()` (`@starter/testing/fake-d1` — in-memory SQLite with `packages/db/migrations` applied), and the deny path was checked by deleting the `userId` scope and watching the suite go red. **This is not an invitation to re-test the e2e-covered stores here** — a second assertion of the same guarantee is maintenance, not coverage — but a new store with no HTTP door of its own belongs in that file rather than untested
 - **`session-hooks.ts` is tested twice on purpose** — `session-hooks.test.ts` proves it picks the right organization, `auth-config.test.ts` proves it is _installed_. An uninstalled hook is the silent failure: every request still succeeds and sessions simply carry no active organization
 - **`organization.ts` is configuration, so it is tested like `auth-config.test.ts` tests configuration** — nothing in it fails loudly when wrong. A missing `requireEmailVerificationOnInvitation` still serves every request; it just lets an unproven address into an organization. `invitationAcceptUrl` carries the one leg no e2e can reach, since the emailed link only ever reaches the dev server's log
 - **`rate-limit.ts` sits at 88% mutation score, and the remaining survivors were checked by hand — do not chase the number.** Four are the message text inside `unreachable()`; one is `AUTH_RATE_LIMIT_CUSTOM_RULES` being module-level, which per-test coverage cannot attribute; the other six are equivalent mutants in `normalizeIp`, where the redundancy is real but harmless (the IPv4 guard is also reachable through the IPv4-mapped branch, `fill("")` is indistinguishable after `padStart`, and the destructuring defaults only fire on a path that ignores the value). Killing them would mean asserting on error strings or deleting guards that make the code readable

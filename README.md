@@ -27,22 +27,22 @@ and a cookie — no flash of the wrong theme on first paint.
 
 Every row below is either running in the live demo or explicitly marked as not shipped.
 
-| Capability                     | State                              | Notes                                                                                                                |
-| ------------------------------ | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Email/password auth            | Shipped                            | Signup grants **no session** until the address is verified — that gate closes account pre-hijacking                  |
-| Password reset                 | Shipped                            | `/forgot-password` → `/reset-password`; a reset revokes every existing session                                       |
-| Social login (GitHub, Google)  | Shipped                            | Auto-enables per provider when its credentials are set                                                               |
-| Organizations and roles        | Shipped                            | Create, switch, invite, accept, revoke, promote/demote, remove and leave — one role matrix behind the UI and the API |
-| REST API at `/api/v1`          | Shipped                            | Default-deny, session cookie **or** bearer token — see [REST API](#rest-api) for every route                         |
-| API tokens                     | Shipped                            | SHA-256 hashed, plaintext shown once, minting is session-only                                                        |
-| MCP server                     | Shipped, **undeployed by default** | OAuth 2.1 with dynamic client registration; tools are `health_check` and `whoami`                                    |
-| Rate limiting                  | Shipped                            | Three Workers `[[ratelimits]]` bindings — mail 3/min, credentials 10/min, default 120/min                            |
-| Security headers + CSP         | Shipped                            | Nonce/hash CSP with no `unsafe-inline` on scripts, HSTS, `no-store` on cookie-bearing responses                      |
-| Observability                  | Shipped                            | Structured logs, one correlation id per request, Sentry opt-in                                                       |
-| Transactional email            | Shipped, needs config              | Resend transport; **falls back to logging** when `RESEND_API_KEY`/`EMAIL_FROM` are unset                             |
-| OpenAPI spec                   | Shipped                            | Generated from route schemas, committed, CI fails on drift                                                           |
-| Quality gate and gated deploys | Shipped                            | `pnpm verify` gates every deploy; releases are tag-triggered and assert the deployed version                         |
-| Billing and entitlements       | Not started                        | Tracked as a candidate epic, not promised                                                                            |
+| Capability                     | State                              | Notes                                                                                                                          |
+| ------------------------------ | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Email/password auth            | Shipped                            | Signup grants **no session** until the address is verified — that gate closes account pre-hijacking                            |
+| Password reset                 | Shipped                            | `/forgot-password` → `/reset-password`; a reset revokes every existing session                                                 |
+| Social login (GitHub, Google)  | Shipped                            | Auto-enables per provider when its credentials are set                                                                         |
+| Organizations and roles        | Shipped                            | Create, switch, invite, accept, revoke, promote/demote, remove and leave — one role matrix behind the UI and the API           |
+| REST API at `/api/v1`          | Shipped                            | Default-deny, session cookie **or** bearer token — see [REST API](#rest-api) for every route                                   |
+| API tokens                     | Shipped                            | SHA-256 hashed, plaintext shown once, minting is session-only                                                                  |
+| MCP server                     | Shipped, **undeployed by default** | OAuth 2.1 with dynamic client registration; `health_check`, `whoami`, `list_organizations`, `list_members`, `list_invitations` |
+| Rate limiting                  | Shipped                            | Three Workers `[[ratelimits]]` bindings — mail 3/min, credentials 10/min, default 120/min                                      |
+| Security headers + CSP         | Shipped                            | Nonce/hash CSP with no `unsafe-inline` on scripts, HSTS, `no-store` on cookie-bearing responses                                |
+| Observability                  | Shipped                            | Structured logs, one correlation id per request, Sentry opt-in                                                                 |
+| Transactional email            | Shipped, needs config              | Resend transport; **falls back to logging** when `RESEND_API_KEY`/`EMAIL_FROM` are unset                                       |
+| OpenAPI spec                   | Shipped                            | Generated from route schemas, committed, CI fails on drift                                                                     |
+| Quality gate and gated deploys | Shipped                            | `pnpm verify` gates every deploy; releases are tag-triggered and assert the deployed version                                   |
+| Billing and entitlements       | Not started                        | Tracked as a candidate epic, not promised                                                                                      |
 
 ### Known limitations
 
@@ -59,9 +59,11 @@ Stated up front, because finding these after adopting a starter is worse than re
   create, switch, invite, accept, revoke, promote, demote, remove and leave.
   `/api/v1/organization/*` covers the reads plus invite, revoke, role change and
   removal; creating, switching, accepting an invitation and leaving stay browser-only,
-  and the [route table](#rest-api) is the contract. What is missing outright is an
-  organization-settings surface — there is no route behind one — and the MCP Worker has
-  no organization tools. Both are tracked under the Organizations epic.
+  and the [route table](#rest-api) is the contract. The MCP Worker covers the
+  organization **reads** — `list_organizations`, `list_members`, `list_invitations` —
+  and no membership writes. What is missing outright is an organization-settings
+  surface: there is no route behind one. That and the MCP writes are both tracked
+  under the Organizations epic.
 - **The MCP Worker ships undeployed.** Its Agent is a Durable Object, billed by duration —
   deploy it when a product actually needs it.
 - **Dependency updates are manual.** Dependabot security updates are currently disabled.
@@ -199,8 +201,11 @@ docs/
 
 - **Auth flow**: authenticate → resolve org context → check permission → scope data by org
 - **API versioning**: public routes at `/api/v1/...`, bump only on breaking changes
-- **MCP parity**: every public API route gets a matching MCP tool, behind OAuth 2.1;
-  tools read identity from the grant (`ctx.user`), never from tool arguments
+- **MCP parity**: a new public API route gets a matching MCP tool, behind OAuth 2.1 —
+  an obligation on what you add, not a claim that the two surfaces match today
+  (organization writes have no tool yet). It does not bind in reverse: a tool may exist
+  with no API twin where MCP's shape differs, as `list_organizations` does. Tools read
+  identity from the grant (`ctx.user`), never from tool arguments
 - **DB migrations**: sequential Drizzle Kit migrations in `packages/db/migrations/`
 - **Testing**: TDD for domain logic, e2e for critical paths (Vitest + Playwright)
 - **OpenAPI**: auto-generated from zod schemas, checked into git
@@ -306,8 +311,10 @@ claude mcp add --transport http starter https://<your-mcp-worker>.workers.dev/mc
 ```
 
 For clients without native remote-MCP support, bridge with `mcp-remote`. Tools
-today are `health_check` and `whoami`, mirroring `/api/v1/health` and
-`/api/v1/me`; identity always comes from the OAuth grant, never a tool argument.
+today are `health_check`, `whoami`, `list_organizations`, `list_members` and
+`list_invitations`, mirroring the matching `/api/v1` reads. Identity always comes
+from the OAuth grant, never a tool argument; an organization id **may** be passed
+as a target, and membership is re-checked server-side before anything is read.
 
 It is a separate Worker sharing the **same** D1 as the web app, so accounts carry
 over — which means both `wrangler.jsonc` files must name the same `database_id`.

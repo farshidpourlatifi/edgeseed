@@ -31,6 +31,7 @@ export {
   hasRole,
 } from "./helpers/roles";
 export type { OrgCapability, Role } from "./helpers/roles";
+export { PAGE_SIZE } from "./pagination";
 export {
   API_TOKEN_PREFIX,
   extractBearerToken,
@@ -48,6 +49,7 @@ export {
   findPendingInvitation,
   getOrganizationForMember,
   listOrganizationMembers,
+  listOrganizationsForMember,
   listPendingInvitations,
   resolveMembership,
 } from "./helpers/org-store";
