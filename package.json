@@ -46,7 +46,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@playwright/test": "^1",
+    "@playwright/test": "1.58.2",
     "@starter/auth": "workspace:^",
     "@starter/config": "workspace:^",
     "@stryker-mutator/core": "^9.6.1",

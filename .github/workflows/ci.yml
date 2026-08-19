@@ -51,9 +51,53 @@ jobs:
           git diff --exit-code docs/api/openapi.json
       - name: README command tables must document every script
         run: pnpm check:docs-sync
+      # One fact, two files: the e2e job runs Playwright's container image, and
+      # its tag has to name the version installed from package.json. A mismatch
+      # fails e2e with "Executable doesn't exist", which reads as a broken test
+      # run rather than a stale tag — so it is caught here, by name, instead.
+      - name: Playwright container tag must match the pinned version
+        run: |
+          pinned=$(node -p "require('./package.json').devDependencies['@playwright/test']")
+          tagged=$(sed -n 's|.*mcr\.microsoft\.com/playwright:v\([0-9][0-9.]*\)-.*|\1|p' .github/workflows/ci.yml | head -1)
+          if [ -z "$tagged" ]; then
+            echo "::error::no Playwright container image found in .github/workflows/ci.yml"
+            exit 1
+          fi
+          if [ "$pinned" != "$tagged" ]; then
+            echo "::error::package.json pins @playwright/test $pinned but ci.yml runs the v$tagged image"
+            exit 1
+          fi
+          echo "Playwright $pinned matches the container image tag"
 
   e2e:
     runs-on: ubuntu-latest
+    # Playwright's own image, which already carries Chromium *and* the OS
+    # libraries it links against — so this job never runs `apt-get`.
+    #
+    # It used to. `playwright install --with-deps` shells out to
+    # `apt-get update && install` on every run, and the runner's local mirror
+    # (azure.archive.ubuntu.com) intermittently goes unreachable: apt then falls
+    # back to archive.ubuntu.com and crawls. Measured across five *green* runs,
+    # that one step took 26s, 28s, 205s, 426s and 1368s — a 50x spread on a step
+    # that installs the same bytes every time, and no way to tell a slow run from
+    # a wedged one while it is happening.
+    #
+    # `--user 1001` matches the runner's own uid, which owns the checkout;
+    # without it the container writes as root and later steps hit EACCES.
+    #
+    # **The tag must match the `@playwright/test` version in package.json** —
+    # Playwright refuses a browser build it did not expect, so a drifted tag is a
+    # hard failure rather than a silent wrong-browser run. That is why the
+    # devDependency is pinned exactly rather than to `^1`, and why the `drift`
+    # job above asserts the two agree.
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.2-noble
+      options: --user 1001
+    # The container makes a hang unlikely, not impossible, and this job inherits
+    # GitHub's 6-hour default otherwise. Thirty minutes is roughly 6x the honest
+    # runtime (e2e itself is ~4 minutes) — long enough to absorb a slow install,
+    # short enough that a wedged runner fails the same morning.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -62,7 +106,6 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
       # The dev server reads apps/web/.dev.vars, which is gitignored and so
       # absent here. `authMiddleware` validates the env on every request and
       # refuses when it is missing (docs/security-audit.md #3), so without this
