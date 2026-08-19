@@ -1,7 +1,7 @@
-import { and, asc, count, desc, eq, exists, gt } from "drizzle-orm";
+import { and, asc, count, desc, eq, exists, gt, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { invitation, member, organization, user, type Database } from "@starter/db";
-import { ROLES } from "./roles";
+import { ROLES, rolesGranting, type OrgCapability } from "./roles";
 
 /** The row a page needs to know *which* organization it is looking at, and as whom. */
 export interface Membership {
@@ -154,15 +154,40 @@ export async function countOwners(
  * **The alias is load-bearing**, not tidiness: `listOrganizationMembers` selects
  * from `member` and would otherwise join the subquery's `member` to its own,
  * turning the guard into a tautology.
+ *
+ * **`capability` narrows it to "…and their role still permits this", in the same
+ * statement.** A route that calls `can()` first and reads second is guarding one
+ * layer up, which is the thing this helper exists to avoid: the role it checked
+ * is a value read in an earlier query, and a demotion landing between the two
+ * leaves the read returning rows the caller may no longer see. Membership had
+ * exactly this problem and was fixed exactly this way — the role is simply the
+ * other half of the same row.
+ *
+ * It does not make the `can()` call at the route redundant, and is not meant to:
+ * that one decides which refusal the caller *hears* and keeps a doomed request
+ * from costing a round trip. This one decides what the database hands back.
+ * Omit `capability` where the read needs membership alone — the member roster is
+ * readable by every member, so `listOrganizationMembers` passes nothing.
  */
-function callerIsMember(db: Database, input: { userId: string; organizationId: string }) {
+function callerIsMember(
+  db: Database,
+  input: { userId: string; organizationId: string; capability?: OrgCapability },
+) {
   const viewer = alias(member, "viewer");
 
   return exists(
     db
       .select({ one: viewer.id })
       .from(viewer)
-      .where(and(eq(viewer.organizationId, input.organizationId), eq(viewer.userId, input.userId))),
+      .where(
+        and(
+          eq(viewer.organizationId, input.organizationId),
+          eq(viewer.userId, input.userId),
+          // Derived from `ORG_CAPABILITIES`, never an `IN ('owner','admin')`
+          // literal — a second copy of the matrix that stops moving with it.
+          ...(input.capability ? [inArray(viewer.role, rolesGranting(input.capability))] : []),
+        ),
+      ),
   );
 }
 
@@ -219,6 +244,67 @@ export async function getOrganizationForMember(
       createdAt: row.createdAt.toISOString(),
     },
     role: row.role,
+  };
+}
+
+/**
+ * One page of the organizations the caller belongs to, oldest membership first.
+ *
+ * Better Auth's `/organization/list-organizations` cannot be used for this
+ * twice over: it sits behind a session (`orgSessionMiddleware`), so it can only
+ * answer a caller holding a cookie — and the MCP Worker has an OAuth grant
+ * rather than a session — and it is unbounded, reading every membership an
+ * account has ever accumulated. Same split, same reasons, as
+ * `listOrganizationMembers` and `listPendingInvitations`.
+ *
+ * **The join is the guard**, exactly as in `getOrganizationForMember`: rows come
+ * from `member` filtered by `userId`, so there is no organization id on the way
+ * in and nothing a caller could point at somebody else's tenant. That is why it
+ * carries no `callerIsMember` clause — there is no target to check.
+ *
+ * The order is the one `resolveMembership` and `session-hooks.ts` already treat
+ * as canonical (oldest membership first, `id` breaking ties), so the first row
+ * here is the organization a new session starts in and the one the sidebar
+ * switcher shows. An unstable order would page a row twice while skipping
+ * another.
+ */
+export async function listOrganizationsForMember(
+  db: Database,
+  input: { userId: string; limit: number; offset: number },
+): Promise<Page<{ organization: OrganizationSummary; role: string }>> {
+  const scope = eq(member.userId, input.userId);
+
+  const [rows, totals] = await Promise.all([
+    db
+      .select({
+        id: organization.id,
+        name: organization.name,
+        slug: organization.slug,
+        logo: organization.logo,
+        createdAt: organization.createdAt,
+        role: member.role,
+      })
+      .from(member)
+      .innerJoin(organization, eq(organization.id, member.organizationId))
+      .where(scope)
+      .orderBy(asc(member.createdAt), asc(member.id))
+      .limit(input.limit)
+      .offset(input.offset),
+    db.select({ value: count() }).from(member).where(scope),
+  ]);
+
+  return {
+    rows: rows.map((row) => ({
+      organization: {
+        id: row.id,
+        name: row.name,
+        slug: row.slug,
+        logo: row.logo,
+        createdAt: row.createdAt.toISOString(),
+      },
+      role: row.role,
+    })),
+    total: totals[0]?.value ?? 0,
   };
 }
 
@@ -332,7 +418,7 @@ export async function findPendingInvitation(
       and(
         eq(invitation.id, input.invitationId),
         pendingIn(input.organizationId, input.now),
-        callerIsMember(db, input),
+        callerIsMember(db, { ...input, capability: "revokeInvitation" }),
       ),
     )
     .limit(1);
@@ -383,7 +469,10 @@ export async function listPendingInvitations(
     now?: Date;
   },
 ): Promise<Page<PendingInvitationSummary>> {
-  const scope = and(pendingIn(input.organizationId, input.now), callerIsMember(db, input));
+  const scope = and(
+    pendingIn(input.organizationId, input.now),
+    callerIsMember(db, { ...input, capability: "readInvitations" }),
+  );
 
   const [rows, totals] = await Promise.all([
     db

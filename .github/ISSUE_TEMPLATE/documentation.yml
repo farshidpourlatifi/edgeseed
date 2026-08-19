@@ -26,7 +26,7 @@ body:
       label: What is actually true
       description: What the code does, or what happened when you followed the instructions.
       placeholder: |
-        Only `health_check` and `whoami` are registered in apps/mcp/src/tools/index.ts.
+        Only `health_check`, `whoami`, `list_organizations`, `list_members` and `list_invitations` are registered in apps/mcp/src/tools/index.ts.
     validations:
       required: true
 

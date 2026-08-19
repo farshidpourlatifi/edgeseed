@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./factory": "./factory.ts",
+    "./fake-d1": "./fake-d1.ts",
     "./fake-env": "./fake-env.ts",
     "./fake-kv": "./fake-kv.ts",
     "./fake-rate-limit": "./fake-rate-limit.ts"

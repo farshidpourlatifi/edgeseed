@@ -9,6 +9,7 @@
     "./client": "./src/client.ts",
     "./invitation": "./src/invitation.ts",
     "./roles": "./src/helpers/roles.ts",
+    "./pagination": "./src/pagination.ts",
     "./middleware": "./src/middleware.ts",
     "./rate-limit": "./src/rate-limit.ts"
   },

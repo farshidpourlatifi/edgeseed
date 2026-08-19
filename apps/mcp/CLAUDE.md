@@ -2,8 +2,23 @@
 
 ## Why this exists
 
-MCP server exposing the same capabilities as the public API to LLM clients —
-the "MCP parity" convention: every `/api/v1` route gets a matching tool here.
+MCP server exposing the public API's capabilities to LLM clients.
+
+**"MCP parity" is a forward obligation, not a description of today.** Adding a
+public `/api/v1` route means adding a tool here; it does **not** mean the two
+surfaces currently match, and a diff that assumes they do will read this file
+wrong. Two deliberate gaps, both recorded under "Status / known gaps":
+
+- **Routes with no tool.** The four organization writes and `GET /organization`.
+  #39 took the read-only milestone on purpose — every membership write goes
+  through Better Auth's own endpoints so the rate limiter and
+  `ORGANIZATION_ROLES` stay the single enforcement point, and a mutating tool has
+  to answer that before it is added.
+- **A tool with no route.** `list_organizations`. The obligation runs one way
+  only, because the two surfaces resolve a tenant differently: `/api/v1` takes it
+  from the credential — a session carries `activeOrganizationId`, a token is
+  minted inside one organization — while an OAuth grant carries neither, so MCP
+  needs a way to name one and the API does not.
 
 ## Architecture
 
@@ -14,6 +29,10 @@ the "MCP parity" convention: every `/api/v1` route gets a matching tool here.
 - `src/tools/index.ts` — `registerTools(server, ctx)`; `ToolContext` carries `db` + `user`
 - `src/tools/health.ts` — mirrors `GET /api/v1/health`; version comes from `@starter/config/version` (never hardcode it — parity drift is a bug)
 - `src/tools/whoami.ts` — reports the principal behind the access token
+- `src/tools/list-organizations.ts` — the organizations behind the grant, with the caller's role and its `ORG_CAPABILITIES` flags. **The tool with no target**, and therefore where a client gets the ids the next two take
+- `src/tools/list-members.ts` / `src/tools/list-invitations.ts` — mirror `GET /api/v1/organization/members` and `.../invitations`; both take `organizationId` as a **target** and verify membership before reading
+- `src/tools/pagination.ts` — `pageArgs`, the `limit`/`offset` shape every list tool spreads into its input. The cap is `PAGE_SIZE` from `@starter/auth/pagination`, imported so MCP cannot read the same rows in bigger gulps than the API or the members page
+- `src/tools/reject.ts` — `rejectTool` plus the two refusal sentences. **Not `HTTPException`**: a tool call has no status code, and throwing turns a caller's mistake into a reported server fault
 
 ## Auth
 
@@ -54,6 +73,22 @@ unauthenticated `/mcp` → 401 + `WWW-Authenticate`; discovery → dynamic regis
 - **Identity comes from `ctx.user`, never from tool arguments.** `OAuthProvider`
   passes the grant's props to the Agent; a tool that trusts its own input is a bug.
 - Scope every query by `ctx.user.userId`.
+- **An organization id _is_ a legal tool argument, as a target.** MCP here is
+  stateless — there is no "set active organization", and an OAuth grant carries
+  neither a session's `activeOrganizationId` nor a token's stamped one, so the
+  tenant has to arrive some other way. What keeps it from being a credential:
+  `list_members` and `list_invitations` resolve it through
+  `getOrganizationForMember` **before** reading, the stores they then call scope
+  themselves as well, and `list_organizations` is what hands a client the ids it
+  may target so nothing has to be guessed.
+- **A foreign organization and a nonexistent one get the identical refusal.**
+  Both resolve to nothing inside the caller's own memberships. Two messages would
+  turn an id into an oracle for probing another tenant — the same collapse
+  `/api/v1` performs with its 404s.
+- **The role matrix is imported, never restated.** `list_invitations` gates on
+  `can(role, "readInvitations")` and `list_organizations` derives its reported
+  `capabilities` from `ORG_CAPABILITIES` itself, so a new capability reaches MCP
+  with no edit here (AGENTS.md, "Organization roles").
 
 ## Status / known gaps — read before deploying
 
@@ -74,8 +109,12 @@ unauthenticated `/mcp` → 401 + `WWW-Authenticate`; discovery → dynamic regis
   the fix
 - The consent POST relies on Better Auth's `SameSite=Lax` session cookie rather than
   an explicit CSRF token; add one if the consent screen ever grants more than `mcp`
-- Tool surface is `health_check` + `whoami`, which is parity with `/api/v1` today
-  only because that API has one route
+- Tool surface is `health_check`, `whoami`, `list_organizations`, `list_members`
+  and `list_invitations`. The organization tools are **read-only** (#39): every
+  membership write in this repo goes through Better Auth's own endpoints so the
+  rate limiter and `ORGANIZATION_ROLES` stay the single enforcement point, and a
+  mutating tool has to answer that before it is added. `/api/v1`'s four
+  organization writes and `GET /organization` therefore have no twin here yet
 
 ## Observability
 
@@ -91,6 +130,8 @@ unauthenticated `/mcp` → 401 + `WWW-Authenticate`; discovery → dynamic regis
 
 - New tool = new file in `src/tools/`, registered in `registerTools`, mirroring an existing API route's zod schema and response shape
 - Tool responses are `content: [{ type: "text", text: JSON.stringify(...) }]` matching the API JSON body
+- **Every list is bounded.** Spread `pageArgs` rather than declaring a limit; D1 bills rows scanned
+- **Refuse with `rejectTool`, never `HTTPException`.** It answers `isError: true` carrying the `{ error }` envelope `/api/v1` uses, so a client reading both surfaces parses one shape
 - **This app's `build` declares `"outputs": []` in `turbo.json`.** The build is
   a dry-run deploy: it validates and bundles without writing anything, so the
   repo-wide `build/**`/`dist/**` globs match nothing and turbo warns on every
@@ -100,6 +141,15 @@ unauthenticated `/mcp` → 401 + `WWW-Authenticate`; discovery → dynamic regis
 ## Testing
 
 - Tools are tested in `src/__tests__/` with a stubbed `McpServer` (capture the `server.tool()` registration, invoke the handler)
+- **Tenant-scoped tools are tested against a real database, not a mocked store.**
+  `src/__tests__/organization-fixture.ts` seeds two tenants into `createFakeD1()`
+  (`@starter/testing/fake-d1` — in-memory SQLite with this repo's migrations
+  applied), so "rejects an organization the caller does not belong to" is a real
+  `WHERE` clause failing to match rather than a mock returning `null` because
+  the test said so. The second tenant is populated on purpose: refusing an id
+  that matches no row proves much less. Both guards were checked by deleting
+  them and watching the suite go red
+- `can()` and `ORG_CAPABILITIES` are **never** mocked here, for the same reason the API suite leaves them real: a matrix change must move these tests, not slip past them
 - **Coverage target: `src/tools/` 90%+**; `src/index.ts` and `src/auth-app.ts` are wiring, covered by the manual OAuth flow walk above
-- Every tool test asserts parity with its API twin (same fields, same version source)
+- A tool with an API twin gets a test asserting parity with it (same fields, same version source). `list_organizations` has none, so its shape is pinned against `ORG_CAPABILITIES` and the store instead — a tool with no twin still needs something to hold it still
 - Auth-bearing tools get a test proving caller-supplied identity is ignored
