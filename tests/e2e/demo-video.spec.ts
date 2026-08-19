@@ -32,8 +32,25 @@ test("the demo section renders with a poster-first, lazy-loaded video", async ({
   await expect(video.locator("source")).toHaveAttribute("src", "/demo.mp4");
 
   // The text alternative for anyone who won't press play: one item per beat of
-  // the film. A missing list would strand the content behind a control.
-  await expect(page.locator("#demo ol > li")).toHaveCount(6);
+  // the film. A missing list would strand the content behind a control. Scoped
+  // by region id, then selected by role — never a structure selector, which
+  // couples the test to markup that can change without behaviour (tests/e2e/CLAUDE.md).
+  await expect(page.locator("#demo").getByRole("listitem")).toHaveCount(6);
+});
+
+test("the video and poster are actually served", async ({ page }) => {
+  // The lazy-load tests above stay green even if demo.mp4 is missing or corrupt —
+  // they only read the src and prove nothing is fetched before play. This closes
+  // that gap by fetching the asset itself. (Range/seek delivery is Cloudflare's
+  // job in production; here the point is that the file exists and serves.)
+  const video = await page.request.get("/demo.mp4");
+  expect(video.status()).toBe(200);
+  expect(video.headers()["content-type"]).toContain("video/mp4");
+  expect((await video.body()).byteLength).toBeGreaterThan(0);
+
+  const poster = await page.request.get("/demo-poster.webp");
+  expect(poster.status()).toBe(200);
+  expect(poster.headers()["content-type"]).toContain("image/webp");
 });
 
 test("no video bytes are fetched before the user presses play", async ({ page }) => {
