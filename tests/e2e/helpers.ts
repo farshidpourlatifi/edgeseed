@@ -205,15 +205,41 @@ export function invitationRow(id: string): { status: string; expiresAt: number }
 }
 
 /**
- * `email`'s role in a seeded organization, or `null` when they are not in it.
+ * The row id of the organization with `slug`, or `null` when there is none.
+ *
+ * For organizations the product created rather than the seed helpers: better-auth
+ * mints the id, so `e2e-org-<slug>` — the shape `giveOrganization` writes and
+ * every helper below derives — is simply wrong for them, and a test that guessed
+ * it would read an absent row as "not a member" and pass for the wrong reason.
+ *
+ * The slug is the handle a spec already controls, since the create dialog takes
+ * it, so this is the one lookup that turns a driven flow back into an id the
+ * API and MCP deny paths can aim at.
+ */
+export function organizationIdOf(slug: string): string | null {
+  const output = execSync(
+    `pnpm --filter @starter/web exec wrangler d1 execute ${D1_BINDING} --local ` +
+      `--json --command "SELECT id FROM organization WHERE slug = '${slug}'"`,
+    { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] },
+  );
+
+  return JSON.parse(output.slice(output.indexOf("[")))?.[0]?.results?.[0]?.id ?? null;
+}
+
+/**
+ * `email`'s role in the organization with `organizationId`, or `null` when they
+ * are not in it.
  *
  * Both halves are assertions this suite needs: a role change is only proven by
  * the column, and a removal is only proven by the row's absence — the list
  * re-rendering without somebody could equally be a pagination accident.
+ *
+ * Takes an id rather than a slug so it serves organizations the **product**
+ * created as well as seeded ones; `memberRole` below is the seeded-slug form.
  */
-export function memberRole(email: string, slug: string): string | null {
+export function memberRoleIn(email: string, organizationId: string): string | null {
   const sql =
-    `SELECT role FROM member WHERE organizationId = 'e2e-org-${slug}' ` +
+    `SELECT role FROM member WHERE organizationId = '${organizationId}' ` +
     `AND userId = (SELECT id FROM user WHERE email = '${email}')`;
 
   const output = execSync(
@@ -223,6 +249,11 @@ export function memberRole(email: string, slug: string): string | null {
   );
 
   return JSON.parse(output.slice(output.indexOf("[")))?.[0]?.results?.[0]?.role ?? null;
+}
+
+/** `memberRoleIn` for a **seeded** organization, whose id is derived from its slug. */
+export function memberRole(email: string, slug: string): string | null {
+  return memberRoleIn(email, `e2e-org-${slug}`);
 }
 
 /** How many organizations `email` belongs to — the assertion a deny path needs. */

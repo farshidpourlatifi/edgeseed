@@ -948,6 +948,7 @@ pnpm release:notes <log>    # Version ID preamble for the GitHub Release body
 - **E2E locators:** `getByRole`/`getByLabel` first; `data-testid` only for
   role-less elements; never CSS class selectors — `tests/e2e/CLAUDE.md`
 - **New package:** follow `docs/creating-packages.md` (includes a required per-package context file)
+- **New organization-scoped feature:** follow [`docs/tenancy.md`](./docs/tenancy.md) — scoped tables, loaders, API routes, MCP tools, and the capability matrix
 
 ---
 

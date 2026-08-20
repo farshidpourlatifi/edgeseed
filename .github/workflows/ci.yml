@@ -139,11 +139,28 @@ jobs:
       # not that a deployment is configured. RESEND_API_KEY and EMAIL_FROM are
       # deliberately omitted, because the e2e helper relies on verification mail
       # being logged rather than sent.
+      # The MCP Worker is a second deploy unit with its own env, and e2e boots
+      # it too (`webServer` in playwright.config.ts) for the organization deny
+      # paths that only exist on that surface. `mcpEnvSchema` requires
+      # BETTER_AUTH_SECRET through `sharedEnvSchema`, and `authFor` validates on
+      # every request — so without this the Worker listens, Playwright's port
+      # probe calls that a clean boot, and the failure surfaces much later as a
+      # 500 on /authorize.
+      #
+      # **The same secret as the web app, deliberately.** The two Workers share
+      # one D1 and one user set; a different secret here would mint sessions the
+      # web app rejects, which is not the production shape.
+      #
+      # SENTRY_DSN is absent here and forced empty for local runs by a `--var`
+      # in playwright.config.ts — see the comment there.
       - name: Write throwaway dev vars for the e2e server
         run: |
           cat > apps/web/.dev.vars <<'VARS'
           BETTER_AUTH_SECRET=e2e-throwaway-secret-not-for-any-real-use
           BETTER_AUTH_URL=http://localhost:5173
+          VARS
+          cat > apps/mcp/.dev.vars <<'VARS'
+          BETTER_AUTH_SECRET=e2e-throwaway-secret-not-for-any-real-use
           VARS
       - run: pnpm db:migrate
       - run: pnpm test:e2e

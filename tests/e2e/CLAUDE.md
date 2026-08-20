@@ -28,6 +28,36 @@ or testid.
 - Playwright boots its own web server (`webServer` in `playwright.config.ts`),
   pinned to `127.0.0.1` — do not change `port` to `url` there; the comment in
   the config explains why.
+- **The MCP Worker is booted by `organization-lifecycle.spec.ts`, not by
+  `webServer`**, and that is deliberate twice over. It shares
+  `apps/web/.wrangler/state` so it reads the same D1 the browser writes, and two
+  miniflare instances cannot _initialise_ one persist root at the same time — a
+  `webServer` entry starts in parallel with the web app and dies at boot with
+  `Directory named "cache:storage" not found`, about a directory that exists.
+  Started after the web server is serving, it is reliable. It also keeps the
+  cost local: `webServer` is not scoped to a project or a `-g` filter, so
+  declaring it there made `pnpm test:e2e -g favicon` compile a Worker and open a
+  Durable Object namespace. `startMcpWorker`/`stopMcpWorker` in `mcp-client.ts`
+  own the lifecycle, and the stop signals the whole process group — an orphaned
+  wrangler holding port 8788 or the shared D1 breaks the _next_ run in a way
+  that looks nothing like a leak.
+- **The MCP Worker runs with `--var SENTRY_DSN:` and must keep doing so.** With
+  a real DSN in a developer's `apps/mcp/.dev.vars`, this Worker alternates
+  between ~10s responses and 30s `503`s and the OAuth grant fails about half the
+  time. **It is the Sentry flush, not KV** — compare the handler's own
+  `durationMs` with what wrangler measures for the same request: `durationMs: 4`
+  against `POST /register 201 (9927ms)`, versus `durationMs: 1` against
+  `(3ms)` with the DSN emptied. The KV write finishes in single-digit
+  milliseconds; the rest is spent after the handler returns, with `withSentry`
+  holding the response on a flush that `enableLogs: true` turns into a network
+  round trip per log line. A local-dev configuration artifact, not a defect —
+  `withSentry`, miniflare's KV and the wrangler/workerd skew were each tested
+  and cleared, and CI never sees it because the `.dev.vars` it writes names no
+  DSN. **Do not "fix" `withSentry` on the strength of it**; with no DSN it
+  really is the pass-through the docs describe. The override is right anyway: a
+  test run must not inherit local configuration, nor ship its deliberate
+  deny-path failures into a real Sentry project. `--var` beats `.dev.vars`, the
+  same mechanism `check:boot` uses.
 - Tests use a per-run throwaway user (`helpers.ts`); never point this suite at
   a deployed environment.
 
