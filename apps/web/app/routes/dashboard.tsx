@@ -65,7 +65,12 @@ export async function loader({ context, request }: Route.LoaderArgs) {
       }));
     }
   } catch {
-    // Organizations not available yet
+    // Organizations ship (#24), so this is a *failure* path, not an unbuilt
+    // one: the list is scenery for the switcher, and losing it must not take
+    // the whole dashboard down. Rendering none is the degraded state — the
+    // zero-organization view, which offers a way to create one — rather than a
+    // 500 on every page under this layout. Child loaders scope themselves, so
+    // an empty list here grants nothing.
   }
 
   return {

@@ -245,11 +245,17 @@ jobs:
       # not that a deployment is configured. The deploy job reads none of
       # them — the Worker's real secrets live in Cloudflare and ship through a
       # separate channel from the code.
+      # e2e boots the MCP Worker as well, and it is a second deploy unit with
+      # its own env — see the matching step in ci.yml for why the secret is the
+      # same one.
       - name: Write throwaway dev vars for the e2e server
         run: |
           cat > apps/web/.dev.vars <<'VARS'
           BETTER_AUTH_SECRET=e2e-throwaway-secret-not-for-any-real-use
           BETTER_AUTH_URL=http://localhost:5173
+          VARS
+          cat > apps/mcp/.dev.vars <<'VARS'
+          BETTER_AUTH_SECRET=e2e-throwaway-secret-not-for-any-real-use
           VARS
       - run: pnpm db:migrate
       - name: Verify

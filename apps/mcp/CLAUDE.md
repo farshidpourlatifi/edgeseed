@@ -36,9 +36,15 @@ wrong. Two deliberate gaps, both recorded under "Status / known gaps":
 
 ## Auth
 
-OAuth 2.1 via `@cloudflare/workers-oauth-provider`. Verified end to end 2026-08-04:
-unauthenticated `/mcp` → 401 + `WWW-Authenticate`; discovery → dynamic registration
-→ login → consent → PKCE code exchange → authenticated `tools/call`; bogus token → 401.
+OAuth 2.1 via `@cloudflare/workers-oauth-provider`. First verified by hand
+2026-08-04; **the grant is exercised on every e2e run as of #40**. The
+`tests/e2e/organization-lifecycle.spec.ts` MCP case boots this Worker and walks
+dynamic registration → `/authorize` login → consent → PKCE code exchange →
+`initialize` → `tools/call` (`tests/e2e/mcp-client.ts`), which is what turned
+"a grant issued to one person resolves to _that_ person's `userId`" from an
+assumption into an assertion — the tool unit tests below hand themselves a
+`ctx.user` and cannot reach it. Still only covered by hand: unauthenticated
+`/mcp` → 401 + `WWW-Authenticate`, and bogus token → 401.
 
 - **`apps/mcp` runs its OWN Better Auth instance.** It is a separate Worker from
   `apps/web` and cannot read that origin's session cookie, so users sign in again
@@ -150,6 +156,6 @@ unauthenticated `/mcp` → 401 + `WWW-Authenticate`; discovery → dynamic regis
   that matches no row proves much less. Both guards were checked by deleting
   them and watching the suite go red
 - `can()` and `ORG_CAPABILITIES` are **never** mocked here, for the same reason the API suite leaves them real: a matrix change must move these tests, not slip past them
-- **Coverage target: `src/tools/` 90%+**; `src/index.ts` and `src/auth-app.ts` are wiring, covered by the manual OAuth flow walk above
+- **Coverage target: `src/tools/` 90%+**; `src/index.ts` and `src/auth-app.ts` are wiring, covered by the e2e OAuth walk above rather than by unit tests
 - A tool with an API twin gets a test asserting parity with it (same fields, same version source). `list_organizations` has none, so its shape is pinned against `ORG_CAPABILITIES` and the store instead — a tool with no twin still needs something to hold it still
 - Auth-bearing tools get a test proving caller-supplied identity is ignored

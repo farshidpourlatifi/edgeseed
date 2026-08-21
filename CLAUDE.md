@@ -29,6 +29,12 @@ IPv6-only (`[::1]:5173`) makes Playwright fail with `ERR_CONNECTION_REFUSED`,
 because it reuses the occupied port while the resolver pin targets `127.0.0.1`.
 Check with `lsof -nP -iTCP:5173 -sTCP:LISTEN` when e2e fails for no clear reason.
 
+**Stop the `mcp` preview too.** `organization-lifecycle.spec.ts` starts its own
+MCP Worker on 8788 for the tenant-isolation deny path, and one already listening
+there means the spec drives a Worker it did not configure — including one still
+holding the D1 that global-setup's `db:reset` is about to drop. Check both ports:
+`lsof -nP -iTCP:5173,8788 -sTCP:LISTEN`.
+
 ### Per-directory context
 
 Each app and package has its own `CLAUDE.md`, which Claude Code loads when

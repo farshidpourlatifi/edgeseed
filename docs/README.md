@@ -230,6 +230,7 @@ Don't use `wrangler secret put` for local development. Put the same variables in
 
 ## Further reading
 
+- [Extending the Tenancy Model](./tenancy.md) — adding org-scoped tables, pages, API routes and MCP tools on the starter's tenancy
 - [Domain Topology](./domains.md) — single vs split origin, `MARKETING_URL`, custom domains, OAuth callbacks
 - [MCP Server](./mcp.md) — connecting a client, the OAuth flow, tools, deploy checklist
 - [Creating a New Package](./creating-packages.md) — scaffold checklist, wiring, per-package CLAUDE.md

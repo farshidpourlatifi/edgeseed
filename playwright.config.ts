@@ -19,6 +19,24 @@ export default defineConfig({
     },
   },
   globalSetup: "./tests/e2e/global-setup.ts",
+  // One `webServer`, deliberately. The MCP Worker is booted by
+  // `organization-lifecycle.spec.ts` itself rather than declared here, for two
+  // reasons that only showed up when it was declared here:
+  //
+  // 1. **Two miniflare instances cannot initialise one `--persist-to` root at
+  //    the same time.** Playwright starts every `webServer` entry in parallel,
+  //    and the MCP Worker shares `apps/web/.wrangler/state` so it can read the
+  //    D1 the browser writes. Racing the web server for it, it dies at boot
+  //    with `Directory named "cache:storage" not found` → `The Workers runtime
+  //    failed to start` — a message about a directory that demonstrably exists.
+  //    Started after the web server is up, it is reliable.
+  // 2. **`webServer` is not scoped to a project or a `-g` filter.** Declared
+  //    here, `pnpm test:e2e -g favicon` would compile a Worker and open a
+  //    Durable Object namespace for a test that never touches MCP.
+  //
+  // Must stay `port`, not `url`: with `url` Playwright boots the server before
+  // globalSetup, and globalSetup's db:reset then drops the D1 file out from
+  // under it — every auth call fails with SQLITE_CANTOPEN.
   webServer: {
     // `--host 127.0.0.1` pins the bind address. Left to itself the dev server
     // binds whichever family DNS returns for `localhost` first — sometimes
@@ -26,9 +44,6 @@ export default defineConfig({
     // independently. When the two disagree the suite dies on ERR_CONNECTION_
     // REFUSED. This only affects test runs; `pnpm dev` is untouched.
     command: "pnpm --filter @starter/web dev --host 127.0.0.1",
-    // Must stay `port`, not `url`: with `url` Playwright boots the server
-    // before globalSetup, and globalSetup's db:reset then drops the D1 file
-    // out from under it — every auth call fails with SQLITE_CANTOPEN.
     port: 5173,
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
