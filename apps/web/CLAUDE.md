@@ -180,7 +180,9 @@ ORGANIZATION_ALREADY_EXISTS` — **not** `ORGANIZATION_SLUG_ALREADY_TAKEN`,
   `members.spec.ts`'s `locale: "en-GB"` block, which was seen red against the
   original code. The same defect had been sitting unnoticed in the API-token
   list. When this product grows a locale of its own, that module is the one
-  place that has to learn about it
+  place that has to learn about it. The wider convention — instants-only
+  storage, `now` as an input, tests that move the data rather than the clock —
+  is `docs/adr/004-time-and-timezones.md`
 - Secrets: never in `wrangler.jsonc` — `.dev.vars` locally, `wrangler secret put` in production
 - Deploy only via `pnpm deploy:web` (runs the verify gate)
 

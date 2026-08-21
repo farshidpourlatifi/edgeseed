@@ -18,6 +18,12 @@
  * this product grows a locale of its own, this function is the one place that
  * has to learn about it — which is the other reason it is not three copies of
  * the same six lines.
+ *
+ * `docs/adr/004-time-and-timezones.md` is the convention this module is the
+ * seam for, and it names this file as the only one. It also carries the
+ * upgrade path — a cookie holding zone and locale together, feeding
+ * server-side `Intl` through here — and the reason client-only formatting of
+ * an SSR'd date is rejected rather than deferred.
  */
 const FORMAT = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
