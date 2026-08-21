@@ -246,5 +246,6 @@ Don't use `wrangler secret put` for local development. Put the same variables in
 - [ADR 001: Monorepo Structure](./adr/001-monorepo-structure.md)
 - [ADR 002: Observability](./adr/002-observability.md)
 - [ADR 003: Transactional Email](./adr/003-transactional-email.md)
+- [ADR 004: Time and Timezones](./adr/004-time-and-timezones.md)
 - [OpenAPI Spec](./api/openapi.json)
 - [V1 Scope](./starter-v1-scope.md)

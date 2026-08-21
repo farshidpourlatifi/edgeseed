@@ -226,6 +226,26 @@ workflow still passes, so a green run is not evidence.
 - Keep request-path logs structured and redacted. Do not log raw URLs or query
   strings. Preserve separate Durable Object and MCP-agent Sentry instrumentation.
 
+### Time and timezones
+
+Full rationale: `docs/adr/004-time-and-timezones.md`; the distilled rules are the
+`Time` section of `AGENTS.md`.
+
+- New time logic — does `now` arrive as an input, with a test at a non-now
+  instant? New rendered date — does it go through `format-date.ts`? New
+  day/month/civil-time logic — whose zone, and is it named?
+- Reject a SQL clock default on any new column — no `CURRENT_TIMESTAMP`, no
+  `DEFAULT (unixepoch())`. Defaults belong in drizzle's `$defaultFn`, which runs
+  in application code; a database-generated timestamp cannot be seeded to a
+  different instant, so it takes the row out of reach of every test.
+- Keep `apps/web/app/lib/format-date.ts` the only place a date becomes a string.
+  A call site reaching for `Intl` or `toLocaleDateString` is the defect that
+  shipped twice, and it passes CI whenever the browser agrees with the Worker.
+- Require a persisted zone to be an IANA name, never a UTC offset.
+- Require tests to move the data's timestamps rather than the clock. The clock
+  is not virtualisable on this runtime, so a change that appears to freeze or
+  mock it is either ineffective or reaching past a boundary this repo owns.
+
 ### Repository contracts
 
 - Preserve package boundaries and dependency injection. In particular, keep
