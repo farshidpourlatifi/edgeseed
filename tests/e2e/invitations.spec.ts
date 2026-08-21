@@ -358,6 +358,18 @@ test.describe("an invitation that can no longer be used", () => {
   test.use({ extraHTTPHeaders: { "cf-connecting-ip": clientIp() } });
 
   /**
+   * **The expiry case below is the repo's reference fixture time-travel test**
+   * — the template for the retention and timeline tests arriving with #21, and
+   * an instance of the convention in `docs/adr/004-time-and-timezones.md`:
+   * behaviour that depends on time is tested by moving the *data's* timestamps,
+   * never the world's clock, which this runtime does not let anything set.
+   * `tests/e2e/CLAUDE.md` has the pattern in full.
+   *
+   * It was checked the way that section demands: with `expiresAt` moved a day
+   * into the future the invitation is live, the accept form renders, and this
+   * assertion fails — so it really does key on the seeded expiry rather than
+   * passing for the same reason the mangled-link case does.
+   *
    * Expiry and revocation are written into D1 directly — the window is seven
    * days, and revoking through the UI would spend a describe on scenery for a
    * state one `UPDATE` reaches. The refusal is entirely better-auth's either
