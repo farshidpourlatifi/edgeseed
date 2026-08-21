@@ -7,7 +7,6 @@ import {
   bootEnvArgs,
   bootVarArgs,
   envProbeUrl,
-  originUrl,
   portOccupiedReason,
   extractBootError,
   healthUrl,
@@ -268,11 +267,5 @@ describe("portOccupiedReason", () => {
 
   it("says the check would otherwise test the wrong process", () => {
     expect(portOccupiedReason(BOOT_TARGETS[0])).toContain("instead of the bundle just built");
-  });
-});
-
-describe("originUrl", () => {
-  it("asks the bare origin, so any listener counts however it answers", () => {
-    expect(originUrl(BOOT_TARGETS[0])).toBe("http://127.0.0.1:8791/");
   });
 });

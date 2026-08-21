@@ -399,8 +399,10 @@ delivers an unset key as `""`, not as absent, and every optional key in
 documented setup path on every request.
 
 **Anything that runs the Worker needs an env to run it with.** `check:boot`
-supplies throwaway values as `--var` and the CI e2e job writes a throwaway
-`.dev.vars`; without them a correctly failing Worker serves nothing and the check
+supplies throwaway values as `--var` — plus `--env-file` at an empty fixture, so
+a developer's `.dev.vars` is not loaded underneath them and the env is the same
+everywhere — and the CI e2e job writes a throwaway `.dev.vars`, which is that
+suite's configuration channel rather than an inheritance to suppress; without them a correctly failing Worker serves nothing and the check
 asserts "is CI configured" instead of "does the bundle boot". Remember that
 `pnpm verify` passes locally in this situation, because a developer machine has a
 `.dev.vars` — CI is the only place this shows up.

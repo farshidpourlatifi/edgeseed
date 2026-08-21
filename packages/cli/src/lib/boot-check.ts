@@ -184,11 +184,6 @@ export function envProbeUrl(target: BootTarget): string | null {
   return `http://127.0.0.1:${target.port}${target.envProbe}`;
 }
 
-/** The bare origin, used to ask whether *anything* already holds the port. */
-export function originUrl(target: BootTarget): string {
-  return `http://127.0.0.1:${target.port}/`;
-}
-
 /**
  * Why a listener already on the port is a hard failure rather than a free pass.
  *
@@ -241,13 +236,16 @@ export function summarize(failures: readonly BootFailure[], total: number): stri
   }
   // `every`, not `some`: one genuine failure alongside a blocked target still
   // means a bundle was proven broken, and that is the louder claim of the two.
-  const footer = failures.every((f) => f.blocked)
+  //
+  // The header is part of that claim, not decoration above it — "boot FAILED"
+  // says the boot was attempted and lost. Branching the footer alone left the
+  // two lines contradicting each other in the same output.
+  const blocked = failures.every((f) => f.blocked);
+  const header = blocked
+    ? `boot check BLOCKED for ${failures.length} of ${total} worker(s):`
+    : `boot FAILED for ${failures.length} of ${total} worker(s):`;
+  const footer = blocked
     ? "The check did not run, so nothing here says whether the bundle works."
     : "The bundle compiles but does not run. `pnpm deploy:web` would ship this.";
-  return [
-    `boot FAILED for ${failures.length} of ${total} worker(s):`,
-    ...failures.map((f) => `  ${f.target}: ${f.reason}`),
-    "",
-    footer,
-  ].join("\n");
+  return [header, ...failures.map((f) => `  ${f.target}: ${f.reason}`), "", footer].join("\n");
 }

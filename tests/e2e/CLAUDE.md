@@ -56,8 +56,14 @@ or testid.
   DSN. **Do not "fix" `withSentry` on the strength of it**; with no DSN it
   really is the pass-through the docs describe. The override is right anyway: a
   test run must not inherit local configuration, nor ship its deliberate
-  deny-path failures into a real Sentry project. `--var` beats `.dev.vars`, the
-  same mechanism `check:boot` uses.
+  deny-path failures into a real Sentry project. `--var` does beat `.dev.vars`,
+  so overriding the one key works. `check:boot` no longer leans on that
+  precedence — it passes `--env-file` at an empty fixture and suppresses the
+  file entirely — and this suite deliberately does not follow it: `.dev.vars` is
+  how this suite is configured (the spawn passes one `--var`; CI writes a
+  throwaway file to supply `BETTER_AUTH_SECRET` and the rest), so suppressing it
+  would leave every request refused. e2e needs a realistic env, `check:boot` a
+  minimal one.
 - Tests use a per-run throwaway user (`helpers.ts`); never point this suite at
   a deployed environment.
 
