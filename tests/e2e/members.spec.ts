@@ -414,6 +414,13 @@ test.describe("a reader outside en-US gets the same page the server rendered", (
     await page.goto("/dashboard/members");
     await expect(memberRow(page, ANA.email)).toContainText("owner", { timeout: 15000 });
 
+    // Both assertions below have to run *after* React attaches, not merely
+    // after the document loads — see `watchForHydrationFailures`. Until then
+    // the DOM is still the server's markup, so the shape assertion matches the
+    // string the server sent whatever the client would render, and the failure
+    // list is read before React has had the chance to complain.
+    await waitForHydration(memberRow(page, ANA.email));
+
     // "Aug 15, 2026", never "15 Aug 2026" — the browser's own locale would
     // produce the second, and the server cannot know about it.
     await expect(memberRow(page, ANA.email)).toContainText(/joined [A-Z][a-z]{2} \d{1,2}, \d{4}/);

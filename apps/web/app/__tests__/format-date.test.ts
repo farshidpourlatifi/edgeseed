@@ -15,10 +15,18 @@ import { formatDate, formatDateOrNever } from "../lib/format-date";
  *
  * `vitest.config.ts` now pins the suite to `en-GB` and `America/Los_Angeles`,
  * both of which the Worker is not, so the process disagrees with production on
- * both axes and every assertion below has something to catch. Removing the
- * locale from the seam fails five cases in this file; removing the zone fails
- * the re-import case, which would otherwise be measuring against its own
- * starting state.
+ * both axes and every assertion below has something to catch. Counted by
+ * mutating the seam and running this file:
+ *
+ * - dropping the **locale** fails six cases;
+ * - dropping the **`timeZone` option** fails two — the re-import case, which
+ *   would otherwise be measuring against its own starting state, and the
+ *   early-instant case below it;
+ * - **changing** the zone to some other zone fails one, and which one depends
+ *   on the direction. An eastern zone trips the re-import case, whose instant
+ *   is late in the UTC day; a western zone trips the early-instant case. That
+ *   is the reason for keeping both rather than one: a single instant only
+ *   catches a move in one direction.
  *
  * The pin is worth understanding before trusting it. `LC_ALL` is ignored by the
  * process that sets it — Node fixes its default locale at startup — and works

@@ -138,8 +138,10 @@ The unit suite is pinned the other way, to `America/Los_Angeles`
 UTC+14 pushes a late-UTC instant onto the next day, UTC-7 pulls an early one
 onto the previous. `format-date.test.ts` carries the matching config assertions
 for that side, locale included: the unit suite is pinned to `en-GB` as well, so
-removing the locale from the seam fails five cases there in twelve seconds
-rather than waiting on the e2e run.
+removing the locale from the seam fails six cases there in twelve seconds
+rather than waiting on the e2e run. Dropping the zone option fails two, and
+changing the zone fails one — an eastern zone caught by the late instant, a
+western one by the early instant.
 
 Both pins have to be set in `vitest.config.ts` itself, and they work for
 different reasons. Node re-reads `TZ` whenever it changes, so that one would
