@@ -140,8 +140,9 @@ jobs:
       # deliberately omitted, because the e2e helper relies on verification mail
       # being logged rather than sent.
       # The MCP Worker is a second deploy unit with its own env, and e2e boots
-      # it too (`webServer` in playwright.config.ts) for the organization deny
-      # paths that only exist on that surface. `mcpEnvSchema` requires
+      # it too — from `organization-lifecycle.spec.ts` itself, for the
+      # organization deny paths that only exist on that surface.
+      # `mcpEnvSchema` requires
       # BETTER_AUTH_SECRET through `sharedEnvSchema`, and `authFor` validates on
       # every request — so without this the Worker listens, Playwright's port
       # probe calls that a clean boot, and the failure surfaces much later as a

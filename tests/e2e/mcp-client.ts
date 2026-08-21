@@ -30,9 +30,11 @@ import { expect, type Page } from "@playwright/test";
 /**
  * The port the MCP Worker listens on under test.
  *
- * Imported by `playwright.config.ts` for the `webServer` entry as well, so the
- * server and the client cannot drift onto different ports. It matches the `mcp`
- * entry in `.claude/launch.json`, which is what a developer's own preview uses.
+ * One constant for both halves of this file — the Worker `startMcpWorker` boots
+ * and the origin every request below addresses — so they cannot drift onto
+ * different ports. It matches the `mcp` entry in `.claude/launch.json`, which is
+ * what a developer's own preview uses, which is also why `startMcpWorker`
+ * refuses to run when something is already listening here.
  */
 export const MCP_PORT = 8788;
 
@@ -135,14 +137,16 @@ export async function startMcpWorker(timeoutMs = 180_000): Promise<void> {
   /*
    * Refuse to adopt somebody else's Worker.
    *
-   * Playwright's `reuseExistingServer` would happily treat whatever answers on
-   * this port as the server under test, and on a machine with a sibling clone
-   * of this starter checked out — `init:product` keeps the `mcp` preview on
-   * 8788 — that is somebody else's Worker against somebody else's database.
-   * The suite would then pass or fail on rows it never wrote, which is the
-   * least debuggable outcome available. Nothing this suite starts survives it,
-   * because `stopMcpWorker` runs in `afterAll`, so anything listening here is
-   * foreign by definition.
+   * Without this, spawning wrangler against an occupied port fails to bind
+   * while the readiness probe below is answered by whatever is already there —
+   * so the suite silently adopts it. On a machine with a sibling clone of this
+   * starter checked out (`init:product` keeps the `mcp` preview on 8788), or
+   * with a developer's own preview running, that is somebody else's Worker
+   * against somebody else's database, and the tenant-isolation assertions would
+   * pass or fail on rows this suite never wrote — the least debuggable outcome
+   * available. Nothing this suite starts survives a run, because
+   * `stopMcpWorker` runs in `afterAll`, so anything listening here is foreign
+   * by definition.
    */
   const occupied = await fetch(MCP_ORIGIN, { signal: AbortSignal.timeout(2_000) })
     .then(() => true)
