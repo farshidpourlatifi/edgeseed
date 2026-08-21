@@ -501,6 +501,13 @@ export async function waitForHydration(target: Locator, timeout = 15_000) {
 }
 
 /**
+ * React's hydration errors, in both the forms it emits them. The prose
+ * appears in development; a production build replaces it with a URL carrying
+ * the code. `watchForHydrationFailures` below explains why both matter.
+ */
+const HYDRATION_ERROR = /hydrat|react\.dev\/errors\/(418|422|423|425)\b/i;
+
+/**
  * Collect hydration failures reported by the browser for the rest of the test.
  *
  * **The suite-wide `locale`/`timezoneId` pins in `playwright.config.ts` make a
@@ -545,8 +552,6 @@ export async function waitForHydration(target: Locator, timeout = 15_000) {
  * and 423 (error while hydrating, boundary and root), 425 (text content did not
  * match).
  */
-const HYDRATION_ERROR = /hydrat|react\.dev\/errors\/(418|422|423|425)\b/i;
-
 export function watchForHydrationFailures(page: Page): () => string[] {
   const failures: string[] = [];
 
