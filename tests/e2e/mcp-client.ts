@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { connect } from "node:net";
 import { expect, type Page } from "@playwright/test";
+
+import { hostOf, portOccupied } from "../../packages/cli/src/lib/port";
 
 /**
  * An OAuth 2.1 client for the MCP Worker, driven the way a real MCP client
@@ -162,21 +163,11 @@ export async function startMcpWorker(timeoutMs = 180_000): Promise<void> {
    * `stopMcpWorker` runs in `afterAll`, so anything listening here is foreign
    * by definition.
    */
-  // A TCP connect rather than a request: an HTTP probe reads its own timeout as
-  // "nothing there", so a wedged listener — what an interrupted run leaves —
-  // reads as a free port and gets adopted anyway. Only an explicit refusal
-  // counts as free; `packages/cli/src/check-boot.ts` refuses on the same terms.
-  const occupied = await new Promise<boolean>((resolve) => {
-    const socket = connect({ host: "127.0.0.1", port: MCP_PORT });
-    const settle = (busy: boolean) => {
-      socket.destroy();
-      resolve(busy);
-    };
-    socket.setTimeout(2_000);
-    socket.once("connect", () => settle(true));
-    socket.once("timeout", () => settle(true));
-    socket.once("error", (error: NodeJS.ErrnoException) => settle(error.code !== "ECONNREFUSED"));
-  });
+  // Host derived from `MCP_ORIGIN` — the origin every request below uses — so
+  // the guard and its consumer cannot address different things. They already
+  // did once: pinned to `127.0.0.1`, this was blind to an orphan bound
+  // IPv6-only on `::1`, which is the hazard AGENTS.md documents for 5173.
+  const occupied = await portOccupied(hostOf(MCP_ORIGIN), MCP_PORT);
 
   if (occupied) {
     throw new Error(

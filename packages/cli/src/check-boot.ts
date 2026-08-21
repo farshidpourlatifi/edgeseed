@@ -6,7 +6,6 @@
  * Run it after `build`, before `deploy`.
  */
 import { spawn, type ChildProcess } from "node:child_process";
-import { connect } from "node:net";
 import { fileURLToPath } from "node:url";
 import {
   BOOT_ENV_FILE,
@@ -22,6 +21,7 @@ import {
   type BootFailure,
   type BootTarget,
 } from "./lib/boot-check";
+import { hostOf, portOccupied } from "./lib/port";
 
 const READY_TIMEOUT_MS = 90_000;
 const POLL_INTERVAL_MS = 500;
@@ -60,33 +60,6 @@ const PROBE_REQUEST_TIMEOUT_MS = 30_000;
  * to this module rather than `process.cwd()` for the same reason.
  */
 const ENV_FILE_PATH = fileURLToPath(new URL(`../${BOOT_ENV_FILE}`, import.meta.url));
-
-/**
- * Is anything holding this port?
- *
- * A TCP connect, not an HTTP request. The HTTP shape reads its own timeout as
- * "nothing there", so a **wedged** listener — one holding the port and never
- * answering, which is exactly what an interrupted run leaves behind — looks
- * free, and the check goes on to adopt or race it.
- *
- * The unknown case therefore fails closed, per the first rule in AGENTS.md:
- * only an explicit `ECONNREFUSED` means free. A loopback connect that neither
- * completes nor is refused within the timeout is not a free port, whatever
- * else it is.
- */
-function portOccupied(port: number, timeoutMs = 2_000): Promise<boolean> {
-  return new Promise((resolve) => {
-    const socket = connect({ host: "127.0.0.1", port });
-    const settle = (occupied: boolean) => {
-      socket.destroy();
-      resolve(occupied);
-    };
-    socket.setTimeout(timeoutMs);
-    socket.once("connect", () => settle(true));
-    socket.once("timeout", () => settle(true));
-    socket.once("error", (error: NodeJS.ErrnoException) => settle(error.code !== "ECONNREFUSED"));
-  });
-}
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -198,7 +171,10 @@ async function bootOne(target: BootTarget): Promise<BootFailure | null> {
   // Refuse to adopt a Worker this check did not start. Must run *before* the
   // spawn: afterwards the readiness poll cannot tell the two apart, and answers
   // `boot ok` for a bundle that never ran. See `portOccupiedReason`.
-  if (await portOccupied(target.port)) {
+  // Host derived from the URL this check is about to poll, never written out
+  // again here — a guard probing a different host from its consumer is exactly
+  // the defect this shape prevents. wrangler binds the same address via `--ip`.
+  if (await portOccupied(hostOf(healthUrl(target)), target.port)) {
     return { target: target.name, reason: portOccupiedReason(target), blocked: true };
   }
 

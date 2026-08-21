@@ -189,6 +189,17 @@ describe("summarize", () => {
     expect(out).not.toContain("deploy:web");
   });
 
+  /**
+   * The header carries the same claim as the footer, so it needs the same
+   * assertion: checking only the footer let the two disagree once already —
+   * `boot FAILED` printed directly above "the check did not run".
+   */
+  it("says BLOCKED, not FAILED, in the header of a blocked-only run", () => {
+    const out = summarize([{ target: "@starter/web", reason: "port busy", blocked: true }], 2);
+    expect(out).toContain("boot check BLOCKED for 1 of 2 worker(s):");
+    expect(out).not.toContain("boot FAILED");
+  });
+
   it("keeps the louder claim when a real failure sits beside a blocked one", () => {
     const out = summarize(
       [
@@ -198,6 +209,8 @@ describe("summarize", () => {
       2,
     );
     expect(out).toContain("deploy:web");
+    expect(out).toContain("boot FAILED");
+    expect(out).not.toContain("BLOCKED");
   });
 });
 
