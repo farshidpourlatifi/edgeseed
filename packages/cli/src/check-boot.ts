@@ -30,6 +30,11 @@ const POLL_INTERVAL_MS = 500;
  * seconds. A per-request timeout tight enough to abandon that would turn a busy
  * developer machine into a red gate for no reason.
  *
+ * That laptop figure almost certainly included the inherited-`SENTRY_DSN` stall
+ * that `BOOT_VARS` now pins away (76 s measured on 2026-08-22, under a second
+ * once pinned). The headroom stays anyway: it costs nothing when the probe is
+ * fast, and the next slow cause will not announce itself either.
+ *
  * `PROBE_TIMEOUT_MS` bounds the whole probe including retries;
  * `PROBE_REQUEST_TIMEOUT_MS` bounds one attempt, and is clamped to whatever is
  * left of the former.

@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   BOOT_TARGETS,
+  BOOT_VARS,
+  bootVarArgs,
   envProbeUrl,
   extractBootError,
   healthUrl,
@@ -171,5 +173,25 @@ describe("summarize", () => {
 
   it("spells out the consequence, so the failure is not dismissed as flaky", () => {
     expect(summarize([{ target: "@starter/web", reason: "x" }], 1)).toContain("deploy:web");
+  });
+});
+
+/**
+ * The env the check runs under is the check's own, not the laptop's. `wrangler
+ * dev` merges `.dev.vars` underneath `--var`, so any key left out here is
+ * inherited — and a real `SENTRY_DSN` inherited that way turned the mcp
+ * `envProbe` into a 76 s wait on a Sentry flush (see BOOT_VARS).
+ */
+describe("boot vars", () => {
+  it("pins SENTRY_DSN empty so a local DSN is never inherited", () => {
+    expect(BOOT_VARS.SENTRY_DSN).toBe("");
+  });
+
+  it("passes an empty value as a bare `KEY:`, the form the e2e MCP Worker uses", () => {
+    expect(bootVarArgs({ SENTRY_DSN: "" })).toEqual(["--var", "SENTRY_DSN:"]);
+  });
+
+  it("supplies a secret the env schema accepts", () => {
+    expect(BOOT_VARS.BETTER_AUTH_SECRET.length).toBeGreaterThanOrEqual(32);
   });
 });

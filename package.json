@@ -31,7 +31,8 @@
     "check:deployed": "tsx packages/cli/src/check-deployed.ts",
     "release:notes": "tsx packages/cli/src/release-notes.ts",
     "version:bump": "tsx packages/cli/src/version-bump.ts",
-    "verify": "pnpm lint && pnpm format:check && pnpm test && gitleaks git --redact && pnpm build && pnpm typecheck && pnpm check:boot && pnpm test:e2e",
+    "verify:fast": "pnpm lint && pnpm format:check && pnpm test && gitleaks git --redact && pnpm build && pnpm typecheck && pnpm check:boot",
+    "verify": "pnpm verify:fast && pnpm test:e2e",
     "deploy:web": "pnpm verify && pnpm deploy:web:ungated",
     "deploy:web:ungated": "pnpm --filter @starter/web exec wrangler deploy --var ENVIRONMENT:production"
   },

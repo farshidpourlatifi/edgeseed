@@ -179,7 +179,8 @@ docs/
 | `pnpm test:mutation`                      | Stryker mutation tests (`reports/mutation/`)                                        |
 | `pnpm lint` / `pnpm lint:fix`             | ESLint check / autofix                                                              |
 | `pnpm format` / `pnpm format:check`       | Prettier write / check                                                              |
-| `pnpm verify`                             | Full gate: lint, format, tests, gitleaks, build, typecheck, e2e                     |
+| `pnpm verify:fast`                        | Everything in `verify` except e2e — the inner loop, not the bar for "done"          |
+| `pnpm verify`                             | Full gate: lint, format, tests, gitleaks, build, typecheck, boot check, e2e         |
 | `pnpm deploy:web`                         | Run `verify`, then deploy the web app to Cloudflare                                 |
 | `pnpm deploy:web:ungated`                 | The deploy half alone — CI uses it to scope credentials; never run by hand          |
 | `pnpm db:generate`                        | Generate Drizzle migration from schema changes                                      |

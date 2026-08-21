@@ -64,10 +64,24 @@ export const BOOT_TARGETS: readonly BootTarget[] = [
  *
  * The secret is 32+ characters and is deliberately not Better Auth's default,
  * because the schema rejects both.
+ *
+ * `SENTRY_DSN` is pinned **empty**, not left to inherit. `wrangler dev` merges
+ * `.dev.vars` underneath these overrides, so a developer with a real DSN there
+ * would otherwise run the check against it — and `withSentry` then holds every
+ * response on a flush that `enableLogs` turns into a network round trip per log
+ * line. Measured on 2026-08-22: the mcp `envProbe` took 76 s of an 83 s run with
+ * the DSN inherited, and under a second with it pinned. The e2e suite pins it
+ * for the same reason (`tests/e2e/mcp-client.ts`), and it is right on its own
+ * merits too: a boot check proves the bundle runs, and must neither depend on
+ * local config nor report throwaway-env noise into a real Sentry project. An
+ * empty value is what an unset `.dev.vars` key delivers, so the schema's
+ * `optionalBinding` already treats it as absent and `withSentry` stays the
+ * pass-through it is in CI.
  */
 export const BOOT_VARS: Readonly<Record<string, string>> = {
   BETTER_AUTH_SECRET: "boot-check-throwaway-secret-not-for-any-real-use",
   BETTER_AUTH_URL: "http://127.0.0.1:8791",
+  SENTRY_DSN: "",
 };
 
 /** `--var KEY:value` pairs for `wrangler dev`. */
