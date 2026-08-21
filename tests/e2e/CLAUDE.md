@@ -97,6 +97,41 @@ the dev server's memory, `db:reset` does not clear them, and
 would make the second run of the day fail for reasons that look nothing like the
 cause.
 
+## The suite runs where the Worker does not
+
+`playwright.config.ts` pins every browser context to `Pacific/Kiritimati`
+(UTC+14) and `en-GB`. The Worker is UTC and answers `en-US`, so the two
+deliberately disagree on **both** axes, and every SSR'd date on every page
+becomes a standing hydration test without any spec asking for one.
+
+Agreement is what let the original defect ship. `toLocaleDateString(undefined,
+…)` asks the _runtime_ for its locale and zone, and a server-rendered page has
+two runtimes — but CI's Chromium answered exactly what the Worker answered, so
+the two strings matched, the suite went green, and the mismatch existed only on
+a reader's machine. It was found by opening the page in a real browser.
+
+**The pin has its own deny-path test, because it is invisible.** Delete the two
+lines and every other spec still passes — a correctly pinned formatter renders
+the same string in any browser, so nothing notices that the suite stopped
+testing the thing it was widened to test. `hostile-environment.spec.ts` asserts
+the browser's resolved zone and locale, and that neither matches the Worker's.
+It restates those values rather than importing them from the config on purpose:
+a shared constant would move with the edit that removed the pin and assert
+nothing. Both halves were seen red — with the pin deleted the spec reports the
+machine's own zone.
+
+The unit suite is pinned the other way, to `America/Los_Angeles`
+(`vitest.config.ts`), so the day boundary is crossed in both directions:
+UTC+14 pushes a late-UTC instant onto the next day, UTC-7 pulls an early one
+onto the previous. `format-date.test.ts` carries the matching config assertion
+for that side. Node re-reads `TZ` at runtime but fixes its default _locale_ at
+startup, so the unit suite cannot be locale-pinned from its config — that half
+is Playwright's, which is where a locale mismatch actually breaks something.
+
+A spec that needs a date on screen should expect the pinned `en-US` rendering
+(`Aug 15, 2026`), never the browser's — that is what `format-date.ts` exists to
+guarantee, and asserting the browser's form would assert the bug.
+
 ## Seeding an organization
 
 `giveOrganization(email, slug, name)` writes `organization` + `member` rows into

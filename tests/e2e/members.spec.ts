@@ -388,11 +388,20 @@ test.describe("one tenant's page never shows another's", () => {
  * and a British reader's browser answers `en-GB`, so React finds text it did
  * not render and throws away the server's markup for that subtree.
  *
- * **The locale here is the assertion.** Under the default `en-US` this test
- * passes against the broken implementation as surely as against the fixed one,
- * which is exactly why the original bug reached a browser before anything
- * noticed: CI's Chromium and the Worker agree. It was seen red against
+ * **The locale here is the assertion.** Under `en-US` this test passes against
+ * the broken implementation as surely as against the fixed one, which is
+ * exactly why the original bug reached a browser before anything noticed: CI's
+ * Chromium and the Worker agreed. It was seen red against
  * `toLocaleDateString(undefined, …)` before `app/lib/format-date.ts` existed.
+ *
+ * **The `locale` below is now redundant with the suite-wide pin in
+ * `playwright.config.ts`, and it stays anyway.** It is what makes this block
+ * self-describing — a reader should not have to know the project config to see
+ * why an `en-GB` assertion is here — and it keeps the guarantee if the
+ * suite-wide locale is ever changed to something else hostile. The pin itself
+ * is guarded by `hostile-environment.spec.ts`, not by this block: deleting the
+ * pin would leave this `test.use` in place and this test green, which is
+ * precisely why a configuration needs a deny-path test of its own.
  */
 test.describe("a reader outside en-US gets the same page the server rendered", () => {
   test.use({ extraHTTPHeaders: { "cf-connecting-ip": clientIp() }, locale: "en-GB" });

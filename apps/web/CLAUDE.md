@@ -175,10 +175,14 @@ ORGANIZATION_ALREADY_EXISTS` — **not** `ORGANIZATION_SLUG_ALREADY_TAKEN`,
   and a server-rendered page has two: the Worker answers `en-US`
   ("Aug 15, 2026") while a British reader's browser answers `en-GB`
   ("15 Aug 2026"). React then finds text it did not render and throws away the
-  server's markup for that subtree. **Nothing in CI can see it** — Playwright's
-  Chromium runs `en-US`, the same answer the Worker gives — so the guard is
-  `members.spec.ts`'s `locale: "en-GB"` block, which was seen red against the
-  original code. The same defect had been sitting unnoticed in the API-token
+  server's markup for that subtree. **CI could not see it, which is how it
+  shipped** — Playwright's Chromium ran `en-US`, the same answer the Worker
+  gives. The suite is now pinned to `en-GB` and `Pacific/Kiritimati`
+  suite-wide (`playwright.config.ts`), so every page is a standing hydration
+  test; `tests/e2e/hostile-environment.spec.ts` fails if either pin is removed,
+  and `members.spec.ts`'s block — which was seen red against the original code —
+  keeps its own `locale` for the same reason. The defect had been sitting
+  unnoticed in the API-token
   list. When this product grows a locale of its own, that module is the one
   place that has to learn about it. The wider convention — instants-only
   storage, `now` as an input, tests that move the data rather than the clock —

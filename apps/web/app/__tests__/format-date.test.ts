@@ -6,21 +6,31 @@ import { formatDate, formatDateOrNever } from "../lib/format-date";
  * Worker rendered "Aug 15, 2026" and a British browser rendered "15 Aug 2026",
  * so React discarded the server's markup for that subtree.
  *
- * **These cases cannot catch a revert on their own, and pretending otherwise
- * would be worse than saying so.** vitest runs under the machine's locale, and
- * on `en-US` — CI, and the Workers runtime — a pinned formatter and a
- * locale-dependent one produce identical output. What they do hold closed is
- * the *shape*: the exact string, and the fact that a different locale really
- * would render something else, so the pin is not decoration.
+ * **The locale cases here cannot catch a revert on their own, and pretending
+ * otherwise would be worse than saying so.** vitest runs under the machine's
+ * locale, and on `en-US` — CI, and the Workers runtime — a pinned formatter and
+ * a locale-dependent one produce identical output. Node fixes its default
+ * locale at startup and ignores a later `LANG`, so `vitest.config.ts` cannot
+ * pin it the way it pins `TZ`; the comment there explains the asymmetry. What
+ * these cases do hold closed is the *shape*: the exact string, and the fact
+ * that a different locale really would render something else, so the pin is not
+ * decoration.
  *
- * The guard that can fail is in `members.spec.ts`, which drives the page in an
- * `en-GB` browser and asserts React reports no hydration mismatch. That one was
+ * The locale guard that can fail is in the e2e suite, which drives every page
+ * in an `en-GB` browser and asserts React reports no hydration mismatch. It was
  * seen red against the original implementation.
+ *
+ * **The zone half is different: it can fail right here.** `vitest.config.ts`
+ * pins this suite to `America/Los_Angeles`, west of UTC, so the process
+ * genuinely disagrees with the Worker and the re-import case below is not
+ * measuring against its own starting state.
  */
 
 const TIMESTAMP = "2026-08-15T09:30:00.000Z";
 /** Late enough in UTC that anywhere east of it is already on the next day. */
 const LATE_TIMESTAMP = "2026-08-15T23:30:00.000Z";
+/** Early enough in UTC that anywhere west of it is still on the previous day. */
+const EARLY_TIMESTAMP = "2026-08-15T03:00:00.000Z";
 
 describe("formatDate", () => {
   it("renders an ISO timestamp as a short date", () => {
@@ -72,5 +82,47 @@ describe("formatDateOrNever", () => {
 
   it("says Never rather than leaving the column blank", () => {
     expect(formatDateOrNever(null)).toBe("Never");
+  });
+});
+
+/**
+ * The deny-path test for a piece of **configuration**, and the unit-suite twin
+ * of `tests/e2e/hostile-environment.spec.ts`.
+ *
+ * `vitest.config.ts` pins this suite west of UTC so it disagrees with the
+ * Worker. That pin is invisible: delete the line and every case in this file
+ * still passes, because a correctly pinned formatter answers the same string in
+ * any zone — while the re-import case above quietly stops proving anything,
+ * since it would then be moving from UTC to UTC+14 rather than across the
+ * Worker's own zone. A configuration guard needs a test for the state where
+ * somebody removed the configuration, like every other guard here.
+ *
+ * **The zone is restated rather than imported from the config on purpose.** A
+ * shared constant would move with the edit that removed the pin and assert
+ * nothing; the duplication is the mechanism, not an oversight.
+ */
+describe("the unit suite runs somewhere the Worker does not", () => {
+  it("is pinned west of UTC, and not to the Worker's own zone", () => {
+    expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe("America/Los_Angeles");
+    expect(Intl.DateTimeFormat().resolvedOptions().timeZone).not.toBe("UTC");
+  });
+
+  /**
+   * The disagreement has to move a calendar day to be worth anything — a zone
+   * a few minutes off UTC would satisfy the case above and catch nothing.
+   *
+   * West of UTC the shift runs backwards, which is why this uses the early
+   * instant and the e2e twin uses the late one: `Pacific/Kiritimati` pushes
+   * 23:30Z onto the *next* day, `America/Los_Angeles` pulls 03:00Z back onto
+   * the *previous* one. Between them both directions are covered.
+   */
+  it("puts an early-UTC timestamp on the previous day", () => {
+    expect(new Date(EARLY_TIMESTAMP).getDate()).toBe(14);
+    expect(new Date(EARLY_TIMESTAMP).getUTCDate()).toBe(15);
+  });
+
+  /** And the seam is unmoved by all of it — that is the whole point of pinning it. */
+  it("does not change what the seam renders", () => {
+    expect(formatDate(EARLY_TIMESTAMP)).toBe("Aug 15, 2026");
   });
 });

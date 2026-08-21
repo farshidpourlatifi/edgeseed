@@ -9,10 +9,12 @@
  * `Hydration failed because the server rendered text…`, and discards the
  * server's markup for that subtree.
  *
- * Nothing in CI catches it: Playwright's Chromium runs `en-US`, which is
- * exactly the server's answer, so the mismatch only exists on a reader's
- * machine. It was found by opening the members page in a real browser and
- * reading the console.
+ * Nothing in CI caught it, which is how it shipped: Playwright's Chromium ran
+ * `en-US`, exactly the server's answer, so the mismatch existed only on a
+ * reader's machine. It was found by opening the members page in a real browser
+ * and reading the console. The suite now runs pinned to `en-GB`
+ * (`playwright.config.ts`), so a repeat of this defect fails in CI instead —
+ * `tests/e2e/hostile-environment.spec.ts` is what keeps that pin in place.
  *
  * Pinning is a stand-in for internationalisation, not a rejection of it. When
  * this product grows a locale of its own, this function is the one place that
@@ -36,10 +38,13 @@ const FORMAT = new Intl.DateTimeFormat("en-US", {
    * `2026-08-15T23:30:00Z` renders as the 15th on the server and the 16th in
    * Berlin — one calendar day apart, hydration discarded again.
    *
-   * `members.spec.ts`'s `en-GB` block cannot catch this one either: CI's
-   * Chromium runs UTC, so it agrees with the Worker. `format-date.test.ts`
-   * re-imports this module under `TZ=Pacific/Kiritimati` instead, which is the
-   * only place the two zones actually disagree.
+   * This half was blind for longer than the locale half. An `en-GB` browser
+   * still ran UTC, so it agreed with the Worker on the zone no matter what it
+   * did with the locale, and only `format-date.test.ts` — which re-imports this
+   * module under `TZ=Pacific/Kiritimati` — could see a difference at all. The
+   * e2e suite now runs at UTC+14 and the unit suite at UTC-7/-8
+   * (`playwright.config.ts`, `vitest.config.ts`), so both directions of the day
+   * boundary are covered and neither suite agrees with the Worker any more.
    *
    * The cost is honest and worth naming: a reader west of UTC sees the UTC
    * calendar day, so something created at 6pm in Los Angeles reads as the next
