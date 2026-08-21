@@ -155,6 +155,44 @@ A spec that needs a date on screen should expect the pinned `en-US` rendering
 (`Aug 15, 2026`), never the browser's — that is what `format-date.ts` exists to
 guarantee, and asserting the browser's form would assert the bug.
 
+## Testing behaviour that depends on time
+
+**Move the data's timestamps, never the world's clock.** `invitations.spec.ts`'s
+"an expired invitation is a dead end, not a form" is the reference
+implementation and the template for the retention and timeline tests arriving
+with #21. The convention behind it is `docs/adr/004-time-and-timezones.md`.
+
+This is not a stylistic preference — the clock is not virtualisable here.
+Workers freeze `Date.now()` for the duration of a request and neither workerd
+nor miniflare exposes a way to set it; better-auth re-reads `expiresAt` inside
+its own modules, and the rate-limit window is enforced by a Cloudflare binding.
+Faking the clock would mean reaching past a boundary this repo owns, and at best
+would move some paths while the code around them kept reading the real clock,
+with nothing marking which was which.
+
+Seeding the row instead costs less and proves more: the refusal under test is
+the one production produces, reached the way production reaches it. The seam is
+a direct D1 write, the same one `markEmailVerified` uses — `expireInvitation`,
+`shortenInvitation` and `revokeInvitation` are that family, and the Invitations
+section below covers their individual traps.
+
+**Assert the screen, not an error code.** Expired, revoked, already-accepted and
+never-existed are indistinguishable at the API: better-auth answers one 400, and
+`getInvitation`'s refusal carries nothing to tell them apart — they collapse
+into a single `dead` failure in `app/lib/invitation-state.ts`. A spec asserting
+a code would be asserting something the product deliberately does not promise.
+
+**Prove the assertion keys on the timestamp.** The dead-end screen is also what
+a mangled link and a revoked invitation produce, so a spec can pass for the
+wrong reason without ever exercising expiry. Flip the seeded value to the far
+side of now and watch it go red before trusting it. This one was checked that
+way: with `expiresAt` moved a day into the future the invitation is live again,
+the accept form renders, and the dead-end heading is not found.
+
+Note this is a different concern from the pinning above. That one is about how a
+timestamp is _rendered_ at a single instant; this one is about behaviour
+_across_ instants. A time-dependent feature usually needs both.
+
 ## Seeding an organization
 
 `giveOrganization(email, slug, name)` writes `organization` + `member` rows into
@@ -207,7 +245,8 @@ per case rather than two shared ones.
 no describe mints more than three. Sign-ups are a separate bucket, since the key
 is `${ip}|${path}`, but `createAccount` still takes an address of its own.
 
-`expireInvitation` / `revokeInvitation` write the columns directly, the same way
+`expireInvitation` / `revokeInvitation` are the fixture time-travel seam
+described above. They write the columns directly, the same way
 `markEmailVerified` does: the window is seven days, and revoking through the UI
 would spend a whole describe reaching a state one `UPDATE` gets to. The refusal
 they produce is still entirely better-auth's. Drive both as the **real
