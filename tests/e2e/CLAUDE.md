@@ -172,9 +172,18 @@ with nothing marking which was which.
 
 Seeding the row instead costs less and proves more: the refusal under test is
 the one production produces, reached the way production reaches it. The seam is
-a direct D1 write, the same one `markEmailVerified` uses — `expireInvitation`,
-`shortenInvitation` and `revokeInvitation` are that family, and the Invitations
-section below covers their individual traps.
+a direct D1 write, the same one `markEmailVerified` uses.
+
+**Two helpers move time, and a third only looks like it does.**
+`expireInvitation` pushes `expiresAt` into the past and `shortenInvitation`
+pulls it in; those are the time-travel pair. `revokeInvitation` shares the same
+seam and is **not** time travel — it flips `status` to `canceled` and moves no
+timestamp at all.
+
+That distinction is the rule below in miniature, not pedantry. Both produce the
+identical dead-end screen, so a spec that reaches it by revoking has proved
+nothing whatever about expiry while looking exactly like a spec that did. The
+Invitations section covers each helper's individual traps.
 
 **Assert the screen, not an error code.** Expired, revoked, already-accepted and
 never-existed are indistinguishable at the API: better-auth answers one 400, and
@@ -245,8 +254,7 @@ per case rather than two shared ones.
 no describe mints more than three. Sign-ups are a separate bucket, since the key
 is `${ip}|${path}`, but `createAccount` still takes an address of its own.
 
-`expireInvitation` / `revokeInvitation` are the fixture time-travel seam
-described above. They write the columns directly, the same way
+`expireInvitation` / `revokeInvitation` write the columns directly, the same way
 `markEmailVerified` does: the window is seven days, and revoking through the UI
 would spend a whole describe reaching a state one `UPDATE` gets to. The refusal
 they produce is still entirely better-auth's. Drive both as the **real
