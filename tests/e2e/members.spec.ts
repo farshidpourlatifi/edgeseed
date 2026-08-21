@@ -10,6 +10,7 @@ import {
   removeMembership,
   setActiveOrganization,
   waitForHydration,
+  watchForHydrationFailures,
 } from "./helpers";
 
 /**
@@ -407,11 +408,7 @@ test.describe("a reader outside en-US gets the same page the server rendered", (
   test.use({ extraHTTPHeaders: { "cf-connecting-ip": clientIp() }, locale: "en-GB" });
 
   test("no hydration mismatch, and the date keeps the pinned format", async ({ page }) => {
-    const failures: string[] = [];
-    page.on("pageerror", (error) => failures.push(error.message));
-    page.on("console", (message) => {
-      if (message.type() === "error") failures.push(message.text());
-    });
+    const hydrationFailures = watchForHydrationFailures(page);
 
     await signIn(page, ANA.email);
     await page.goto("/dashboard/members");
@@ -421,7 +418,7 @@ test.describe("a reader outside en-US gets the same page the server rendered", (
     // produce the second, and the server cannot know about it.
     await expect(memberRow(page, ANA.email)).toContainText(/joined [A-Z][a-z]{2} \d{1,2}, \d{4}/);
 
-    expect(failures.filter((text) => /hydrat/i.test(text))).toEqual([]);
+    expect(hydrationFailures()).toEqual([]);
   });
 });
 

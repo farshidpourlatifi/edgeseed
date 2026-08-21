@@ -177,12 +177,14 @@ ORGANIZATION_ALREADY_EXISTS` — **not** `ORGANIZATION_SLUG_ALREADY_TAKEN`,
   ("15 Aug 2026"). React then finds text it did not render and throws away the
   server's markup for that subtree. **CI could not see it, which is how it
   shipped** — Playwright's Chromium ran `en-US`, the same answer the Worker
-  gives. The suite is now pinned to `en-GB` and `Pacific/Kiritimati`
-  suite-wide (`playwright.config.ts`), so every page is a standing hydration
-  test; `tests/e2e/hostile-environment.spec.ts` fails if either pin is removed,
-  and `members.spec.ts`'s block — which was seen red against the original code —
-  keeps its own `locale` for the same reason. The defect had been sitting
-  unnoticed in the API-token
+  gives. Both suites are now pinned to disagree with it — `en-GB` and
+  `Pacific/Kiritimati` for the browser (`playwright.config.ts`), `en-GB` and
+  `America/Los_Angeles` for the unit run (`vitest.config.ts`) — which makes the
+  mismatch observable. Observing it still takes a listener: a spec driving a
+  page that renders a date installs `watchForHydrationFailures` and asserts the
+  pinned shape, which `members.spec.ts` and `api-tokens.spec.ts` do for the two
+  such pages. `tests/e2e/hostile-environment.spec.ts` fails if either browser
+  pin is removed. The defect had been sitting unnoticed in the API-token
   list. When this product grows a locale of its own, that module is the one
   place that has to learn about it. The wider convention — instants-only
   storage, `now` as an input, tests that move the data rather than the clock —

@@ -1,5 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { clientIp, markEmailVerified, waitForHydration } from "./helpers";
+import {
+  clientIp,
+  markEmailVerified,
+  waitForHydration,
+  watchForHydrationFailures,
+} from "./helpers";
 
 /**
  * The only cookie-authenticated write in the app, driven through a real browser.
@@ -58,6 +63,20 @@ test.describe("api tokens", () => {
     // on the settings loader redirects straight back to /login.
     await page.waitForURL("**/dashboard", { timeout: 15000 });
 
+    /**
+     * `/dashboard/settings` is the **second** page that renders dates through
+     * `app/lib/format-date.ts`, and the one the original defect reached without
+     * anyone noticing — the members list got the fix and this list kept the bug.
+     *
+     * The suite-wide `en-GB`/UTC+14 pins make a hydration mismatch here
+     * possible to observe; only a listener makes it observed. Without this, a
+     * call site reverting to `toLocaleDateString(undefined, …)` would render
+     * "15 Aug 2026", React would discard the server's markup, and every
+     * assertion in this test would still pass, because none of them look at a
+     * date.
+     */
+    const hydrationFailures = watchForHydrationFailures(page);
+
     await page.goto("/dashboard/settings");
 
     const tokenName = page.getByLabel("Token name", { exact: true });
@@ -69,6 +88,14 @@ test.describe("api tokens", () => {
     await page.getByRole("button", { name: "Create token" }).click();
 
     await expect(page.getByRole("button", { name: "Copy" })).toBeVisible({ timeout: 15000 });
+
+    // The server's pinned rendering — "Aug 15, 2026", never the "15 Aug 2026"
+    // this `en-GB` browser would produce on its own. Asserting the shape is
+    // what gives the pin something to catch on this page.
+    await expect(page.getByText(/created [A-Z][a-z]{2} \d{1,2}, \d{4}/)).toBeVisible({
+      timeout: 15000,
+    });
+    expect(hydrationFailures()).toEqual([]);
 
     // The DELETE: a bodyless same-origin write, which sends no content-type.
     await page.getByRole("button", { name: "Dismiss" }).click();

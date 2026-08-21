@@ -6,24 +6,28 @@ import { formatDate, formatDateOrNever } from "../lib/format-date";
  * Worker rendered "Aug 15, 2026" and a British browser rendered "15 Aug 2026",
  * so React discarded the server's markup for that subtree.
  *
- * **The locale cases here cannot catch a revert on their own, and pretending
- * otherwise would be worse than saying so.** vitest runs under the machine's
- * locale, and on `en-US` — CI, and the Workers runtime — a pinned formatter and
- * a locale-dependent one produce identical output. Node fixes its default
- * locale at startup and ignores a later `LANG`, so `vitest.config.ts` cannot
- * pin it the way it pins `TZ`; the comment there explains the asymmetry. What
- * these cases do hold closed is the *shape*: the exact string, and the fact
- * that a different locale really would render something else, so the pin is not
- * decoration.
+ * **Every case here can fail, and that is recent.** For most of this file's
+ * life the locale cases could not: vitest ran under the machine's locale, and
+ * on `en-US` — CI, and the Workers runtime — a pinned formatter and a
+ * locale-dependent one produce byte-identical output, so they passed against
+ * both. They held the *shape* closed and nothing more, and the preamble said so
+ * rather than overclaiming.
  *
- * The locale guard that can fail is in the e2e suite, which drives every page
- * in an `en-GB` browser and asserts React reports no hydration mismatch. It was
- * seen red against the original implementation.
+ * `vitest.config.ts` now pins the suite to `en-GB` and `America/Los_Angeles`,
+ * both of which the Worker is not, so the process disagrees with production on
+ * both axes and every assertion below has something to catch. Removing the
+ * locale from the seam fails five cases in this file; removing the zone fails
+ * the re-import case, which would otherwise be measuring against its own
+ * starting state.
  *
- * **The zone half is different: it can fail right here.** `vitest.config.ts`
- * pins this suite to `America/Los_Angeles`, west of UTC, so the process
- * genuinely disagrees with the Worker and the re-import case below is not
- * measuring against its own starting state.
+ * The pin is worth understanding before trusting it. `LC_ALL` is ignored by the
+ * process that sets it — Node fixes its default locale at startup — and works
+ * only because vitest runs test files in **forked** workers that read the
+ * inherited environment as they boot. Setting it inside a test does nothing.
+ *
+ * The e2e suite carries the other half: it drives every page in an `en-GB`
+ * browser, and `members.spec.ts` asserts React reports no hydration mismatch.
+ * That one was seen red against the original implementation.
  */
 
 const TIMESTAMP = "2026-08-15T09:30:00.000Z";
@@ -105,6 +109,28 @@ describe("the unit suite runs somewhere the Worker does not", () => {
   it("is pinned west of UTC, and not to the Worker's own zone", () => {
     expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe("America/Los_Angeles");
     expect(Intl.DateTimeFormat().resolvedOptions().timeZone).not.toBe("UTC");
+  });
+
+  it("is pinned to a locale the Worker does not answer", () => {
+    expect(Intl.DateTimeFormat().resolvedOptions().locale).toBe("en-GB");
+    expect(Intl.DateTimeFormat().resolvedOptions().locale).not.toBe("en-US");
+  });
+
+  /**
+   * The materiality check for the locale half, and the reason the cases at the
+   * top of this file are guards rather than shape assertions: an unpinned
+   * formatter here really does answer something else.
+   */
+  it("makes an unpinned formatter render differently from the seam", () => {
+    const unpinned = new Intl.DateTimeFormat(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      timeZone: "UTC",
+    }).format(new Date(TIMESTAMP));
+
+    expect(unpinned).toBe("15 Aug 2026");
+    expect(unpinned).not.toBe(formatDate(TIMESTAMP));
   });
 
   /**

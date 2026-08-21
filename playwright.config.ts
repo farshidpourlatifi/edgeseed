@@ -13,8 +13,17 @@ export default defineConfig({
     // 127.0.0.1 is a different origin. The resolver rule below is what makes
     // that name land on the address the dev server is actually bound to.
     baseURL: "http://localhost:5173",
-    // The browser is pinned to disagree with the Worker on **both** axes, which
-    // turns every SSR'd date on every page into a standing hydration test.
+    // The browser is pinned to disagree with the Worker on **both** axes, so a
+    // date rendered by anything other than the pinned seam comes out different
+    // on the two sides of hydration.
+    //
+    // That makes the mismatch *observable*; it does not observe it. React
+    // reports one by logging an error and re-rendering the subtree, so a spec
+    // that asserts nothing about the value and installs no listener still
+    // passes. `watchForHydrationFailures` in `tests/e2e/helpers.ts` is the
+    // watching half, and the specs for both pages that render dates —
+    // `members.spec.ts` and `api-tokens.spec.ts` — use it. A new page that
+    // renders a date adds it too; `tests/e2e/CLAUDE.md` carries that rule.
     //
     // The Worker is UTC and answers `en-US`. Left alone, CI's Chromium answers
     // exactly the same two things — so a formatter that asks the *runtime* for

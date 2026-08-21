@@ -17,16 +17,22 @@ import { defineConfig } from "vitest/config";
  * did anything. `America/Los_Angeles` is UTC-7/-8, so the two suites break the
  * day boundary in opposite directions and neither swallows the other.
  *
- * **Assigning it here works; the locale equivalent would not.** Node re-reads
- * `TZ` whenever it changes and rebuilds its zone cache, so a value set at
- * config load reaches every worker process. It fixes the default *locale* at
- * startup instead, and ignores a later `LANG`/`LC_ALL` — pinning that would
- * mean prefixing the `test` script, which a bare `vitest` would then miss. The
- * locale half is therefore Playwright's job, which is where a locale mismatch
- * actually breaks something (hydration), plus the explicit `en-GB` comparison
- * `format-date.test.ts` builds by hand.
+ * **Both pins have to be set here, at config load, and they work for two
+ * different reasons.** Node re-reads `TZ` whenever it changes and rebuilds its
+ * zone cache, so that one would take effect anywhere. It fixes the default
+ * *locale* at startup instead and ignores a later assignment — so `LC_ALL`
+ * works only because vitest runs test files in **forked** workers, and a fork
+ * reads the inherited environment at its own startup. Set inside a running
+ * test, `LC_ALL` does nothing at all; the process it would have to convince has
+ * already booted.
+ *
+ * The practical consequence is that this file is the only place the locale can
+ * be pinned. Prefixing the `test` script would work too, but a bare `vitest`
+ * outside pnpm would then miss it, and a pin that depends on how the suite was
+ * invoked is the kind that quietly stops applying.
  */
 process.env.TZ = "America/Los_Angeles";
+process.env.LC_ALL = "en-GB";
 
 export default defineConfig({
   resolve: {

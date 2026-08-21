@@ -4,11 +4,14 @@ import { test, expect } from "@playwright/test";
  * The deny-path test for a piece of **configuration**.
  *
  * `playwright.config.ts` pins the browser to `Pacific/Kiritimati` and `en-GB`
- * so it disagrees with the Worker's UTC/`en-US` on both axes. That pin is what
- * makes every other spec in this suite a standing hydration test — and it is
- * invisible: delete the two lines and all 139 specs still pass, because a
+ * so it disagrees with the Worker's UTC/`en-US` on both axes. That is what
+ * makes a hydration mismatch *observable* anywhere in this suite — and it is
+ * invisible: delete the two lines and every other spec still passes, because a
  * correctly pinned formatter renders the same string in every browser. The
- * suite would quietly stop testing the thing it was widened to test.
+ * suite would quietly stop being able to see the bug class it was widened for.
+ *
+ * (Observable is not observed. The specs that actually watch are the ones
+ * driving a page that renders a date, via `watchForHydrationFailures`.)
  *
  * So the pin needs an assertion of its own, and this is it. Every other guard
  * in this repo ships a test for its deny path; a configuration guard is no
@@ -70,5 +73,11 @@ test.describe("the suite runs somewhere the Worker does not", () => {
     // 23:30 on the 15th in UTC is 13:30 on the 16th at UTC+14.
     expect(localDay).toBe(16);
     expect(new Date(LATE_UTC_TIMESTAMP).getUTCDate()).toBe(15);
+
+    // Worth being honest about what this case is: with the pin deleted it still
+    // passes on any machine east of UTC by enough to cross the boundary — a
+    // developer in Istanbul sees UTC+3 and the 16th. It is a materiality check,
+    // not a second red-check. The case above is the guard, and on CI's UTC both
+    // of them fail.
   });
 });

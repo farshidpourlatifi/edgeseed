@@ -101,8 +101,21 @@ cause.
 
 `playwright.config.ts` pins every browser context to `Pacific/Kiritimati`
 (UTC+14) and `en-GB`. The Worker is UTC and answers `en-US`, so the two
-deliberately disagree on **both** axes, and every SSR'd date on every page
-becomes a standing hydration test without any spec asking for one.
+deliberately disagree on **both** axes: a date rendered by anything but the
+pinned seam comes out different on the two sides of hydration.
+
+**That makes a mismatch observable, not observed — the difference matters.**
+React reports one by logging an error and re-rendering the subtree on the
+client, so a spec that asserts nothing about the rendered value and installs no
+listener carries on passing while the server's markup is discarded. Pinning
+alone would move where the bug hides rather than catch it.
+
+The watching half is `watchForHydrationFailures` in `helpers.ts`. **A spec that
+drives a page rendering a date installs it and asserts the result is empty**,
+and asserts the pinned `en-US` shape of the date itself. Two pages qualify
+today — `/dashboard/members` and `/dashboard/settings` — and `members.spec.ts`
+and `api-tokens.spec.ts` cover them. A third page that renders a date adds the
+same pair, or it is not covered, whatever the pins say.
 
 Agreement is what let the original defect ship. `toLocaleDateString(undefined,
 …)` asks the _runtime_ for its locale and zone, and a server-rendered page has
@@ -123,10 +136,18 @@ machine's own zone.
 The unit suite is pinned the other way, to `America/Los_Angeles`
 (`vitest.config.ts`), so the day boundary is crossed in both directions:
 UTC+14 pushes a late-UTC instant onto the next day, UTC-7 pulls an early one
-onto the previous. `format-date.test.ts` carries the matching config assertion
-for that side. Node re-reads `TZ` at runtime but fixes its default _locale_ at
-startup, so the unit suite cannot be locale-pinned from its config — that half
-is Playwright's, which is where a locale mismatch actually breaks something.
+onto the previous. `format-date.test.ts` carries the matching config assertions
+for that side, locale included: the unit suite is pinned to `en-GB` as well, so
+removing the locale from the seam fails five cases there in twelve seconds
+rather than waiting on the e2e run.
+
+Both pins have to be set in `vitest.config.ts` itself, and they work for
+different reasons. Node re-reads `TZ` whenever it changes, so that one would
+apply anywhere; it fixes the default _locale_ at startup and ignores a later
+assignment, so `LC_ALL` works only because vitest runs test files in **forked**
+workers that read the inherited environment as they boot. Setting `LC_ALL`
+inside a running test does nothing — the process it would need to convince has
+already started.
 
 A spec that needs a date on screen should expect the pinned `en-US` rendering
 (`Aug 15, 2026`), never the browser's — that is what `format-date.ts` exists to
