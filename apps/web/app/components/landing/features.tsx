@@ -78,7 +78,7 @@ const features = [
     icon: Rocket,
     title: "Gated deploys",
     description:
-      "Deploys wait on lint, format, types, unit, e2e and a gitleaks history scan before any Worker ships.",
+      "Deploys wait on lint, format, types, unit, e2e, a boot check that runs each built Worker, and a gitleaks history scan before any Worker ships.",
   },
 ];
 

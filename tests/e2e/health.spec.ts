@@ -19,7 +19,7 @@ test("terminal demo animates on the landing page", async ({ page }) => {
   // Static summary terminals render their full transcript immediately
   const summary = page.locator("#quality").getByTestId("terminal").first();
   await summary.scrollIntoViewIfNeeded();
-  await expect(summary).toContainText("7 gates passed — deploy unlocked", { timeout: 15000 });
+  await expect(summary).toContainText("8 gates passed — deploy unlocked", { timeout: 15000 });
   // The animated one types the command, then reveals gate results over time
   const body = page.locator("#terminal-demo").getByTestId("terminal-body");
   await expect(body).toContainText("pnpm verify", { timeout: 15000 });

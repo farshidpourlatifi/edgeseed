@@ -32,6 +32,9 @@ them.
 - `src/check-release-version.ts` — refuses a release tag that disagrees with `package.json` / `APP_VERSION`
 - `src/check-deployed.ts` — post-deploy smoke check: the live `/api/v1/health` must report the tagged version
 - `src/release-notes.ts` — turns wrangler's structured deploy output into the release-note preamble
+- `src/check-boot.ts` + `src/lib/boot-check.ts` — start each **built** Worker and prove it serves. Two things here are load-bearing and easy to undo by accident. `BOOT_VARS` is the Worker's **whole** env, not an override list, and it is only whole because `BOOT_ENV_FILE` is passed to `wrangler dev --env-file`: `--var` overrides a key but does not stop wrangler loading `.dev.vars` / `.env` underneath, so without that file the check runs against whatever the developer has configured — which is how an inherited `SENTRY_DSN` once made one probe take 76 s of an 83 s run. And the check refuses a port that is already occupied rather than adopting the listener, because the readiness poll cannot tell a stale Worker from the one it just spawned and would print `boot ok` for a bundle that never started.
+- `src/check-docs-sync.ts` — fails on mechanical doc drift: an undocumented root script, a stale `.dev.vars.example`, a dead relative link, an MCP tool or API path missing from the README
+- `src/init-product.ts` — stamps product identity on a fresh clone. Addresses D1 through the `DB` binding rather than by database name, since a clone renames the database; `__tests__/init-product.test.ts` fails if a `db:*` script reverts to a name literal
 
 ## Rules
 

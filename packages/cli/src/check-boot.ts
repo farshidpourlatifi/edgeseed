@@ -6,14 +6,18 @@
  * Run it after `build`, before `deploy`.
  */
 import { spawn, type ChildProcess } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import {
+  BOOT_ENV_FILE,
   BOOT_TARGETS,
-  bootVarArgs,
+  bootEnvArgs,
   envProbeUrl,
   extractBootError,
   healthUrl,
   isHealthyStatus,
   isRuntimeStartFailure,
+  originUrl,
+  portOccupiedReason,
   summarize,
   type BootFailure,
   type BootTarget,
@@ -30,17 +34,32 @@ const POLL_INTERVAL_MS = 500;
  * seconds. A per-request timeout tight enough to abandon that would turn a busy
  * developer machine into a red gate for no reason.
  *
- * That laptop figure almost certainly included the inherited-`SENTRY_DSN` stall
- * that `BOOT_VARS` now pins away (76 s measured on 2026-08-22, under a second
- * once pinned). The headroom stays anyway: it costs nothing when the probe is
- * fast, and the next slow cause will not announce itself either.
+ * That laptop figure was the inherited-`SENTRY_DSN` stall, which `BOOT_ENV_FILE`
+ * now makes structurally impossible: the same probe measures 35 ms once nothing
+ * is inherited. So these are sized against the one thing still unmeasured — a
+ * genuinely loaded machine cold-starting the auth path — and deliberately sit
+ * above the old 22–31 s observation even on the assumption that reading was
+ * never Sentry at all.
+ *
+ * They were 120 s / 75 s, sized against that stall. Keeping numbers whose
+ * justification has been withdrawn is how a diagnosable hang becomes an
+ * unremarkable slow gate: `verify:fast` is documented as the between-edits
+ * command, and this now bounds a stuck probe at 45 s per target rather than
+ * two minutes. If that proves tight on real hardware, raise it with the
+ * measurement attached rather than restoring headroom for its own sake.
  *
  * `PROBE_TIMEOUT_MS` bounds the whole probe including retries;
  * `PROBE_REQUEST_TIMEOUT_MS` bounds one attempt, and is clamped to whatever is
  * left of the former.
  */
-const PROBE_TIMEOUT_MS = 120_000;
-const PROBE_REQUEST_TIMEOUT_MS = 75_000;
+const PROBE_TIMEOUT_MS = 45_000;
+const PROBE_REQUEST_TIMEOUT_MS = 30_000;
+
+/**
+ * Absolute, so it survives `cwd` being set to a target app on spawn. Relative
+ * to this module rather than `process.cwd()` for the same reason.
+ */
+const ENV_FILE_PATH = fileURLToPath(new URL(`../${BOOT_ENV_FILE}`, import.meta.url));
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -149,6 +168,16 @@ async function probeEnv(
 async function bootOne(target: BootTarget): Promise<BootFailure | null> {
   console.log(`  starting ${target.name} on :${target.port}...`);
 
+  // Refuse to adopt a Worker this check did not start. Must run *before* the
+  // spawn: afterwards the readiness poll cannot tell the two apart, and answers
+  // `boot ok` for a bundle that never ran. See `portOccupiedReason`.
+  const occupied = await fetch(originUrl(target), { signal: AbortSignal.timeout(2_000) })
+    .then(() => true)
+    .catch(() => false);
+  if (occupied) {
+    return { target: target.name, reason: portOccupiedReason(target), blocked: true };
+  }
+
   const child = spawn(
     "npx",
     [
@@ -159,8 +188,9 @@ async function bootOne(target: BootTarget): Promise<BootFailure | null> {
       "--ip",
       "127.0.0.1",
       // Without these the Worker boots and then refuses every request, because
-      // the env fails validation — see BOOT_VARS.
-      ...bootVarArgs(),
+      // the env fails validation — see BOOT_VARS. The `--env-file` half is what
+      // stops the rest of the env arriving from the developer's `.dev.vars`.
+      ...bootEnvArgs(ENV_FILE_PATH),
     ],
     { cwd: target.cwd, detached: true, stdio: ["ignore", "pipe", "pipe"] },
   );

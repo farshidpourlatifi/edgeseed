@@ -1,9 +1,14 @@
 import { describe, it, expect } from "vitest";
+import { webEnvSchema } from "@starter/config/env";
 import {
+  BOOT_ENV_FILE,
   BOOT_TARGETS,
   BOOT_VARS,
+  bootEnvArgs,
   bootVarArgs,
   envProbeUrl,
+  originUrl,
+  portOccupiedReason,
   extractBootError,
   healthUrl,
   isHealthyStatus,
@@ -174,24 +179,100 @@ describe("summarize", () => {
   it("spells out the consequence, so the failure is not dismissed as flaky", () => {
     expect(summarize([{ target: "@starter/web", reason: "x" }], 1)).toContain("deploy:web");
   });
+
+  /**
+   * A blocked target proves nothing about the bundle, so it must not borrow the
+   * footer that says the bundle is broken.
+   */
+  it("does not claim the bundle is broken when the check could not run", () => {
+    const out = summarize([{ target: "@starter/web", reason: "port busy", blocked: true }], 1);
+    expect(out).toContain("nothing here says whether the bundle works");
+    expect(out).not.toContain("deploy:web");
+  });
+
+  it("keeps the louder claim when a real failure sits beside a blocked one", () => {
+    const out = summarize(
+      [
+        { target: "@starter/web", reason: "port busy", blocked: true },
+        { target: "@starter/mcp", reason: "Uncaught TypeError: boom" },
+      ],
+      2,
+    );
+    expect(out).toContain("deploy:web");
+  });
 });
 
 /**
- * The env the check runs under is the check's own, not the laptop's. `wrangler
- * dev` merges `.dev.vars` underneath `--var`, so any key left out here is
- * inherited — and a real `SENTRY_DSN` inherited that way turned the mcp
- * `envProbe` into a 76 s wait on a Sentry flush (see BOOT_VARS).
+ * The env the check runs under is the check's own, not the laptop's. `--var`
+ * overrides a key but does not stop wrangler loading the rest of `.dev.vars`
+ * underneath, so the `--env-file` half is what makes BOOT_VARS the whole env.
  */
-describe("boot vars", () => {
-  it("pins SENTRY_DSN empty so a local DSN is never inherited", () => {
-    expect(BOOT_VARS.SENTRY_DSN).toBe("");
+describe("boot env", () => {
+  it("hands wrangler an env file, without which .dev.vars is inherited", () => {
+    expect(bootEnvArgs("/tmp/x.env")).toEqual(expect.arrayContaining(["--env-file", "/tmp/x.env"]));
   });
 
-  it("passes an empty value as a bare `KEY:`, the form the e2e MCP Worker uses", () => {
+  it("names a fixture that .gitignore cannot swallow", () => {
+    // `.env*` is ignored; a fixture matching it would exist locally and be
+    // missing in CI — the exact skew this check exists to catch.
+    expect(BOOT_ENV_FILE.startsWith(".env")).toBe(false);
+  });
+
+  /**
+   * Asserting `BOOT_VARS` and `bootEnvArgs(file, {...})` separately leaves the
+   * `= BOOT_VARS` default binding unexercised: it could be changed to `{}` with
+   * every other test still green, and the Worker would inherit nothing at all —
+   * a Worker with no secret serves no request, so the gate would assert "is CI
+   * configured" rather than "does the bundle boot".
+   */
+  it("defaults to BOOT_VARS, the binding the check actually relies on", () => {
+    expect(bootEnvArgs("/tmp/x.env")).toContain(
+      `BETTER_AUTH_SECRET:${BOOT_VARS.BETTER_AUTH_SECRET}`,
+    );
+  });
+
+  it("passes an empty value as a bare `KEY:`", () => {
     expect(bootVarArgs({ SENTRY_DSN: "" })).toEqual(["--var", "SENTRY_DSN:"]);
   });
 
-  it("supplies a secret the env schema accepts", () => {
-    expect(BOOT_VARS.BETTER_AUTH_SECRET.length).toBeGreaterThanOrEqual(32);
+  /**
+   * Not a length assertion. Better Auth's own default is 38 characters and
+   * cleared `.min(32)` for months (AGENTS.md, "Configuration"), so only the
+   * real schema can say whether this value is accepted — and a secret the
+   * schema rejects would fail every request with no pointer to the cause.
+   */
+  it("supplies a secret the env schema actually accepts", () => {
+    const result = webEnvSchema.shape.BETTER_AUTH_SECRET.safeParse(BOOT_VARS.BETTER_AUTH_SECRET);
+    expect(result.success).toBe(true);
+  });
+
+  it("would reject Better Auth's default, so the test above can fail", () => {
+    const result = webEnvSchema.shape.BETTER_AUTH_SECRET.safeParse(
+      "better-auth-secret-12345678901234567890",
+    );
+    expect(result.success).toBe(false);
+  });
+});
+
+/**
+ * The deny path for adopting a foreign Worker. The guard itself is one `fetch`
+ * in `check-boot.ts`; what is worth pinning is that the refusal says which port
+ * and how to find the process, since the failure it prevents is silent.
+ */
+describe("portOccupiedReason", () => {
+  it("names the port and the command that finds the holder", () => {
+    const reason = portOccupiedReason(BOOT_TARGETS[0]);
+    expect(reason).toContain("8791");
+    expect(reason).toContain("lsof -nP -iTCP:8791 -sTCP:LISTEN");
+  });
+
+  it("says the check would otherwise test the wrong process", () => {
+    expect(portOccupiedReason(BOOT_TARGETS[0])).toContain("instead of the bundle just built");
+  });
+});
+
+describe("originUrl", () => {
+  it("asks the bare origin, so any listener counts however it answers", () => {
+    expect(originUrl(BOOT_TARGETS[0])).toBe("http://127.0.0.1:8791/");
   });
 });
