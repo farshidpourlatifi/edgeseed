@@ -53,6 +53,7 @@ const PIPELINE_SCRIPT: ScriptStep[] = [
     after: 350,
   },
   { spinner: "turbo typecheck", ms: 800, done: "types — 8 packages clean" },
+  { spinner: "check:boot", ms: 900, done: "boot — 2 workers started and served a request" },
   { spinner: "playwright test", ms: 1300, done: "e2e — Running 9 tests using 1 worker" },
   {
     out: [{ text: " 9 passed (18.6s)", tone: "ok" }],
@@ -60,7 +61,7 @@ const PIPELINE_SCRIPT: ScriptStep[] = [
     after: 350,
   },
   {
-    out: [{ text: "" }, { text: "7 gates passed — deploy unlocked", tone: "accent" }],
+    out: [{ text: "" }, { text: "8 gates passed — deploy unlocked", tone: "accent" }],
     lineMs: 200,
     after: 2000,
   },
@@ -94,8 +95,9 @@ const VERIFY_SUMMARY: ScriptStep[] = [
       "› secrets    gitleaks git --redact   ok",
       "› build      turbo build             ok",
       "› types      turbo typecheck         ok",
+      "› boot       check:boot (2 workers)  ok",
       "› e2e        playwright test (9)     ok",
-      { text: "7 gates passed — deploy unlocked", tone: "accent" },
+      { text: "8 gates passed — deploy unlocked", tone: "accent" },
     ],
   },
 ];

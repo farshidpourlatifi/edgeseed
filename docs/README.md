@@ -80,6 +80,7 @@ docs/api          — Generated OpenAPI specs
 | `pnpm format` / `pnpm format:check` | Prettier write / check                    |
 | `pnpm build`                        | Build every Worker bundle                 |
 | `pnpm typecheck`                    | TypeScript check across apps              |
+| `pnpm verify:fast`                  | The gate minus e2e — inner loop only      |
 | `pnpm verify`                       | Full pre-deploy gate                      |
 | `pnpm deploy:web`                   | `verify` + deploy web app                 |
 | `pnpm deploy:web:ungated`           | Deploy half only — CI use, skips `verify` |

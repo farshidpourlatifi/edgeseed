@@ -1,6 +1,8 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { expect, type Page } from "@playwright/test";
 
+import { hostOf, portOccupied } from "../../packages/cli/src/lib/port";
+
 /**
  * An OAuth 2.1 client for the MCP Worker, driven the way a real MCP client
  * drives it.
@@ -128,8 +130,21 @@ let worker: ChildProcess | undefined;
  *
  * The override earns its place anyway: a test run must not inherit a
  * developer's local configuration, and must not ship its deliberate deny-path
- * failures into a real Sentry project. `--var` beats `.dev.vars`, the same
- * mechanism `check:boot` uses.
+ * failures into a real Sentry project. `--var` does beat `.dev.vars` — wrangler
+ * spreads the CLI's bindings last — so overriding the one key works.
+ *
+ * `check:boot` no longer relies on that precedence: it passes `--env-file` at
+ * an empty fixture and suppresses the file wholesale, because its Worker must
+ * run on a minimum env that is identical on a laptop and in CI.
+ *
+ * This suite deliberately does **not** do the same, and the difference is worth
+ * stating so it is not "tidied" into consistency. `.dev.vars` is this suite's
+ * intended configuration channel — the spawn below passes exactly one `--var`,
+ * so `BETTER_AUTH_SECRET` and the rest arrive from the file, and the CI e2e job
+ * writes a throwaway one precisely to supply them. Suppressing it here would
+ * leave the Worker with no secret and every request refused. e2e needs a
+ * realistic env; `check:boot` needs a minimal one. Same mechanism, opposite
+ * requirement.
  */
 export async function startMcpWorker(timeoutMs = 180_000): Promise<void> {
   if (worker) return;
@@ -148,9 +163,11 @@ export async function startMcpWorker(timeoutMs = 180_000): Promise<void> {
    * `stopMcpWorker` runs in `afterAll`, so anything listening here is foreign
    * by definition.
    */
-  const occupied = await fetch(MCP_ORIGIN, { signal: AbortSignal.timeout(2_000) })
-    .then(() => true)
-    .catch(() => false);
+  // Host derived from `MCP_ORIGIN` — the origin every request below uses — so
+  // the guard and its consumer cannot address different things. They already
+  // did once: pinned to `127.0.0.1`, this was blind to an orphan bound
+  // IPv6-only on `::1`, which is the hazard AGENTS.md documents for 5173.
+  const occupied = await portOccupied(hostOf(MCP_ORIGIN), MCP_PORT);
 
   if (occupied) {
     throw new Error(

@@ -123,6 +123,11 @@ and compare names against the example, never values.
   **runs**. Never report a Worker as working on the strength of a build.
 - `pnpm verify` is the gate: lint, format, tests, gitleaks, build, typecheck,
   boot check, e2e. Run it before calling work complete.
+- `pnpm verify:fast` is the same gate **minus e2e** — everything that runs in
+  seconds to a couple of minutes, for the inner loop. It is deliberately the
+  whole rest of the gate, not "lint and unit": `gitleaks` and `check:boot` have
+  each caught a real defect the cheaper checks passed. A green `verify:fast` is
+  never reported as a green `verify`; the full command is what "done" means.
 - **Stop dev servers before `pnpm test:e2e`.** e2e global-setup runs `db:reset`;
   a server holding the dropped D1 file makes every auth call fail with
   `SQLITE_CANTOPEN`, and an orphaned dev server bound IPv6-only produces
@@ -394,9 +399,12 @@ delivers an unset key as `""`, not as absent, and every optional key in
 documented setup path on every request.
 
 **Anything that runs the Worker needs an env to run it with.** `check:boot`
-supplies throwaway values as `--var` and the CI e2e job writes a throwaway
-`.dev.vars`; without them a correctly failing Worker serves nothing and the check
-asserts "is CI configured" instead of "does the bundle boot". Remember that
+supplies throwaway values as `--var`, plus `--env-file` at an empty fixture so a
+developer's `.dev.vars` is not loaded underneath them and the env is identical
+everywhere. The CI e2e job writes a throwaway `.dev.vars` instead — that file is
+the e2e suite's configuration channel, not an inheritance to suppress. Without
+an env a correctly failing Worker serves nothing, and the check asserts "is CI
+configured" instead of "does the bundle boot". Remember that
 `pnpm verify` passes locally in this situation, because a developer machine has a
 `.dev.vars` — CI is the only place this shows up.
 
@@ -926,7 +934,8 @@ pnpm test:coverage          # Vitest with coverage report (coverage/)
 pnpm test:mutation          # Stryker mutation tests (reports/mutation/)
 pnpm lint / pnpm lint:fix   # ESLint (flat config in eslint.config.mjs)
 pnpm format / pnpm format:check  # Prettier
-pnpm verify                 # Full gate: lint, format, test, gitleaks, build, typecheck, boot, e2e
+pnpm verify:fast            # The gate minus e2e — inner loop only, never a substitute for verify
+pnpm verify                 # Full gate: verify:fast, then e2e
 pnpm deploy:web             # verify + wrangler deploy (the gated deploy path)
 pnpm deploy:web:ungated     # the deploy half alone — CI only, see below
 pnpm init:product <name> [--repo <url>]   # Stamp product identity on a fresh clone (docs/starter-as-upstream.md)

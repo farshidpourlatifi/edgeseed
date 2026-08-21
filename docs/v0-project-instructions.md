@@ -90,7 +90,7 @@ import { Terminal } from "@starter/ui/components/ui/terminal";
       cmd: "pnpm verify",
       out: [
         { text: "lint — eslint . clean", tone: "ok" },
-        { text: "7 gates passed", tone: "accent" },
+        { text: "8 gates passed", tone: "accent" },
       ],
     },
   ]}
