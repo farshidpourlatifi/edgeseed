@@ -620,6 +620,9 @@ only thing standing between this rule and a silent regression on a version bump.
 - New auth endpoint — is it in the right rate-limit class, and if it reaches
   Better Auth through `auth.api.*` rather than HTTP, does it limit itself?
 - New inline script — nonce or hash, and which, and is it tested?
+- New time logic — does `now` arrive as an input, with a test at a non-now
+  instant? New rendered date — does it go through `format-date.ts`? New
+  day/month/civil-time logic — whose zone, and is it named?
 - New user-visible mention of the product — its name, slug, version or
   repository URL — does it read from `@starter/config` rather than a literal?
   A literal ships the starter's identity to every clone, and the repo URL is
@@ -628,6 +631,56 @@ only thing standing between this rule and a silent regression on a version bump.
 - Invalidated a claim in a doc — did you grep for its other homes? The audit,
   `security-plan.md`, this file, `.github/skills/code-review/SKILL.md` and the
   per-package `CLAUDE.md` files all repeat each other, and a stale copy is trusted.
+
+---
+
+## Time
+
+Full rationale: [`docs/adr/004-time-and-timezones.md`](./docs/adr/004-time-and-timezones.md).
+These are the rules it produces.
+
+**Time is an input.** Anything that compares, expires, or writes a moment takes
+`now` from its caller and defaults it: `now: Date = new Date()`
+(`packages/auth/src/helpers/api-token.ts`) for a function that reads the clock
+once, `input.now ?? new Date()` (`org-store.ts`, `api-token-store.ts`) for the
+same thing behind an options object, and `now?: () => string`
+(`packages/observability/src/logger.ts`) for an object that reads it repeatedly
+over its life — a logger built once would otherwise freeze at its construction
+time. One exception is allowed and it is named rather than left to judgement:
+`touchLastUsed` in `principal.ts` reads the clock bare because nothing compares
+against `lastUsedAt`. "Nothing reads it back" is the whole test.
+
+**Storage is instants, and the application writes every one.**
+`integer({ mode: "timestamp" })` columns — no zone, no offset, nothing to
+interpret. **Never a SQL clock default**: no `CURRENT_TIMESTAMP`, no
+`DEFAULT (unixepoch())`. Defaults are drizzle's `$defaultFn`
+(`packages/db/src/helpers/timestamps.ts`), which runs in application code on the
+way to the database. That distinction looks cosmetic and is the entire reason
+rows are time-travelable — a value the application produced is one a test can
+produce differently, while a database-generated value can only ever be the
+moment the row was written.
+
+**Every rendered date goes through `apps/web/app/lib/format-date.ts`**, the
+single formatting seam, with locale (`en-US`) and zone (UTC) pinned. A call site
+must not reach for `Intl` or `toLocaleDateString` however small the need looks:
+the same hydration defect shipped twice that way, and it is invisible in CI
+unless the browser is pinned to disagree with the Worker.
+
+**IANA names, never offsets.** `Europe/Amsterdam`, not `+02:00` — an offset is a
+fact about one instant rather than about a place, and it changes twice a year.
+
+**Civil time names its zone.** "Day", "month", "start of week", "9am" mean
+nothing without one. "Older than 30 days" is an instant comparison and needs no
+zone; "at midnight" has picked one whether or not it says so.
+
+**Tests move the data's timestamps, never the world's clock.** The clock cannot
+be virtualised here — Workers freeze `Date.now()` for the duration of a request
+and expose no way to set it, and Better Auth's expiry checks and the rate-limit
+binding read the real clock through code this repo does not own. Seed the row
+instead: `expireInvitation` / `shortenInvitation` in `tests/e2e/helpers.ts` at
+the e2e level, a `now` argument at the unit level. The suites run under a
+deliberately hostile timezone and locale so an unpinned formatter fails in CI
+rather than on a reader's machine.
 
 ---
 
