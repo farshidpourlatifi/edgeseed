@@ -13,6 +13,37 @@ export default defineConfig({
     // 127.0.0.1 is a different origin. The resolver rule below is what makes
     // that name land on the address the dev server is actually bound to.
     baseURL: "http://localhost:5173",
+    // The browser is pinned to disagree with the Worker on **both** axes, so a
+    // date rendered by anything other than the pinned seam comes out different
+    // on the two sides of hydration.
+    //
+    // That makes the mismatch *observable*; it does not observe it. React
+    // reports one by logging an error and re-rendering the subtree, so a spec
+    // that asserts nothing about the value and installs no listener still
+    // passes. `watchForHydrationFailures` in `tests/e2e/helpers.ts` is the
+    // watching half, and the specs for both pages that render dates —
+    // `members.spec.ts` and `api-tokens.spec.ts` — use it. A new page that
+    // renders a date adds it too; `tests/e2e/CLAUDE.md` carries that rule.
+    //
+    // The Worker is UTC and answers `en-US`. Left alone, CI's Chromium answers
+    // exactly the same two things — so a formatter that asks the *runtime* for
+    // its locale or zone produces identical output on both sides, the mismatch
+    // exists only on a reader's machine, and CI reports green. That is not
+    // hypothetical: it is how the defect `app/lib/format-date.ts` exists to
+    // prevent reached a browser twice, in the members list and again in the
+    // API-token list.
+    //
+    // `Pacific/Kiritimati` is UTC+14, the furthest ahead there is, so a
+    // timestamp anywhere in the last fourteen hours of a UTC day lands on the
+    // *next* calendar day here. `en-GB` renders "15 Aug 2026" where `en-US`
+    // renders "Aug 15, 2026". Both were targeted precedents before they were
+    // suite-wide — `format-date.test.ts` and `members.spec.ts` respectively.
+    //
+    // `hostile-environment.spec.ts` is what fails if either line is deleted;
+    // it deliberately restates these values rather than importing them, since
+    // a shared constant would move with the edit and assert nothing.
+    timezoneId: "Pacific/Kiritimati",
+    locale: "en-GB",
     trace: "on-first-retry",
     launchOptions: {
       args: ["--host-resolver-rules=MAP localhost 127.0.0.1"],

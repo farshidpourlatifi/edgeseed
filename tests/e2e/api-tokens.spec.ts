@@ -1,5 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { clientIp, markEmailVerified, waitForHydration } from "./helpers";
+import {
+  clientIp,
+  markEmailVerified,
+  waitForHydration,
+  watchForHydrationFailures,
+} from "./helpers";
 
 /**
  * The only cookie-authenticated write in the app, driven through a real browser.
@@ -58,6 +63,20 @@ test.describe("api tokens", () => {
     // on the settings loader redirects straight back to /login.
     await page.waitForURL("**/dashboard", { timeout: 15000 });
 
+    /**
+     * `/dashboard/settings` is the **second** page that renders dates through
+     * `app/lib/format-date.ts`, and the one the original defect reached without
+     * anyone noticing — the members list got the fix and this list kept the bug.
+     *
+     * The suite-wide `en-GB`/UTC+14 pins make a hydration mismatch here
+     * possible to observe; only a listener makes it observed. Without this, a
+     * call site reverting to `toLocaleDateString(undefined, …)` would render
+     * "15 Aug 2026", React would discard the server's markup, and every
+     * assertion in this test would still pass, because none of them look at a
+     * date.
+     */
+    const hydrationFailures = watchForHydrationFailures(page);
+
     await page.goto("/dashboard/settings");
 
     const tokenName = page.getByLabel("Token name", { exact: true });
@@ -69,9 +88,44 @@ test.describe("api tokens", () => {
     await page.getByRole("button", { name: "Create token" }).click();
 
     await expect(page.getByRole("button", { name: "Copy" })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("button", { name: "Dismiss" }).click();
+
+    /**
+     * **The reload is what makes the date a hydration case at all**, and
+     * leaving it out is a mistake this spec made first: the row above was
+     * created by a client-side write, so it has only ever existed as
+     * client-rendered DOM. There is no server markup for React to reconcile it
+     * against, so an unpinned formatter produces no mismatch and the listener
+     * has nothing to report — it sat here inert, and only the shape assertion
+     * below was doing any work.
+     *
+     * A fresh document is different: the loader renders the list, the date
+     * arrives as SSR markup, and the browser's own locale then either agrees
+     * with it or does not.
+     */
+    await page.reload();
+
+    /**
+     * **Wait for hydration before asserting either half, or both pass for the
+     * wrong reason** — this spec made that mistake too. `reload()` resolves at
+     * the `load` event, which is before React attaches. At that moment the DOM
+     * is still the server's markup, so the shape assertion matches the very
+     * string the server sent no matter what the client would have rendered,
+     * and the listener is read before React has had the chance to complain.
+     * Both go green while a mismatch is seconds away.
+     */
+    await waitForHydration(page.getByLabel("Token name", { exact: true }));
+
+    // The server's pinned rendering — "Aug 15, 2026", never the "15 Aug 2026"
+    // this `en-GB` browser would produce on its own. The shape assertion
+    // catches a call site that formats its own date; the listener catches a
+    // mismatch in any date on this page, named or not.
+    await expect(page.getByText(/created [A-Z][a-z]{2} \d{1,2}, \d{4}/)).toBeVisible({
+      timeout: 15000,
+    });
+    expect(hydrationFailures()).toEqual([]);
 
     // The DELETE: a bodyless same-origin write, which sends no content-type.
-    await page.getByRole("button", { name: "Dismiss" }).click();
     await page.getByRole("button", { name: "Revoke" }).click();
 
     await expect(page.getByText("No active tokens.")).toBeVisible({ timeout: 15000 });

@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { expect, type Locator } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 /**
  * Address D1 by its **binding**, never by `database_name` — the name is
@@ -498,4 +498,67 @@ export async function waitForHydration(target: Locator, timeout = 15_000) {
       { timeout, message: "React never hydrated the element — it is still inert SSR markup" },
     )
     .toBe(true);
+}
+
+/**
+ * React's hydration errors, in both the forms it emits them. The prose
+ * appears in development; a production build replaces it with a URL carrying
+ * the code. `watchForHydrationFailures` below explains why both matter.
+ */
+const HYDRATION_ERROR = /hydrat|react\.dev\/errors\/(418|422|423|425)\b/i;
+
+/**
+ * Collect hydration failures reported by the browser for the rest of the test.
+ *
+ * **The suite-wide `locale`/`timezoneId` pins in `playwright.config.ts` make a
+ * hydration mismatch *possible* to observe; they do not make it observable.**
+ * React reports one by logging an error and re-rendering the subtree on the
+ * client, so a page whose spec asserts nothing about the rendered value — and
+ * installs no listener — goes on passing while the server's markup is thrown
+ * away. Pinning without watching only moves where the bug hides.
+ *
+ * So a spec driving a page that renders a date installs this and asserts the
+ * result is empty. Two pages qualify today, `/dashboard/members` and
+ * `/dashboard/settings`, and both do; `tests/e2e/CLAUDE.md` carries the rule for
+ * the next one.
+ *
+ * Call it **before** navigating — Playwright delivers only what is emitted while
+ * a listener is attached, and hydration happens on first paint.
+ *
+ * **Read the result only after React has attached**, via `waitForHydration` on
+ * something in the tree. `goto` and `reload` resolve at the `load` event, which
+ * is earlier: read there and the list is empty because React has not run yet,
+ * so the assertion passes on a page that is about to throw its markup away.
+ * Both specs using this made that mistake first, and it is invisible — the
+ * guard reports success rather than reporting nothing.
+ *
+ * It is deliberately not a global fixture. Several specs drive 401, 403 and 429
+ * paths on purpose, and those log console errors of their own; failing every
+ * test on any console error would turn deliberate deny-path coverage into noise
+ * and get the fixture disabled. Filtering at the point of assertion keeps the
+ * signal narrow enough to stay switched on.
+ *
+ * **The filter has to match the minified form too, and that is not paranoia.**
+ * React spells these errors out only in development. In a production build it
+ * logs a URL instead — `https://react.dev/errors/418?args[]=…` — in which the
+ * word "hydration" does not appear anywhere. The e2e suite runs against
+ * `react-router dev` today, so the prose form is what arrives; the day someone
+ * points `webServer` at a built preview, a word-only filter would match nothing
+ * and both watched pages would lose the guard silently, keeping only the shape
+ * assertions and only for the dates those name. Matching the codes as well
+ * costs one alternation and removes that trapdoor.
+ *
+ * The codes are React's hydration family: 418 (server HTML did not match), 422
+ * and 423 (error while hydrating, boundary and root), 425 (text content did not
+ * match).
+ */
+export function watchForHydrationFailures(page: Page): () => string[] {
+  const failures: string[] = [];
+
+  page.on("pageerror", (error) => failures.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") failures.push(message.text());
+  });
+
+  return () => failures.filter((text) => HYDRATION_ERROR.test(text));
 }

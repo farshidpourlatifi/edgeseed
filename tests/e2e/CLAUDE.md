@@ -97,6 +97,64 @@ the dev server's memory, `db:reset` does not clear them, and
 would make the second run of the day fail for reasons that look nothing like the
 cause.
 
+## The suite runs where the Worker does not
+
+`playwright.config.ts` pins every browser context to `Pacific/Kiritimati`
+(UTC+14) and `en-GB`. The Worker is UTC and answers `en-US`, so the two
+deliberately disagree on **both** axes: a date rendered by anything but the
+pinned seam comes out different on the two sides of hydration.
+
+**That makes a mismatch observable, not observed — the difference matters.**
+React reports one by logging an error and re-rendering the subtree on the
+client, so a spec that asserts nothing about the rendered value and installs no
+listener carries on passing while the server's markup is discarded. Pinning
+alone would move where the bug hides rather than catch it.
+
+The watching half is `watchForHydrationFailures` in `helpers.ts`. **A spec that
+drives a page rendering a date installs it and asserts the result is empty**,
+and asserts the pinned `en-US` shape of the date itself. Two pages qualify
+today — `/dashboard/members` and `/dashboard/settings` — and `members.spec.ts`
+and `api-tokens.spec.ts` cover them. A third page that renders a date adds the
+same pair, or it is not covered, whatever the pins say.
+
+Agreement is what let the original defect ship. `toLocaleDateString(undefined,
+…)` asks the _runtime_ for its locale and zone, and a server-rendered page has
+two runtimes — but CI's Chromium answered exactly what the Worker answered, so
+the two strings matched, the suite went green, and the mismatch existed only on
+a reader's machine. It was found by opening the page in a real browser.
+
+**The pin has its own deny-path test, because it is invisible.** Delete the two
+lines and every other spec still passes — a correctly pinned formatter renders
+the same string in any browser, so nothing notices that the suite stopped
+testing the thing it was widened to test. `hostile-environment.spec.ts` asserts
+the browser's resolved zone and locale, and that neither matches the Worker's.
+It restates those values rather than importing them from the config on purpose:
+a shared constant would move with the edit that removed the pin and assert
+nothing. Both halves were seen red — with the pin deleted the spec reports the
+machine's own zone.
+
+The unit suite is pinned the other way, to `America/Los_Angeles`
+(`vitest.config.ts`), so the day boundary is crossed in both directions:
+UTC+14 pushes a late-UTC instant onto the next day, UTC-7 pulls an early one
+onto the previous. `format-date.test.ts` carries the matching config assertions
+for that side, locale included: the unit suite is pinned to `en-GB` as well, so
+removing the locale from the seam fails six cases there in twelve seconds
+rather than waiting on the e2e run. Dropping the zone option fails two, and
+changing the zone fails one — an eastern zone caught by the late instant, a
+western one by the early instant.
+
+Both pins have to be set in `vitest.config.ts` itself, and they work for
+different reasons. Node re-reads `TZ` whenever it changes, so that one would
+apply anywhere; it fixes the default _locale_ at startup and ignores a later
+assignment, so `LC_ALL` works only because vitest runs test files in **forked**
+workers that read the inherited environment as they boot. Setting `LC_ALL`
+inside a running test does nothing — the process it would need to convince has
+already started.
+
+A spec that needs a date on screen should expect the pinned `en-US` rendering
+(`Aug 15, 2026`), never the browser's — that is what `format-date.ts` exists to
+guarantee, and asserting the browser's form would assert the bug.
+
 ## Seeding an organization
 
 `giveOrganization(email, slug, name)` writes `organization` + `member` rows into

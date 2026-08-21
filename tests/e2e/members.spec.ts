@@ -10,6 +10,7 @@ import {
   removeMembership,
   setActiveOrganization,
   waitForHydration,
+  watchForHydrationFailures,
 } from "./helpers";
 
 /**
@@ -388,31 +389,43 @@ test.describe("one tenant's page never shows another's", () => {
  * and a British reader's browser answers `en-GB`, so React finds text it did
  * not render and throws away the server's markup for that subtree.
  *
- * **The locale here is the assertion.** Under the default `en-US` this test
- * passes against the broken implementation as surely as against the fixed one,
- * which is exactly why the original bug reached a browser before anything
- * noticed: CI's Chromium and the Worker agree. It was seen red against
+ * **The locale here is the assertion.** Under `en-US` this test passes against
+ * the broken implementation as surely as against the fixed one, which is
+ * exactly why the original bug reached a browser before anything noticed: CI's
+ * Chromium and the Worker agreed. It was seen red against
  * `toLocaleDateString(undefined, …)` before `app/lib/format-date.ts` existed.
+ *
+ * **The `locale` below is now redundant with the suite-wide pin in
+ * `playwright.config.ts`, and it stays anyway.** It is what makes this block
+ * self-describing — a reader should not have to know the project config to see
+ * why an `en-GB` assertion is here — and it keeps the guarantee if the
+ * suite-wide locale is ever changed to something else hostile. The pin itself
+ * is guarded by `hostile-environment.spec.ts`, not by this block: deleting the
+ * pin would leave this `test.use` in place and this test green, which is
+ * precisely why a configuration needs a deny-path test of its own.
  */
 test.describe("a reader outside en-US gets the same page the server rendered", () => {
   test.use({ extraHTTPHeaders: { "cf-connecting-ip": clientIp() }, locale: "en-GB" });
 
   test("no hydration mismatch, and the date keeps the pinned format", async ({ page }) => {
-    const failures: string[] = [];
-    page.on("pageerror", (error) => failures.push(error.message));
-    page.on("console", (message) => {
-      if (message.type() === "error") failures.push(message.text());
-    });
+    const hydrationFailures = watchForHydrationFailures(page);
 
     await signIn(page, ANA.email);
     await page.goto("/dashboard/members");
     await expect(memberRow(page, ANA.email)).toContainText("owner", { timeout: 15000 });
 
+    // Both assertions below have to run *after* React attaches, not merely
+    // after the document loads — see `watchForHydrationFailures`. Until then
+    // the DOM is still the server's markup, so the shape assertion matches the
+    // string the server sent whatever the client would render, and the failure
+    // list is read before React has had the chance to complain.
+    await waitForHydration(memberRow(page, ANA.email));
+
     // "Aug 15, 2026", never "15 Aug 2026" — the browser's own locale would
     // produce the second, and the server cannot know about it.
     await expect(memberRow(page, ANA.email)).toContainText(/joined [A-Z][a-z]{2} \d{1,2}, \d{4}/);
 
-    expect(failures.filter((text) => /hydrat/i.test(text))).toEqual([]);
+    expect(hydrationFailures()).toEqual([]);
   });
 });
 
