@@ -31,7 +31,7 @@
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1",
-    "@cloudflare/workers-types": "^4",
+    "@cloudflare/workers-types": "^4.20260702.1",
     "@hono/vite-dev-server": "^0.19",
     "@react-router/dev": "^7.18.2",
     "@starter/testing": "workspace:*",
@@ -42,6 +42,6 @@
     "typescript": "^5.7",
     "vite": "^6",
     "vite-tsconfig-paths": "^5",
-    "wrangler": "^4"
+    "wrangler": "^4.127.0"
   }
 }
