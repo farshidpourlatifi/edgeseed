@@ -11,6 +11,6 @@
     "./fake-rate-limit": "./fake-rate-limit.ts"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260702.1"
+    "@cloudflare/workers-types": "^5.20260827.1"
   }
 }
