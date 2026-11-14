@@ -1,6 +1,12 @@
 import { test, expect, type Page } from "@playwright/test";
 import { PASSWORD_RESET_REDIRECT } from "../../apps/web/app/lib/auth-redirects";
-import { clientIp, markEmailVerified, readPasswordResetToken, waitForHydration } from "./helpers";
+import {
+  clientIp,
+  markEmailVerified,
+  readPasswordResetToken,
+  signedInAs,
+  waitForHydration,
+} from "./helpers";
 
 /**
  * Forgot-password, end to end — issue #20.
@@ -228,7 +234,7 @@ test.describe("a reset carries a user from the login page back into the app", ()
 
     await signIn(page, USER.email, NEW_PASSWORD);
     await page.waitForURL("**/dashboard", { timeout: 15000 });
-    await expect(page.getByRole("heading", { name: "Welcome to your dashboard" })).toBeVisible();
+    await expect(signedInAs(page, USER.email)).toBeVisible();
   });
 
   test("the old password no longer works", async ({ page }) => {

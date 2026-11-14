@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { DASHBOARD_HOME_ROUTE } from "../../apps/web/app/product/dashboard";
 
 /**
  * Audit #10, tested at the vector rather than at the helper.
@@ -16,6 +17,12 @@ import { test, expect } from "@playwright/test";
  */
 
 /**
+ * A route id is the module's path under `app/` minus its extension, so the
+ * home's id follows whichever module the product mounts.
+ */
+const HOME_ROUTE_ID = DASHBOARD_HOME_ROUTE.replace(/\.[a-z0-9]+$/i, "");
+
+/**
  * Single fetch resolves every matched loader in one request, and **any** loader
  * redirecting short-circuits the whole payload. So a plain `.data` request is
  * satisfied by the dashboard *layout's* guard, and would keep passing with the
@@ -26,10 +33,11 @@ import { test, expect } from "@playwright/test";
  */
 const CHILD_ONLY = [
   "/dashboard/settings.data?_routes=routes%2Fdashboard.settings",
-  // `_index` guards even though it returns nothing today, because it is the
-  // template the next dashboard page is copied from. Without its own
+  // The home module, whichever one the product mounts, requested alone. The
+  // starter's default guards even though it returns nothing today, because it
+  // is the template the next dashboard page is copied from. Without its own
   // child-only case, removing that guard leaves this suite and CI green.
-  "/dashboard.data?_routes=routes%2Fdashboard._index",
+  `/dashboard.data?_routes=${encodeURIComponent(HOME_ROUTE_ID)}`,
   // Members reads one tenant's people and invited addresses. Its loader
   // resolves the organization from the session, so an unauthenticated caller
   // has no organization to be scoped to — which is a redirect, not an empty

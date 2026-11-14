@@ -1,11 +1,12 @@
 /**
  * Example: Dashboard with stats, activity table, and quick actions.
  *
- * To use: copy to app/routes/dashboard._index.tsx
+ * To use: copy to app/product/ and point DASHBOARD_HOME_ROUTE
+ * (app/product/dashboard.ts) at the copy.
  * The loader is already wired — just replace the static data with real queries.
  */
 import { Link } from "react-router";
-import type { Route } from "../+types/dashboard._index";
+import type { AppLoadContext, LoaderFunctionArgs } from "react-router";
 import { requireUser } from "~/lib/require-user";
 import {
   Card,
@@ -59,7 +60,7 @@ const quickActions = [
   },
 ];
 
-export async function loader({ context, request }: Route.LoaderArgs) {
+export async function loader({ context, request }: LoaderFunctionArgs<AppLoadContext>) {
   // Guards before it reads anything, and stays here even though the stats below
   // are static — this file is a copy-paste starting point, so whatever it does
   // is what the next dashboard page will do. The layout loader is not a

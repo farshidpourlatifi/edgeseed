@@ -256,6 +256,12 @@ Full rationale: `docs/adr/004-time-and-timezones.md`; the distilled rules are th
   `cf-connecting-ip` through `clientIp` in `tests/e2e/helpers.ts`. Without it
   specs share a rate-limit bucket and throttle each other, surfacing as flakes
   rather than as the test defect they are.
+- Reject a change to the contents of a product-owned file
+  (`apps/web/app/product/*`): the starter ships each one once, and the fix
+  belongs in the code that reads it. The default dashboard home and the files
+  under `routes/_examples/` never import the home's `./+types`, which do not
+  exist once a product mounts its own. An e2e spec proves sign-in with
+  `signedInAs` from `tests/e2e/helpers.ts`, never with page copy.
 - For API changes, regenerate OpenAPI and update the matching MCP tool.
 - Test observable behavior rather than implementation details. Apply the
   affected package's coverage target and require every guard's deny path.

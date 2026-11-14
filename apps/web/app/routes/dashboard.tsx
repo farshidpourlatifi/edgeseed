@@ -23,8 +23,8 @@ import {
 } from "@starter/ui/components/ui/tooltip";
 import { ThemeToggle } from "@starter/ui/components/ui/theme-toggle";
 import { VisuallyHidden } from "@starter/ui/components/ui/visually-hidden";
+import { EmptyState } from "@starter/ui/components/layout/empty-state";
 import {
-  LayoutDashboard,
   Settings,
   PanelLeftClose,
   PanelLeft,
@@ -35,7 +35,6 @@ import {
   ChevronsUpDown,
   Plus,
   Check,
-  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PRODUCT_NAME } from "@starter/config/product";
@@ -44,6 +43,13 @@ import {
   CreateOrganizationButton,
   CreateOrganizationDialog,
 } from "~/components/organizations/create-organization-dialog";
+import {
+  breadcrumbsFor,
+  dashboardNavigation,
+  isDashboardHome,
+  isNavItemActive,
+} from "~/lib/dashboard-nav";
+import { PRODUCT_NAV } from "~/product/dashboard-nav";
 
 export async function loader({ context, request }: Route.LoaderArgs) {
   // Guards this loader's own data only. Every child loader calls `requireUser`
@@ -80,11 +86,7 @@ export async function loader({ context, request }: Route.LoaderArgs) {
   };
 }
 
-const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Members", href: "/dashboard/members", icon: Users },
-  { name: "Settings", href: "/dashboard/settings", icon: Settings },
-];
+const navigation = dashboardNavigation(PRODUCT_NAV);
 
 type Organization = { id: string; name: string; slug: string };
 
@@ -326,10 +328,10 @@ function Sidebar({
 
         <nav className="flex-1 space-y-1 p-2">
           {navigation.map((item) => {
-            const isActive = location.pathname === item.href;
+            const isActive = isNavItemActive(location.pathname, item.href);
             const linkContent = (
               <Link
-                key={item.name}
+                key={item.href}
                 to={item.href}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
@@ -346,14 +348,14 @@ function Sidebar({
 
             if (collapsed) {
               return (
-                <Tooltip key={item.name}>
+                <Tooltip key={item.href}>
                   <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
                   <TooltipContent side="right">{item.name}</TooltipContent>
                 </Tooltip>
               );
             }
 
-            return <div key={item.name}>{linkContent}</div>;
+            return <div key={item.href}>{linkContent}</div>;
           })}
         </nav>
 
@@ -465,17 +467,7 @@ function Topbar({
     window.location.href = "/";
   }
 
-  const getBreadcrumbs = () => {
-    const segments = location.pathname.split("/").filter(Boolean);
-    return segments.map((segment, index) => {
-      const href = "/" + segments.slice(0, index + 1).join("/");
-      const name = segment.charAt(0).toUpperCase() + segment.slice(1);
-      const isLast = index === segments.length - 1;
-      return { name, href, isLast };
-    });
-  };
-
-  const breadcrumbs = getBreadcrumbs();
+  const breadcrumbs = breadcrumbsFor(location.pathname, navigation);
 
   return (
     <header
@@ -510,7 +502,7 @@ function Topbar({
             <DropdownMenuLabel>Navigation</DropdownMenuLabel>
             <DropdownMenuSeparator />
             {navigation.map((item) => (
-              <DropdownMenuItem key={item.name} asChild>
+              <DropdownMenuItem key={item.href} asChild>
                 <Link to={item.href} className="cursor-pointer">
                   <item.icon className="mr-2 h-4 w-4" />
                   {item.name}
@@ -596,6 +588,7 @@ function Topbar({
 export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const { user, organizations, activeOrganizationId } = loaderData;
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const location = useLocation();
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -621,6 +614,25 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
         )}
       >
         <Outlet />
+        {/*
+          The first-run path: the one that says what to do rather than merely
+          offering a control to find. It lives in the layout, not in the home
+          module, so a product that replaces the home cannot drop it. The
+          sidebar carries the same action on every other dashboard page, and
+          the topbar menu carries it on a phone, where that sidebar is
+          `hidden md:block` (#54).
+        */}
+        {isDashboardHome(location.pathname) && organizations.length === 0 && (
+          <div className="mt-8 flex justify-center pb-20">
+            <EmptyState
+              icon={<Building2 className="h-10 w-10" />}
+              title="Create your first organization"
+              description="Organizations own members and data. You will be its owner, and you can create more later."
+              action={<CreateOrganizationButton className="w-auto" />}
+              className="w-full max-w-md"
+            />
+          </div>
+        )}
       </main>
     </div>
   );
