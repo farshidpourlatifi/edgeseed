@@ -31,3 +31,9 @@ test-results/
 playwright-report/
 .stryker-tmp/
 reports/
+
+# agent fleet
+.fleet/
+.claude/worktrees/
+.claude/agents/*-local.md
+.claude/settings.local.json
