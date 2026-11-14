@@ -14,10 +14,13 @@ try {
   // Already clean
 }
 
-// Re-apply all migrations
+// Re-apply all migrations. stdin is detached, never inherited: wrangler asks
+// "continue?" whenever its stdin and stdout are both terminals, and then waits —
+// so run from one by another script (e2e global-setup), this sat on a prompt
+// nobody could see. Without a stdin to read, wrangler proceeds by itself.
 console.log("Re-applying migrations...");
 execSync(`pnpm --filter @starter/web exec wrangler d1 migrations apply ${D1_BINDING} --local`, {
-  stdio: "inherit",
+  stdio: ["ignore", "inherit", "inherit"],
   cwd: process.cwd(),
 });
 console.log("Database reset complete.");
