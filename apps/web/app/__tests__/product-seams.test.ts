@@ -75,6 +75,33 @@ describe("dashboard home seam", () => {
     ).toEqual([]);
   });
 
+  it("counts a module as mounted however the route config spells its file", () => {
+    // React Router normalises the file before deriving the route id and the
+    // types path, so `./x.tsx` and an absolute path under `app/` both mount `x`.
+    const sources = { "product/home.tsx": 'import type { Route } from "./+types/home";' };
+
+    expect(unmountedRouteTypeImports(sources, ["./product/home.tsx"], "/repo/app")).toEqual([]);
+    expect(unmountedRouteTypeImports(sources, ["/repo/app/product/home.tsx"], "/repo/app")).toEqual(
+      [],
+    );
+    expect(
+      unmountedRouteTypeImports(sources, ["/repo/other/product/home.tsx"], "/repo/app"),
+    ).toEqual(["product/home.tsx"]);
+  });
+
+  it("flags an example importing generated route types, even of a mounted module", () => {
+    // Examples are never mounted, and the module one borrows types from is
+    // un-mounted in any clone that swapped it out.
+    const sources = {
+      "routes/_examples/widgets.tsx": 'import type { Route } from "../+types/dashboard._index";',
+      "routes/dashboard._index.tsx": 'import type { Route } from "./+types/dashboard._index";',
+    };
+
+    expect(
+      unmountedRouteTypeImports(sources, ["routes/dashboard._index.tsx"], "/repo/app"),
+    ).toEqual(["routes/_examples/widgets.tsx"]);
+  });
+
   it("leaves no module importing generated route types the route config does not produce", async () => {
     const { default: routes } = (await import("../routes")) as { default: RouteConfigEntry[] };
     const sources = Object.fromEntries(
