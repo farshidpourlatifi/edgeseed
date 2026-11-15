@@ -10,6 +10,8 @@ believed. This file is the routine that keeps that from rotting.
 `pnpm check:docs-sync` runs on every PR and in the weekly CI cron, and fails on:
 
 1. A root `package.json` script missing from `README.md`, `docs/README.md` or `AGENTS.md`.
+   A file `AGENTS.md` imports with a line that is exactly `@path` counts as part of
+   `AGENTS.md`, one level deep; an import whose file is missing fails.
 2. A `.dev.vars.example` that has drifted from the env schema in `packages/config`.
 3. A relative link in the public docs whose target does not exist.
 4. An MCP tool or API path that ships but is not named in the README.

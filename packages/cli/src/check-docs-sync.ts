@@ -16,13 +16,14 @@
  * The comparison logic lives in ./lib/docs-sync so its deny paths are unit-
  * and mutation-tested.
  */
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import {
   brokenRelativeLinks,
   compareEnvExample,
   exampleKeys,
+  expandImports,
   mcpToolNames,
   schemaBlockKeys,
   undocumentedNames,
@@ -33,16 +34,39 @@ const IGNORED = new Set(["prepare"]);
 
 // AGENTS.md, not CLAUDE.md: AGENTS.md is the canonical instruction file and
 // CLAUDE.md is a thin `@AGENTS.md` import, so checking CLAUDE.md would only ever
-// assert against a pointer.
+// assert against a pointer. The same reasoning one level further: a file
+// AGENTS.md imports is part of what an agent reads as AGENTS.md, so its text
+// counts for it.
 const DOC_FILES = ["README.md", "docs/README.md", "AGENTS.md"];
+
+// An agent file's `@path` line is how it pulls another file in. GitHub renders
+// the other two docs, where such a line is plain text — following it there
+// would count a command a reader cannot see.
+const IMPORTING_DOCS = new Set(["AGENTS.md"]);
+
+/** The text of an existing file; `null` for a directory or a missing path. */
+const readRepoFile = (path: string): string | null =>
+  statSync(path, { throwIfNoEntry: false })?.isFile() ? readFileSync(path, "utf8") : null;
 
 const scripts = Object.keys(
   (JSON.parse(readFileSync("package.json", "utf8")) as { scripts: Record<string, string> }).scripts,
 ).filter((s) => !IGNORED.has(s));
 
 let failed = false;
+const docLabels: string[] = [];
 for (const file of DOC_FILES) {
-  const missing = undocumentedScripts(scripts, readFileSync(file, "utf8"));
+  const raw = readFileSync(file, "utf8");
+  const expanded = IMPORTING_DOCS.has(file)
+    ? expandImports(raw, file, readRepoFile)
+    : { content: raw, imported: [], missing: [] };
+  if (expanded.missing.length > 0) {
+    failed = true;
+    console.error(`${file} imports missing files: ${expanded.missing.join(", ")}`);
+  }
+  docLabels.push(
+    expanded.imported.length > 0 ? `${file} (+ ${expanded.imported.join(", ")})` : file,
+  );
+  const missing = undocumentedScripts(scripts, expanded.content);
   if (missing.length > 0) {
     failed = true;
     console.error(`${file} is missing: ${missing.map((m) => `pnpm ${m}`).join(", ")}`);
@@ -176,13 +200,14 @@ if (undocumentedPaths.length > 0) {
 if (failed) {
   console.error(
     "\nFix the drift above: document the commands (or add to IGNORED with a reason)," +
+      " restore or remove an AGENTS.md import whose file is gone," +
       " keep .dev.vars.example matching the env schema, repair the links, and make the" +
       " README name every tool and path that ships.",
   );
   process.exit(1);
 }
 console.log(
-  `docs-sync ok: ${scripts.length} scripts documented in ${DOC_FILES.join(", ")}; ` +
+  `docs-sync ok: ${scripts.length} scripts documented in ${docLabels.join(", ")}; ` +
     `env keys mirrored (${mirrored.join(", ")}); ` +
     `links resolved in ${linksChecked} docs; ` +
     `${toolNames.length} MCP tools and ${apiPaths.length} API paths documented`,

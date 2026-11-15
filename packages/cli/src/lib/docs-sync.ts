@@ -165,6 +165,67 @@ export function brokenRelativeLinks(
 }
 
 /**
+ * Paths a document imports, as written.
+ *
+ * An import is a line that is exactly `@<path>` once trimmed — the form
+ * `CLAUDE.md` uses to pull `AGENTS.md` in. The match is that narrow on purpose:
+ * anything looser would read every `@scope/package` in prose as a path. Lines
+ * inside a code fence are skipped, since a doc explaining imports shows one
+ * without making one. A home-relative target (`@~/…`) is skipped as well: it is
+ * not a repository file, so there is nothing here to check it against.
+ */
+export function importTargets(docContent: string): string[] {
+  const targets: string[] = [];
+  let fenced = false;
+  for (const raw of docContent.split("\n")) {
+    const line = raw.trim();
+    if (line.startsWith("```") || line.startsWith("~~~")) {
+      fenced = !fenced;
+      continue;
+    }
+    if (fenced) continue;
+    const target = /^@(\S+)$/.exec(line)?.[1];
+    if (target === undefined || target.startsWith("~") || targets.includes(target)) continue;
+    targets.push(target);
+  }
+  return targets;
+}
+
+/**
+ * A document with the text of every file it imports appended, so a check that
+ * reads the document also reads what the document pulls in.
+ *
+ * **One level deep.** Imported text is appended as it is and never scanned for
+ * imports of its own, so the answer cannot depend on a chain nobody can see
+ * from the importing file.
+ *
+ * `read` receives a repo-relative path and returns `null` for anything that is
+ * not a readable file. A target that climbs out of the repository is never
+ * handed to it. Both cases land in `missing`, written as the document wrote
+ * them, so the report points at the line to fix.
+ */
+export function expandImports(
+  docContent: string,
+  docPath: string,
+  read: (repoRelativePath: string) => string | null,
+): { content: string; imported: string[]; missing: string[] } {
+  let content = docContent;
+  const imported: string[] = [];
+  const missing: string[] = [];
+  for (const target of importTargets(docContent)) {
+    const resolved = resolveDocTarget(docPath, target);
+    const text = resolved === null ? null : read(resolved);
+    if (resolved === null || text === null) {
+      missing.push(target);
+      continue;
+    }
+    imported.push(resolved);
+    content += `\n${text}`;
+  }
+  return { content, imported, missing };
+}
+
+/**
  * Tool names registered with an `McpServer`, read from the tools' source.
  *
  * The registration string is the name a client sees, and it lives apart from

@@ -3,6 +3,8 @@ import {
   brokenRelativeLinks,
   compareEnvExample,
   exampleKeys,
+  expandImports,
+  importTargets,
   mcpToolNames,
   relativeLinkTargets,
   resolveDocTarget,
@@ -305,5 +307,106 @@ describe("undocumentedNames", () => {
 
   it("should accept a name followed by punctuation or a closing backtick", () => {
     expect(undocumentedNames(["/me", "health_check"], "`/me`, then `health_check`.")).toEqual([]);
+  });
+});
+
+describe("importTargets", () => {
+  it("should read a line that is exactly an import", () => {
+    expect(importTargets("intro\n@docs/product/commands.md\nmore")).toEqual([
+      "docs/product/commands.md",
+    ]);
+  });
+
+  it("should read an import with surrounding spaces and a CRLF ending", () => {
+    expect(importTargets("  @docs/a.md  \r\n@docs/b.md\r\n")).toEqual(["docs/a.md", "docs/b.md"]);
+  });
+
+  it.each([
+    ["inside a backtick fence", "```\n@x.md\n```"],
+    ["inside an indented backtick fence", "  ```md\n@x.md\n  ```"],
+    ["inside a tilde fence", "~~~\n@x.md\n~~~"],
+    ["as a list item", "- @x.md"],
+    ["mid-sentence", "see @x.md here"],
+    ["followed by more text", "@x.md and more"],
+    ["without a leading @", "a@b.md"],
+    ["as a bare @", "@"],
+    ["as a home-relative path", "@~/x.md"],
+  ])("should not read an import %s", (_case, doc) => {
+    expect(importTargets(doc)).toEqual([]);
+  });
+
+  it("should return a repeated import once, in first-seen order", () => {
+    expect(importTargets("@b.md\n@a.md\n@b.md")).toEqual(["b.md", "a.md"]);
+  });
+
+  it("should read again after a fence closes", () => {
+    expect(importTargets("```\n@in.md\n```\n@out.md")).toEqual(["out.md"]);
+  });
+});
+
+describe("expandImports", () => {
+  it("should append the imported text so a command documented there counts", () => {
+    const raw = "# Agents\n@docs/commands.md\n";
+    const result = expandImports(raw, "AGENTS.md", () => "run `pnpm eval`");
+
+    expect(undocumentedScripts(["eval"], raw)).toEqual(["eval"]);
+    expect(undocumentedScripts(["eval"], result.content)).toEqual([]);
+    expect(result.content).toBe(`${raw}\nrun \`pnpm eval\``);
+    expect(result.imported).toEqual(["docs/commands.md"]);
+    expect(result.missing).toEqual([]);
+  });
+
+  it("should resolve a target relative to the importing doc", () => {
+    const read = vi.fn(() => "x");
+    expect(expandImports("@product/x.md", "docs/guide.md", read).imported).toEqual([
+      "docs/product/x.md",
+    ]);
+    expect(read).toHaveBeenCalledExactlyOnceWith("docs/product/x.md");
+  });
+
+  it("should resolve a leading slash from the repo root", () => {
+    const read = vi.fn(() => "x");
+    expandImports("@/product/x.md", "docs/guide.md", read);
+    expect(read).toHaveBeenCalledExactlyOnceWith("product/x.md");
+  });
+
+  it("should report an unreadable target as written and leave the content alone", () => {
+    const raw = "@./docs/gone.md\n@docs/here.md";
+    const result = expandImports(raw, "AGENTS.md", (p) => (p === "docs/here.md" ? "here" : null));
+
+    expect(result.missing).toEqual(["./docs/gone.md"]);
+    expect(result.imported).toEqual(["docs/here.md"]);
+    expect(result.content).toBe(`${raw}\nhere`);
+  });
+
+  it("should report a target leaving the repository without reading it", () => {
+    const read = vi.fn(() => "x");
+    const result = expandImports("@../outside.md", "AGENTS.md", read);
+
+    expect(result).toEqual({ content: "@../outside.md", imported: [], missing: ["../outside.md"] });
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it("should not follow an import inside an imported file", () => {
+    const read = vi.fn((path: string) =>
+      path === "docs/first.md" ? "@docs/second.md" : "`pnpm eval`",
+    );
+    const result = expandImports("@docs/first.md", "AGENTS.md", read);
+
+    expect(read).toHaveBeenCalledExactlyOnceWith("docs/first.md");
+    expect(result.imported).toEqual(["docs/first.md"]);
+    expect(undocumentedScripts(["eval"], result.content)).toEqual(["eval"]);
+  });
+
+  it("should return the input untouched when there are no imports", () => {
+    const read = vi.fn(() => "x");
+    const raw = "# Agents\n\nno imports, only @scope/package in prose\n";
+
+    expect(expandImports(raw, "AGENTS.md", read)).toEqual({
+      content: raw,
+      imported: [],
+      missing: [],
+    });
+    expect(read).not.toHaveBeenCalled();
   });
 });

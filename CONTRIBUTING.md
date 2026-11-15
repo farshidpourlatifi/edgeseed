@@ -133,7 +133,9 @@ standards — new route, new loader, new binding, new guard, new inline script.
   drift. The claims it cannot judge are swept quarterly —
   [docs/housekeeping.md](./docs/housekeeping.md).
 - Adding a root `package.json` script means documenting it in `README.md`,
-  `docs/README.md` and `AGENTS.md` — the check requires all three.
+  `docs/README.md` and `AGENTS.md` — the check requires all three. A file `AGENTS.md`
+  imports with a line that is exactly `@path` counts as part of it, one level deep, and
+  an import whose file is missing fails the check.
 - Changing an API route means regenerating the spec with `pnpm api:spec` and adding the
   matching MCP tool.
 
