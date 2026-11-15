@@ -244,9 +244,18 @@ wrangler secret put HSTS_SCOPE   # subdomains | preload — run from apps/web/
 ```
 
 Never in `vars`: that block is shared with local dev, it is inherited by every
-clone of the repository, and a `var` shadows a same-named secret. Any value
-other than the two refuses every request with a 500, as an invalid `LOG_LEVEL`
-does.
+clone of the repository, and a `var` shadows a same-named secret.
+
+Any value other than the two is never sent as a wider scope: every response
+keeps the host-only header. What else happens depends on how far the request
+gets, because the value is validated in `authMiddleware`, below the origin
+resolver:
+
+| Request                                               | Answer                            |
+| ----------------------------------------------------- | --------------------------------- |
+| Served by the Worker (pages, `/api/auth`, `/api/v1`)  | 500, as an invalid `LOG_LEVEL` is |
+| Redirected across the split (`MARKETING_URL` set)     | 302, as usual                     |
+| Hostname that is neither origin (`MARKETING_URL` set) | 404, as usual                     |
 
 Check what is being sent:
 

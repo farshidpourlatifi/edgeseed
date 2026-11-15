@@ -86,8 +86,10 @@ function secureHeadersFor(scope: HstsScope): MiddlewareHandler {
      *
      * The binding is read raw: this middleware sits above `authMiddleware` by
      * design, so `parseEnv` has not run yet. It therefore accepts the two exact
-     * strings and nothing else, and `webEnvSchema` refuses the request for any
-     * other value.
+     * strings and nothing else; any other value gets the host-only header.
+     * `webEnvSchema` then refuses such a request with a 500 if it reaches
+     * `authMiddleware`. An origin redirect or refusal returns above it and
+     * answers 302 or 404 as usual.
      *
      * Keep this an explicit string. The library's own default is
      * `max-age=15552000; includeSubDomains`, which makes the wider claim
