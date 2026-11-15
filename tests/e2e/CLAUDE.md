@@ -25,6 +25,14 @@ or testid.
   runs `db:reset`, and a server holding the D1 file or port 5173 produces
   `SQLITE_CANTOPEN` / `ERR_CONNECTION_REFUSED` that look like code regressions
   (details in the root AGENTS.md).
+- **Global setup refuses to start when a Worker's dev vars are not in place**:
+  `apps/web/.dev.vars` or `apps/mcp/.dev.vars` is missing, lacks a key its env
+  schema requires, or the two carry different `BETTER_AUTH_SECRET` values. The
+  message holds file paths and key names, never a value. The control flow is
+  `createGlobalSetup` in `global-setup.ts`, unit-tested from
+  `packages/cli/src/__tests__/e2e-global-setup.test.ts`: a `*.test.ts` in this
+  directory would be collected by Playwright as a spec, and vitest does not
+  look here.
 - Playwright boots its own web server (`webServer` in `playwright.config.ts`),
   pinned to `127.0.0.1` — do not change `port` to `url` there; the comment in
   the config explains why.
@@ -41,6 +49,13 @@ or testid.
   own the lifecycle, and the stop signals the whole process group — an orphaned
   wrangler holding port 8788 or the shared D1 breaks the _next_ run in a way
   that looks nothing like a leak.
+- **`startMcpWorker` proves the env, not only that the Worker listens.** After
+  `/` it requests `/api/auth/ok`, the path that reaches `parseEnv`; a refusal
+  stops the Worker and throws with the rejected keys and the Worker's own last
+  output lines. `mcp-worker-env.spec.ts` is the deny path, and it passes
+  `--env-file` at the empty fixture **on purpose**, to boot a Worker with no
+  secret whatever the machine has configured. No other run passes it, for the
+  reason in the next bullet.
 - **The MCP Worker runs with `--var SENTRY_DSN:` and must keep doing so.** With
   a real DSN in a developer's `apps/mcp/.dev.vars`, this Worker alternates
   between ~10s responses and 30s `503`s and the OAuth grant fails about half the
@@ -102,6 +117,34 @@ the dev server's memory, `db:reset` does not clear them, and
 `reuseExistingServer` keeps that server across local re-runs — a fixed address
 would make the second run of the day fail for reasons that look nothing like the
 cause.
+
+## Proving sign-in
+
+`await expect(signedInAs(page, email)).toBeVisible()` (`helpers.ts`) is the proof
+that the browser holds a session for that account: the sidebar's user button,
+which the dashboard layout renders from the session. Never assert a page's
+heading or copy for it — the dashboard home is the product's to replace.
+
+Desktop viewport only: the sidebar is `hidden md:block`. And never assert its
+absence. A page without the sidebar has no such button whether or not a session
+exists, so a count-0 assertion there cannot fail. An ended or refused session is
+proven by `/dashboard` landing on `/login`.
+
+## Specs about the starter's landing page skip when it is not mounted
+
+`LANDING_ROUTE` (`apps/web/app/product/landing.ts`) is the product's to repoint,
+and then none of the starter's marketing is on `/`. A describe asserting that
+marketing opens with
+`test.skip(() => !STARTER_LANDING_MOUNTED, NOT_STARTER_LANDING)`, both from
+`helpers.ts`. What holds for any landing page stays ungated: exactly one visible
+level-1 heading, and no horizontal scroll from 320 to 1280px.
+
+**A section gated on configuration asserts its presence with an expected count,
+not a skip.** `demo-video.spec.ts` computes `DEMO_VIDEO ? 1 : 0` and asserts
+that count, so an ungated section fails in a clone that declares no film; a
+skip would pass there. CI never runs that cleared state — this checkout
+declares a film — so only the unit half (`landing-render.test.ts`) covers it
+on every run.
 
 ## The suite runs where the Worker does not
 
@@ -327,7 +370,9 @@ short-circuits the whole payload — so a plain `/dashboard/settings.data` reque
 is satisfied by the dashboard _layout's_ guard and keeps passing with the child
 wide open. `?_routes=routes%2Fdashboard.settings` asks for one loader by id
 without its parent, which is the request a child guard has to answer alone, and
-the vector audit #10 is about (`loader-guards.spec.ts`).
+the vector audit #10 is about (`loader-guards.spec.ts`). The dashboard home's
+id is derived there from `DASHBOARD_HOME_ROUTE`, not written out, so a product's
+replacement home has its own guard requested.
 
 **Assert on the payload, not the status.** An unauthenticated `.data` request
 answers **202** with the redirect encoded in the body as `SingleFetchRedirect` —
