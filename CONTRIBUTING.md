@@ -47,21 +47,17 @@ One command decides whether a change is done:
 pnpm verify
 ```
 
-It runs lint, format, unit tests, a gitleaks scan, build, typecheck, the Worker boot
-check and e2e. CI runs those across four required jobs — `quality`, `e2e`, `drift`,
+It runs a frozen-lockfile install, the drift checks (OpenAPI spec, docs-sync), lint,
+format, unit tests, a gitleaks scan, build, typecheck, the Worker boot check and e2e. CI runs those across four required jobs — `quality`, `e2e`, `drift`,
 `scan` — and a pull request cannot merge until all four are green.
 
 While iterating, `pnpm verify:fast` runs the same gate minus e2e, which is the slow
 half. Use it between edits; run the full `pnpm verify` before asking for review.
 
-**`verify` is not quite the whole of CI.** The `drift` job also runs `pnpm check:docs-sync`
-and re-generates the OpenAPI spec to diff it, and neither is part of `verify`. If your
-change touches docs, links, a root script, an API route or an MCP tool, run this too or
-CI will find it for you:
-
-```bash
-pnpm check:docs-sync
-```
+**`verify` and CI run the same commands.** The gate starts with
+`pnpm install --frozen-lockfile`, `pnpm api:spec --check` and `pnpm check:docs-sync`,
+and `check:docs-sync` fails when `ci.yml` and the gate stop agreeing — so a check is
+added to both or to neither.
 
 Two traps that look like code regressions and are not:
 
@@ -127,8 +123,8 @@ standards — new route, new loader, new binding, new guard, new inline script.
   `docs/`, `AGENTS.md`, the per-package `CLAUDE.md` files and the review skill repeat one
   another, and a stale copy is trusted. Docs that contradict the code are worse than
   missing docs.
-- `pnpm check:docs-sync` enforces the mechanical part of this and runs in CI: undocumented
-  scripts, a stale `.dev.vars.example`, a relative link whose target is gone, an MCP tool
+- `pnpm check:docs-sync` enforces the mechanical part of this and runs in the gate
+  and in CI: undocumented scripts, a stale `.dev.vars.example`, a relative link whose target is gone, an MCP tool
   or API path that ships without a mention in the README. If it fails, it names the exact
   drift. The claims it cannot judge are swept quarterly —
   [docs/housekeeping.md](./docs/housekeeping.md).

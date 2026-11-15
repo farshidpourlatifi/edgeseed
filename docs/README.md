@@ -62,35 +62,35 @@ docs/api          — Generated OpenAPI specs
 
 ## Dev workflow
 
-| Command                             | What it does                              |
-| ----------------------------------- | ----------------------------------------- |
-| `pnpm dev --filter @starter/web`    | Start web dev server on :5173             |
-| `pnpm db:generate`                  | Generate migration from schema changes    |
-| `pnpm db:migrate`                   | Apply migrations to local D1              |
-| `pnpm db:seed`                      | Insert seed data                          |
-| `pnpm db:reset`                     | Drop and re-apply all migrations          |
-| `pnpm api:spec`                     | Regenerate `docs/api/openapi.json`        |
-| `pnpm api:call <METHOD> <path>`     | Call `/api/v1` with an API token          |
-| `pnpm check:boot`                   | Boot each built Worker, assert it serves  |
-| `pnpm test`                         | Run Vitest                                |
-| `pnpm test:e2e`                     | Run Playwright e2e tests                  |
-| `pnpm test:coverage`                | Vitest with coverage (`coverage/`)        |
-| `pnpm test:mutation`                | Stryker mutation tests                    |
-| `pnpm lint` / `pnpm lint:fix`       | ESLint check / autofix                    |
-| `pnpm format` / `pnpm format:check` | Prettier write / check                    |
-| `pnpm build`                        | Build every Worker bundle                 |
-| `pnpm typecheck`                    | TypeScript check across apps              |
-| `pnpm verify:fast`                  | The gate minus e2e — inner loop only      |
-| `pnpm verify`                       | Full pre-deploy gate                      |
-| `pnpm deploy:web`                   | `verify` + deploy web app                 |
-| `pnpm deploy:web:ungated`           | Deploy half only — CI use, skips `verify` |
-| `pnpm version:bump [type]`          | Bump version + API spec, print the steps  |
-| `pnpm check:release-version <tag>`  | Guard: tag vs package.json + APP_VERSION  |
-| `pnpm check:not-downgrade <tag>`    | Guard: tag vs the live production version |
-| `pnpm check:deployed <out> <ver>`   | Guard: live /health reports that version  |
-| `pnpm release:notes <out>`          | Version ID preamble for release notes     |
-| `pnpm init:product <name> [--repo]` | Stamp product identity (new repo)         |
-| `pnpm check:docs-sync`              | Docs + .dev.vars.example drift check      |
+| Command                             | What it does                                                |
+| ----------------------------------- | ----------------------------------------------------------- |
+| `pnpm dev --filter @starter/web`    | Start web dev server on :5173                               |
+| `pnpm db:generate`                  | Generate migration from schema changes                      |
+| `pnpm db:migrate`                   | Apply migrations to local D1                                |
+| `pnpm db:seed`                      | Insert seed data                                            |
+| `pnpm db:reset`                     | Drop and re-apply all migrations                            |
+| `pnpm api:spec`                     | Regenerate `docs/api/openapi.json`; `--check` compares only |
+| `pnpm api:call <METHOD> <path>`     | Call `/api/v1` with an API token                            |
+| `pnpm check:boot`                   | Boot each built Worker, assert it serves                    |
+| `pnpm test`                         | Run Vitest                                                  |
+| `pnpm test:e2e`                     | Run Playwright e2e tests                                    |
+| `pnpm test:coverage`                | Vitest with coverage (`coverage/`)                          |
+| `pnpm test:mutation`                | Stryker mutation tests                                      |
+| `pnpm lint` / `pnpm lint:fix`       | ESLint check / autofix                                      |
+| `pnpm format` / `pnpm format:check` | Prettier write / check                                      |
+| `pnpm build`                        | Build every Worker bundle                                   |
+| `pnpm typecheck`                    | TypeScript check across apps                                |
+| `pnpm verify:fast`                  | The gate minus e2e — inner loop only                        |
+| `pnpm verify`                       | Full pre-deploy gate                                        |
+| `pnpm deploy:web`                   | `verify` + deploy web app                                   |
+| `pnpm deploy:web:ungated`           | Deploy half only — CI use, skips `verify`                   |
+| `pnpm version:bump [type]`          | Bump version + API spec, print the steps                    |
+| `pnpm check:release-version <tag>`  | Guard: tag vs package.json + APP_VERSION                    |
+| `pnpm check:not-downgrade <tag>`    | Guard: tag vs the live production version                   |
+| `pnpm check:deployed <out> <ver>`   | Guard: live /health reports that version                    |
+| `pnpm release:notes <out>`          | Version ID preamble for release notes                       |
+| `pnpm init:product <name> [--repo]` | Stamp product identity (new repo)                           |
+| `pnpm check:docs-sync`              | Docs, .dev.vars.example and CI-vs-gate drift check          |
 
 ## Adding a new page
 

@@ -167,36 +167,36 @@ docs/
 
 ## CLI Commands
 
-| Command                                   | Description                                                                         |
-| ----------------------------------------- | ----------------------------------------------------------------------------------- |
-| `pnpm dev --filter @starter/web`          | Start web dev server                                                                |
-| `pnpm dev --filter @starter/mcp`          | Start MCP server                                                                    |
-| `pnpm build`                              | Build all workspaces                                                                |
-| `pnpm typecheck`                          | Type check all workspaces                                                           |
-| `pnpm test`                               | Run unit/integration tests                                                          |
-| `pnpm test:e2e`                           | Run end-to-end tests                                                                |
-| `pnpm test:coverage`                      | Unit tests with coverage report (`coverage/`)                                       |
-| `pnpm test:mutation`                      | Stryker mutation tests (`reports/mutation/`)                                        |
-| `pnpm lint` / `pnpm lint:fix`             | ESLint check / autofix                                                              |
-| `pnpm format` / `pnpm format:check`       | Prettier write / check                                                              |
-| `pnpm verify:fast`                        | Everything in `verify` except e2e — the inner loop, not the bar for "done"          |
-| `pnpm verify`                             | Full gate: lint, format, tests, gitleaks, build, typecheck, boot check, e2e         |
-| `pnpm deploy:web`                         | Run `verify`, then deploy the web app to Cloudflare                                 |
-| `pnpm deploy:web:ungated`                 | The deploy half alone — CI uses it to scope credentials; never run by hand          |
-| `pnpm db:generate`                        | Generate Drizzle migration from schema changes                                      |
-| `pnpm db:migrate`                         | Apply pending migrations (local D1)                                                 |
-| `pnpm db:seed`                            | Seed development data                                                               |
-| `pnpm db:reset`                           | Drop and re-apply all migrations locally                                            |
-| `pnpm api:spec`                           | Regenerate OpenAPI spec to `docs/api/openapi.json`                                  |
-| `pnpm api:call <METHOD> <path> [body]`    | Call `/api/v1` with `STARTER_API_TOKEN` (see [API tokens](#api-tokens))             |
-| `pnpm version:bump [major\|minor\|patch]` | Bump version + regenerate the API spec, then print the tag steps that cut a release |
-| `pnpm check:release-version <tag>`        | Refuse a release tag that disagrees with `package.json` / `APP_VERSION`             |
-| `pnpm check:not-downgrade <tag>`          | Refuse a tag older than the version production is already serving                   |
-| `pnpm check:deployed <output> <version>`  | Assert the deployed origin's `/api/v1/health` reports that version                  |
-| `pnpm release:notes <output>`             | Release-note preamble from wrangler's structured deploy output                      |
-| `pnpm init:product <name> [--repo <url>]` | Stamp product identity on a fresh clone ([guide](./docs/starter-as-upstream.md))    |
-| `pnpm check:docs-sync`                    | Fail on drift: undocumented scripts, stale `.dev.vars.example`, doc claims vs code  |
-| `pnpm check:boot`                         | Start each **built** Worker and prove it serves a request (run after `build`)       |
+| Command                                   | Description                                                                                                                                  |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev --filter @starter/web`          | Start web dev server                                                                                                                         |
+| `pnpm dev --filter @starter/mcp`          | Start MCP server                                                                                                                             |
+| `pnpm build`                              | Build all workspaces                                                                                                                         |
+| `pnpm typecheck`                          | Type check all workspaces                                                                                                                    |
+| `pnpm test`                               | Run unit/integration tests                                                                                                                   |
+| `pnpm test:e2e`                           | Run end-to-end tests                                                                                                                         |
+| `pnpm test:coverage`                      | Unit tests with coverage report (`coverage/`)                                                                                                |
+| `pnpm test:mutation`                      | Stryker mutation tests (`reports/mutation/`)                                                                                                 |
+| `pnpm lint` / `pnpm lint:fix`             | ESLint check / autofix                                                                                                                       |
+| `pnpm format` / `pnpm format:check`       | Prettier write / check                                                                                                                       |
+| `pnpm verify:fast`                        | Everything in `verify` except e2e — the inner loop, not the bar for "done"                                                                   |
+| `pnpm verify`                             | Full gate: frozen-lockfile install, drift checks (OpenAPI spec, docs-sync), lint, format, tests, gitleaks, build, typecheck, boot check, e2e |
+| `pnpm deploy:web`                         | Run `verify`, then deploy the web app to Cloudflare                                                                                          |
+| `pnpm deploy:web:ungated`                 | The deploy half alone — CI uses it to scope credentials; never run by hand                                                                   |
+| `pnpm db:generate`                        | Generate Drizzle migration from schema changes                                                                                               |
+| `pnpm db:migrate`                         | Apply pending migrations (local D1)                                                                                                          |
+| `pnpm db:seed`                            | Seed development data                                                                                                                        |
+| `pnpm db:reset`                           | Drop and re-apply all migrations locally                                                                                                     |
+| `pnpm api:spec`                           | Regenerate OpenAPI spec to `docs/api/openapi.json`; `--check` compares without writing                                                       |
+| `pnpm api:call <METHOD> <path> [body]`    | Call `/api/v1` with `STARTER_API_TOKEN` (see [API tokens](#api-tokens))                                                                      |
+| `pnpm version:bump [major\|minor\|patch]` | Bump version + regenerate the API spec, then print the tag steps that cut a release                                                          |
+| `pnpm check:release-version <tag>`        | Refuse a release tag that disagrees with `package.json` / `APP_VERSION`                                                                      |
+| `pnpm check:not-downgrade <tag>`          | Refuse a tag older than the version production is already serving                                                                            |
+| `pnpm check:deployed <output> <version>`  | Assert the deployed origin's `/api/v1/health` reports that version                                                                           |
+| `pnpm release:notes <output>`             | Release-note preamble from wrangler's structured deploy output                                                                               |
+| `pnpm init:product <name> [--repo <url>]` | Stamp product identity on a fresh clone ([guide](./docs/starter-as-upstream.md))                                                             |
+| `pnpm check:docs-sync`                    | Fail on drift: undocumented scripts, stale `.dev.vars.example`, doc claims vs code, CI steps vs the gate                                     |
+| `pnpm check:boot`                         | Start each **built** Worker and prove it serves a request (run after `build`)                                                                |
 
 ## Key Conventions
 
@@ -222,7 +222,7 @@ docs/
 - **CI** — every PR and push to `main` runs lint, format, tests, build, typecheck, the
   Worker boot check, e2e,
   a full-history gitleaks scan, and drift checks (OpenAPI spec, docs-vs-code); a weekly
-  cron rerun catches rot between commits
+  cron rerun catches rot between commits. These are the commands `pnpm verify` runs
 - **Deploys are gated** — `pnpm deploy:web` refuses to ship unless `pnpm verify` passes
 - **Releases are the deploy** — pushing a `v*` tag runs the same gate, deploys, and
   then cuts a GitHub Release naming the live Cloudflare Version ID (see
