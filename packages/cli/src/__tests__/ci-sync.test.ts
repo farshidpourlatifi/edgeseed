@@ -37,10 +37,29 @@ describe("pnpmCommandsRun", () => {
     ["a - name: line", "      - name: pnpm db:seed must pass"],
     ["the pnpm setup action", "      - uses: pnpm/action-setup@v4"],
     ["the pnpm cache setting", "          cache: pnpm"],
-    ["a filtered exec", "      - run: pnpm --filter x exec y"],
     ["a path ending in pnpm", "      - run: ./bin/pnpm lint"],
   ])("should read nothing from %s", (_case, line) => {
     expect(pnpmCommandsRun(line)).toEqual([]);
+  });
+
+  // A flag before the command name cannot be classified without knowing which
+  // flags take a value, so the whole invocation is returned: it matches no gate
+  // command and is reported, instead of being counted as nothing.
+  it.each([
+    ["a flag before the command", "      - run: pnpm -s db:seed", "-s db:seed"],
+    [
+      "a filtered run",
+      "      - run: pnpm --filter @starter/web run db:seed",
+      "--filter @starter/web run db:seed",
+    ],
+    ["a filtered exec", "      - run: pnpm --filter x exec y && pnpm lint", "--filter x exec y"],
+    ["a command held in a variable", '        run: pnpm "$COMMAND"', '"$COMMAND"'],
+  ])("should return %s whole, as an invocation it cannot classify", (_case, line, invocation) => {
+    expect(pnpmCommandsRun(line)).toContain(invocation);
+  });
+
+  it("should still read an unfiltered exec as the exec command", () => {
+    expect(pnpmCommandsRun("      - run: pnpm exec playwright install")).toEqual(["exec"]);
   });
 });
 
