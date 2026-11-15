@@ -454,6 +454,23 @@ export function clientIp(): string {
   return `100.${64 + Math.floor(Math.random() * 64)}.${byte()}.${byte()}`;
 }
 
+/**
+ * The proof that this browser holds a session for this account: the sidebar's
+ * user button. The dashboard layout renders the address from the session, the
+ * address is unique per run, and no page's copy is involved, so the proof
+ * survives a product replacing the dashboard home.
+ *
+ * Assert it with `toBeVisible()`, at a desktop viewport only: the sidebar is
+ * `hidden md:block`.
+ *
+ * Do not assert its absence. A page without the sidebar has none of these
+ * whether or not a session exists, so a count-0 assertion there cannot fail.
+ * An ended or refused session is proven by `/dashboard` landing on `/login`.
+ */
+export function signedInAs(page: Page, email: string): Locator {
+  return page.getByRole("complementary").getByRole("button", { name: email });
+}
+
 /** Every rate-limit rule uses a 60s window; miniflare aligns it to wall-clock. */
 const RATE_LIMIT_WINDOW_MS = 60_000;
 

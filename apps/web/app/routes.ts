@@ -1,4 +1,5 @@
 import { type RouteConfig, index, layout, route } from "@react-router/dev/routes";
+import { DASHBOARD_HOME_ROUTE } from "./product/dashboard";
 
 export default [
   index("routes/_index.tsx"),
@@ -16,7 +17,9 @@ export default [
   // constant for exactly that reason.
   route("accept-invitation", "routes/accept-invitation.tsx"),
   layout("routes/dashboard.tsx", [
-    route("dashboard", "routes/dashboard._index.tsx"),
+    // The home module is the product's to name (`app/product/dashboard.ts`);
+    // the entry stays a child of this layout.
+    route("dashboard", DASHBOARD_HOME_ROUTE),
     route("dashboard/members", "routes/dashboard.members.tsx"),
     route("dashboard/settings", "routes/dashboard.settings.tsx"),
   ]),

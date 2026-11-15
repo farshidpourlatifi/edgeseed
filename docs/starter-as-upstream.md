@@ -62,12 +62,36 @@ real id.
 3. **`apps/*` is the shared-ownership zone.** Downstream owns route content
    and UI; upstream keeps its post-v1 changes to apps structural and minimal.
    Occasional conflicts here are expected — resolve favoring the product,
-   then re-apply the structural intent of the upstream change.
+   then re-apply the structural intent of the upstream change. Where a seam
+   exists, use it instead of editing the starter's file: see
+   [Product seams](#product-seams).
 4. Keep product identity out of framework files — worker names, D1 ids, titles
    and the repository URL are stamped once by `init:product`, secrets live
    outside git. Anything user-visible that names the product or points at its
    source reads from `packages/config/src/product.ts`; hardcoding it is how a
    clone ends up publishing the starter's identity (issue #32).
+
+## Product seams
+
+A file is **product-owned** when the starter ships it once, holding the
+starter's default, and afterwards changes only the code that reads it. Product
+edits and starter edits then never land in the same file, so they cannot
+conflict.
+
+| To                         | Edit                                                          | Contract                                                                                                                                                      |
+| -------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Replace the dashboard home | `DASHBOARD_HOME_ROUTE` in `apps/web/app/product/dashboard.ts` | Names a route module under `app/`. Its loader calls `requireUser`; `tests/e2e/loader-guards.spec.ts` requests it without its parent and fails if it does not. |
+| Add sidebar entries        | `PRODUCT_NAV` in `apps/web/app/product/dashboard-nav.ts`      | Listed after "Dashboard" and before the starter's entries. Registering the page is still a line in `apps/web/app/routes.ts`.                                  |
+
+- **Put product route modules in `apps/web/app/product/`.**
+- **Un-mount, do not delete.** Point the constant at your module and leave the
+  starter's default (`apps/web/app/routes/dashboard._index.tsx`) where it is. A
+  later starter edit to a file a product deleted is a `modify/delete` conflict
+  on every merge that carries one. An un-mounted module is not in the route
+  manifest, so it is not served and gets no generated route types.
+- **The layout keeps what every home needs.** `apps/web/app/routes/dashboard.tsx`
+  renders the sidebar and, for an account with no organization, the first-run
+  card on `/dashboard`. A replacement home does not render either.
 
 ## Pulling starter updates
 
@@ -141,6 +165,22 @@ gitignored from then on. Nothing needs regenerating by hand — `pnpm verify` ru
 `pnpm typecheck`, which runs `react-router typegen` first. After this one merge,
 an upstream release that adds a route and a product that adds its own merge
 cleanly.
+
+### Adopting the release that added the product seams
+
+Applies to a product that customised `apps/web/app/routes/dashboard._index.tsx`
+before the seams existed. That file conflicts on this merge, and resolving in
+the product's favour (rule 3) leaves two things to do by hand:
+
+- **Remove the first-run organization card from your home.** The card moved
+  into the layout (`apps/web/app/routes/dashboard.tsx`), which now renders it on
+  `/dashboard` for an account with no organization. A home that kept its own
+  copy shows two, and a locator for "Create organization" matches both.
+- **Move the home behind the seam, when convenient.** Move your module to
+  `apps/web/app/product/`, name it in `DASHBOARD_HOME_ROUTE`, and take
+  upstream's `dashboard._index.tsx`. The file then stops conflicting. Until
+  then your home keeps working where it is: it is still mounted, so its
+  `./+types/dashboard._index` import still resolves.
 
 ## Proving the clone path — the manual release exercise
 

@@ -5,8 +5,16 @@ They are **not registered as routes** — they exist as copy-paste starting poin
 
 ## How to use an example
 
-1. Copy the file to `app/routes/` (e.g., `cp _examples/dashboard-with-widgets.tsx ../dashboard._index.tsx`)
-2. Register the route in `app/routes.ts` if it's a new route
+1. Copy the file:
+   - `dashboard-with-widgets.tsx` replaces the dashboard home. Copy it to
+     `app/product/` (e.g., from `app/routes/`:
+     `cp _examples/dashboard-with-widgets.tsx ../product/home.tsx`)
+     and set `DASHBOARD_HOME_ROUTE` in `app/product/dashboard.ts` to
+     `"product/home.tsx"`. Leave `app/routes/dashboard._index.tsx` in place: it
+     is un-mounted, not deleted (`docs/starter-as-upstream.md`, "Product seams").
+   - Any other example goes to `app/routes/`.
+2. Register the route in `app/routes.ts` if it's a new route. The dashboard
+   home is already registered through the constant.
 3. Wire real data in the loader (replace static arrays with DB queries)
 
 Route types are generated, not committed: `pnpm typecheck` and

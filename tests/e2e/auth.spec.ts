@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { clientIp, markEmailVerified, waitForHydration } from "./helpers";
+import { clientIp, markEmailVerified, signedInAs, waitForHydration } from "./helpers";
 
 const TEST_USER = {
   name: "E2E Test User",
@@ -83,7 +83,7 @@ test.describe("auth flow", () => {
     await fillSignIn(page, TEST_USER.password);
 
     await page.waitForURL("**/dashboard", { timeout: 10000 });
-    await expect(page.getByRole("heading", { name: "Welcome to your dashboard" })).toBeVisible();
+    await expect(signedInAs(page, TEST_USER.email)).toBeVisible();
   });
 
   test("should sign out from dashboard", async ({ page }) => {
@@ -95,7 +95,11 @@ test.describe("auth flow", () => {
     await page.getByRole("menuitem", { name: "Sign Out" }).click();
 
     await page.waitForURL("/", { timeout: 10000 });
-    await expect(page.getByRole("heading", { level: 1 })).toContainText("SaaS product");
+
+    // The ended session is the assertion: the dashboard refuses this browser
+    // now. It fails if sign-out left the session alive.
+    await page.goto("/dashboard");
+    await page.waitForURL("**/login", { timeout: 10000 });
   });
 
   test("should show error with wrong password", async ({ page }) => {
