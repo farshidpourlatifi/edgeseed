@@ -66,8 +66,8 @@ async function renderLanding(repoUrl: string): Promise<string> {
       MemoryRouter,
       null,
       createElement(Hero),
-      createElement(SiteHeader),
-      createElement(SiteFooter),
+      createElement(SiteHeader, { links: [] }),
+      createElement(SiteFooter, { links: [] }),
       createElement(GettingStarted),
     ),
   );
