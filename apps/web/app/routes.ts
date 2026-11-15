@@ -1,8 +1,9 @@
 import { type RouteConfig, index, layout, route } from "@react-router/dev/routes";
 import { DASHBOARD_HOME_ROUTE } from "./product/dashboard";
+import { LANDING_ROUTE } from "./product/landing";
 
 export default [
-  index("routes/_index.tsx"),
+  index(LANDING_ROUTE),
   route("login", "routes/login.tsx"),
   route("register", "routes/register.tsx"),
   route("forgot-password", "routes/forgot-password.tsx"),

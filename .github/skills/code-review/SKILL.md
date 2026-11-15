@@ -264,14 +264,19 @@ Full rationale: `docs/adr/004-time-and-timezones.md`; the distilled rules are th
   specs share a rate-limit bucket and throttle each other, surfacing as flakes
   rather than as the test defect they are.
 - In the starter repository, reject a change to the contents of a
-  product-owned file (`apps/web/app/product/*`): the starter ships each one
+  product-owned file (`apps/web/app/product/*`,
+  `apps/web/app/components/brand/*`): the starter ships each one
   once, and the fix belongs in the code that reads it. In a product repository
   these files are the product's to edit (`docs/starter-as-upstream.md`,
   "Product seams"); never reject a change for editing them. The starter's
   default dashboard home and the files under `routes/_examples/` never import
   the home's `./+types`, which do not exist once a product mounts its own; a
-  product's own mounted home may import its own. An e2e spec proves sign-in with
-  `signedInAs` from `tests/e2e/helpers.ts`, never with page copy.
+  product's own mounted home may import its own. The default landing module
+  (`apps/web/app/routes/_index.tsx`) never imports `./+types` either. An e2e
+  spec proves sign-in with `signedInAs` from `tests/e2e/helpers.ts`, never with
+  page copy. A spec asserting the starter's marketing is gated on
+  `STARTER_LANDING_MOUNTED`; a section gated by product config is asserted with
+  an expected count in both states, not skipped.
 - For API changes, regenerate OpenAPI and update the matching MCP tool.
 - Test observable behavior rather than implementation details. Apply the
   affected package's coverage target and require every guard's deny path.

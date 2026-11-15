@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader } from "@starter/ui/components/ui/card";
 import { Spinner } from "@starter/ui/components/ui/spinner";
 import { ThemeToggle } from "@starter/ui/components/ui/theme-toggle";
 import { LinkIcon, Users } from "lucide-react";
-import { BrandMark } from "~/components/brand/brand-mark";
+import { BrandLogo } from "~/components/brand/brand-logo";
 import { AuthNotice } from "~/components/auth/auth-notice";
 import type { Route } from "./+types/accept-invitation";
 
@@ -254,9 +254,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           {/* reloadDocument: `/` is the marketing page, which may live on
               another origin — see site-header.tsx and docs/domains.md */}
           <Link reloadDocument to="/" className="mx-auto flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
-              <BrandMark className="h-6 w-6 text-primary-foreground" />
-            </div>
+            <BrandLogo size="lg" showName={false} />
           </Link>
         </CardHeader>
         <CardContent className="space-y-6">{children}</CardContent>

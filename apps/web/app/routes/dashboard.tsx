@@ -37,8 +37,7 @@ import {
   Check,
 } from "lucide-react";
 import { toast } from "sonner";
-import { PRODUCT_NAME } from "@starter/config/product";
-import { BrandMark } from "~/components/brand/brand-mark";
+import { BrandLogo } from "~/components/brand/brand-logo";
 import {
   CreateOrganizationButton,
   CreateOrganizationDialog,
@@ -300,20 +299,9 @@ function Sidebar({
             collapsed ? "justify-center px-2" : "px-4",
           )}
         >
-          {collapsed ? (
-            <Link to="/dashboard" className="flex items-center">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                <BrandMark className="h-5 w-5 text-primary-foreground" />
-              </div>
-            </Link>
-          ) : (
-            <Link to="/dashboard" className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                <BrandMark className="h-5 w-5 text-primary-foreground" />
-              </div>
-              <span className="text-lg font-semibold">{PRODUCT_NAME}</span>
-            </Link>
-          )}
+          <Link to="/dashboard" className="flex items-center">
+            <BrandLogo showName={!collapsed} />
+          </Link>
         </div>
 
         <div className={cn("p-2", collapsed && "flex justify-center")}>

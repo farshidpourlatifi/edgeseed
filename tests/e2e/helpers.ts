@@ -1,6 +1,19 @@
 import { execSync } from "node:child_process";
 import { expect, type Locator, type Page } from "@playwright/test";
 
+import { STARTER_LANDING_ROUTE } from "../../apps/web/app/lib/starter-landing";
+import { LANDING_ROUTE } from "../../apps/web/app/product/landing";
+
+/**
+ * Whether `/` renders the starter's own landing page. A product that points
+ * `LANDING_ROUTE` at its own module has none of the starter's marketing on
+ * `/`, so the specs asserting that marketing skip themselves on this, with the
+ * reason below. What holds for any landing page stays ungated.
+ */
+export const STARTER_LANDING_MOUNTED = LANDING_ROUTE === STARTER_LANDING_ROUTE;
+export const NOT_STARTER_LANDING =
+  "LANDING_ROUTE names the product's own landing page, so the starter's marketing is not on /";
+
 /**
  * Address D1 by its **binding**, never by `database_name` — the name is
  * `<slug>-db` and `init:product` rewrites it, so a suite naming the starter's

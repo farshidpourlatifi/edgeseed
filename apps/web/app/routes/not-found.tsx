@@ -3,7 +3,7 @@ import { data, Link, useNavigate } from "react-router";
 import { PRODUCT_NAME } from "@starter/config/product";
 import { Button } from "@starter/ui/components/ui/button";
 import { ThemeToggle } from "@starter/ui/components/ui/theme-toggle";
-import { BrandMark } from "~/components/brand/brand-mark";
+import { BrandLogo } from "~/components/brand/brand-logo";
 
 export function meta() {
   return [
@@ -68,10 +68,7 @@ export default function NotFoundPage() {
           to="/"
           className="flex items-center gap-2 rounded-md focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
         >
-          <span className="flex size-8 items-center justify-center rounded-lg bg-primary">
-            <BrandMark className="size-5 text-primary-foreground" />
-          </span>
-          <span className="text-base font-semibold tracking-tight sm:text-lg">{PRODUCT_NAME}</span>
+          <BrandLogo />
         </Link>
         <ThemeToggle />
       </header>

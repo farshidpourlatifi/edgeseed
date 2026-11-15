@@ -1,4 +1,7 @@
-import { SiteHeader } from "~/components/landing/site-header";
+// The default module for `LANDING_ROUTE` (`app/product/landing.ts`). A product
+// that names its own module there un-mounts this one, and an un-mounted module
+// gets no generated route types, so this file never imports `./+types`.
+import { SiteHeader, type SiteLink } from "~/components/landing/site-header";
 import { Hero } from "~/components/landing/hero";
 import { DemoVideo } from "~/components/landing/demo-video";
 import { Features } from "~/components/landing/features";
@@ -9,6 +12,22 @@ import { Quality } from "~/components/landing/quality";
 import { GettingStarted } from "~/components/landing/getting-started";
 import { SiteFooter } from "~/components/landing/site-footer";
 import { PRODUCT_NAME } from "@starter/config/product";
+
+const headerLinks: readonly SiteLink[] = [
+  { name: "Features", href: "#features" },
+  { name: "Surfaces", href: "#surfaces" },
+  { name: "Architecture", href: "#architecture" },
+  { name: "Packages", href: "#packages" },
+  { name: "Quality", href: "#quality" },
+  { name: "Get started", href: "#getting-started" },
+];
+
+const footerLinks: readonly SiteLink[] = [
+  { name: "Features", href: "#features" },
+  { name: "Architecture", href: "#architecture" },
+  { name: "Packages", href: "#packages" },
+  { name: "Quality", href: "#quality" },
+];
 
 export function meta() {
   return [
@@ -24,7 +43,7 @@ export function meta() {
 export default function HomePage() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <SiteHeader />
+      <SiteHeader links={headerLinks} />
       <main className="flex-1">
         <Hero />
         <DemoVideo />
@@ -35,7 +54,7 @@ export default function HomePage() {
         <Quality />
         <GettingStarted />
       </main>
-      <SiteFooter />
+      <SiteFooter links={footerLinks} tagline="Built for the edge." />
     </div>
   );
 }

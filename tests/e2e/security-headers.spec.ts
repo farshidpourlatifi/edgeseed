@@ -51,8 +51,11 @@ test("the CSP does not block hydration", async ({ page }) => {
     }
   });
 
-  await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 15000 });
+  // A starter-owned page: the landing page is the product's to replace, and
+  // its replacement need not carry this control. The policy is the same header
+  // on every response.
+  await page.goto("/login");
+  await expect(page.getByRole("button", { name: "Sign In" })).toBeVisible({ timeout: 15000 });
 
   // Radix only opens this once React has hydrated.
   await page.getByRole("button", { name: "Toggle theme" }).click();

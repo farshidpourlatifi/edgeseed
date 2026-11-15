@@ -1,5 +1,9 @@
 import { test, expect } from "@playwright/test";
 
+import { NOT_STARTER_LANDING, STARTER_LANDING_MOUNTED } from "./helpers";
+
+test.skip(() => !STARTER_LANDING_MOUNTED, NOT_STARTER_LANDING);
+
 /**
  * The hero's shader background fails silently by nature: `@paper-design/shaders`
  * throws from its constructor when WebGL2 is missing, a bad CSP would block the

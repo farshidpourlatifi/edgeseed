@@ -78,14 +78,18 @@ starter's default, and afterwards changes only the code that reads it. Product
 edits and starter edits then never land in the same file, so they cannot
 conflict.
 
-| To                         | Edit                                                          | Contract                                                                                                                                                      |
-| -------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Replace the dashboard home | `DASHBOARD_HOME_ROUTE` in `apps/web/app/product/dashboard.ts` | Names a route module under `app/`. Its loader calls `requireUser`; `tests/e2e/loader-guards.spec.ts` requests it without its parent and fails if it does not. |
-| Add sidebar entries        | `PRODUCT_NAV` in `apps/web/app/product/dashboard-nav.ts`      | Listed after "Dashboard" and before the starter's entries. Registering the page is still a line in `apps/web/app/routes.ts`.                                  |
+| To                         | Edit                                                                                   | Contract                                                                                                                                                                                                                                                      |
+| -------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Replace the dashboard home | `DASHBOARD_HOME_ROUTE` in `apps/web/app/product/dashboard.ts`                          | Names a route module under `app/`. Its loader calls `requireUser`; `tests/e2e/loader-guards.spec.ts` requests it without its parent and fails if it does not.                                                                                                 |
+| Add sidebar entries        | `PRODUCT_NAV` in `apps/web/app/product/dashboard-nav.ts`                               | Listed after "Dashboard" and before the starter's entries. Registering the page is still a line in `apps/web/app/routes.ts`.                                                                                                                                  |
+| Replace the landing page   | `LANDING_ROUTE` in `apps/web/app/product/landing.ts`                                   | Names a route module under `app/`. The e2e suite expects exactly one visible level-1 heading on `/` and no horizontal scroll from 320 to 1280px; specs about the starter's marketing skip themselves. `SiteHeader` and `SiteFooter` take your links as props. |
+| Change the logo            | `apps/web/app/components/brand/brand-mark.tsx` (artwork) and `brand-logo.tsx` (lockup) | Keep the props, and keep the product name in the accessibility tree when it is hidden: a logo link takes its name from it.                                                                                                                                    |
 
 - **Put product route modules in `apps/web/app/product/`.**
 - **Un-mount, do not delete.** Point the constant at your module and leave the
-  starter's default (`apps/web/app/routes/dashboard._index.tsx`) where it is. A
+  starter's default where it is: `apps/web/app/routes/dashboard._index.tsx` for
+  the home, `apps/web/app/routes/_index.tsx` and
+  `apps/web/app/components/landing/` for the landing page. A
   later starter edit to a file a product deleted is a `modify/delete` conflict
   on every merge that carries one. An un-mounted module is not in the route
   manifest, so it is not served and gets no generated route types.
@@ -223,7 +227,9 @@ a release that changes cloning, identity stamping, or the first-run path.
 
    What is still yours to replace is the **copy**: the landing page is starter
    marketing, and every word of it is about a starter kit. Nothing breaks if you
-   ship it as-is, but it describes the wrong product.
+   ship it as-is, but it describes the wrong product. Replace it through
+   `LANDING_ROUTE` rather than by editing the starter's files: see
+   [Product seams](#product-seams).
 
 4. `cp apps/web/.dev.vars.example apps/web/.dev.vars`, generate a secret with
    `openssl rand -hex 32`, and leave every optional key empty. The clone must

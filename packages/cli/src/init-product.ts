@@ -148,9 +148,14 @@ ${
      footer, hero button and clone command come back pointing at it.`
 }
 
-The landing page under apps/web/app/components/landing/ is starter marketing.
-Every reference to the starter's own identity is now derived — but the copy is
-still about the starter, so replace it with your product's when you have one.
+The landing page (apps/web/app/routes/_index.tsx and
+apps/web/app/components/landing/) is starter marketing. Every reference to
+the starter's own identity is now derived, but the copy is still about the
+starter. To replace it, write your own route module under
+apps/web/app/product/ and point LANDING_ROUTE in
+apps/web/app/product/landing.ts at it. Leave the starter's files in place so
+later starter updates still merge (docs/starter-as-upstream.md, "Product
+seams").
 
 The demo-video section is now hidden: PRODUCT_DEMO_VIDEO was cleared, since the
 film is EdgeSeed-branded footage no rename can rewrite. Delete
