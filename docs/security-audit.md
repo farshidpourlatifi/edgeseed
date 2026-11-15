@@ -415,6 +415,10 @@ the headers too. Ships CSP, `X-Frame-Options: DENY`, `nosniff`,
 `Referrer-Policy: strict-origin-when-cross-origin`, a two-year preload-eligible
 HSTS, and a deny-by-default `Permissions-Policy`.
 
+**Update, issue #101:** the HSTS header is `max-age=63072000` by default, covering
+the sending hostname only. `includeSubDomains` and `preload` are sent only when
+the deployment sets `HSTS_SCOPE` — see `docs/domains.md`, "HSTS scope".
+
 The answer to "nonce or hash" turned out to be **both**, for different scripts:
 
 - **Nonce** for React Router's inline scripts. `<Scripts>` and

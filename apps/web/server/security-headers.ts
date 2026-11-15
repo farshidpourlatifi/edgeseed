@@ -1,3 +1,4 @@
+import type { MiddlewareHandler } from "hono";
 import { createMiddleware } from "hono/factory";
 import { NONCE, secureHeaders } from "hono/secure-headers";
 import { THEME_SCRIPT_CSP_HASH } from "../app/lib/theme-script";
@@ -17,57 +18,98 @@ import { THEME_SCRIPT_CSP_HASH } from "../app/lib/theme-script";
  */
 export const CSP_NONCE_KEY = "secureHeadersNonce";
 
-export const securityHeaders = secureHeaders({
-  contentSecurityPolicy: {
-    defaultSrc: ["'self'"],
+/**
+ * The `Strict-Transport-Security` value per scope. `max-age` is the same
+ * literal in all three: the host's own protection never depends on the env.
+ */
+export const HSTS_BY_SCOPE = {
+  host: "max-age=63072000",
+  subdomains: "max-age=63072000; includeSubDomains",
+  preload: "max-age=63072000; includeSubDomains; preload",
+} as const;
+
+export type HstsScope = keyof typeof HSTS_BY_SCOPE;
+
+/** The scope a raw `HSTS_SCOPE` binding asks for: the two exact opt-ins, else `host`. */
+export function hstsScope(binding: unknown): HstsScope {
+  return binding === "subdomains" || binding === "preload" ? binding : "host";
+}
+
+function secureHeadersFor(scope: HstsScope): MiddlewareHandler {
+  return secureHeaders({
+    contentSecurityPolicy: {
+      defaultSrc: ["'self'"],
+      /**
+       * Two admission rules for two kinds of inline script, and both are needed.
+       *
+       * The **nonce** covers everything React Router emits — `<Scripts>`,
+       * `<ScrollRestoration>`, and the mid-stream loader-data chunks — whose
+       * content differs per request and so cannot be hashed. `entry.server.tsx`
+       * hands it to `ServerRouter`, which is the default for all of them.
+       *
+       * The **hash** covers the theme script, which `root.tsx` writes by hand
+       * outside that mechanism. Nonce-ing it would mean threading the value into
+       * `Layout` separately, and `Layout` also renders on error paths where that
+       * can be absent — where a missing nonce would not throw, it would silently
+       * paint the wrong theme.
+       */
+      // The hash is quoted here rather than in the constant: CSP source
+      // expressions require the quotes, but the constant is the bare digest the
+      // hash test computes and compares. An unquoted entry is silently dropped
+      // by the browser as an "invalid source", which is how this first shipped.
+      scriptSrc: [NONCE, `'${THEME_SCRIPT_CSP_HASH}'`, "'self'"],
+      /**
+       * Tailwind injects a `<style>` element at runtime and Radix writes inline
+       * `style` attributes for positioning, so neither can be hashed or nonced.
+       * Style injection is not a script-execution primitive, which is why this is
+       * the one directive left permissive.
+       */
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      fontSrc: ["'self'", "data:"],
+      /** Same-origin XHR only. Widen deliberately when a third-party API arrives. */
+      connectSrc: ["'self'"],
+      /** Belt and braces with `X-Frame-Options`; this is the directive modern browsers honour. */
+      frameAncestors: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      objectSrc: ["'none'"],
+    },
+    /** `SAMEORIGIN` is the library default; nothing here is meant to be framed. */
+    xFrameOptions: "DENY",
+    referrerPolicy: "strict-origin-when-cross-origin",
     /**
-     * Two admission rules for two kinds of inline script, and both are needed.
+     * Two years for the hostname that answered, always. `includeSubDomains` and
+     * `preload` are sent only when the deployment sets `HSTS_SCOPE`, because they
+     * bind hostnames this Worker does not serve and cannot list
+     * (`docs/domains.md`, "HSTS scope").
      *
-     * The **nonce** covers everything React Router emits — `<Scripts>`,
-     * `<ScrollRestoration>`, and the mid-stream loader-data chunks — whose
-     * content differs per request and so cannot be hashed. `entry.server.tsx`
-     * hands it to `ServerRouter`, which is the default for all of them.
+     * The binding is read raw: this middleware sits above `authMiddleware` by
+     * design, so `parseEnv` has not run yet. It therefore accepts the two exact
+     * strings and nothing else, and `webEnvSchema` refuses the request for any
+     * other value.
      *
-     * The **hash** covers the theme script, which `root.tsx` writes by hand
-     * outside that mechanism. Nonce-ing it would mean threading the value into
-     * `Layout` separately, and `Layout` also renders on error paths where that
-     * can be absent — where a missing nonce would not throw, it would silently
-     * paint the wrong theme.
+     * Keep this an explicit string. The library's own default is
+     * `max-age=15552000; includeSubDomains`, which makes the wider claim
+     * unasked.
      */
-    // The hash is quoted here rather than in the constant: CSP source
-    // expressions require the quotes, but the constant is the bare digest the
-    // hash test computes and compares. An unquoted entry is silently dropped
-    // by the browser as an "invalid source", which is how this first shipped.
-    scriptSrc: [NONCE, `'${THEME_SCRIPT_CSP_HASH}'`, "'self'"],
-    /**
-     * Tailwind injects a `<style>` element at runtime and Radix writes inline
-     * `style` attributes for positioning, so neither can be hashed or nonced.
-     * Style injection is not a script-execution primitive, which is why this is
-     * the one directive left permissive.
-     */
-    styleSrc: ["'self'", "'unsafe-inline'"],
-    imgSrc: ["'self'", "data:", "blob:"],
-    fontSrc: ["'self'", "data:"],
-    /** Same-origin XHR only. Widen deliberately when a third-party API arrives. */
-    connectSrc: ["'self'"],
-    /** Belt and braces with `X-Frame-Options`; this is the directive modern browsers honour. */
-    frameAncestors: ["'none'"],
-    baseUri: ["'self'"],
-    formAction: ["'self'"],
-    objectSrc: ["'none'"],
-  },
-  /** `SAMEORIGIN` is the library default; nothing here is meant to be framed. */
-  xFrameOptions: "DENY",
-  referrerPolicy: "strict-origin-when-cross-origin",
-  /**
-   * Two years, with subdomains, and preload-eligible. Safe here because both
-   * hostnames are Cloudflare custom domains that only ever serve https — a
-   * plain-http origin would be locked out by this for the same two years.
-   */
-  strictTransportSecurity: "max-age=63072000; includeSubDomains; preload",
-  /** Deny by default; a product that needs a camera opts in here explicitly. */
-  permissionsPolicy: { camera: [], microphone: [], geolocation: [], payment: [] },
-});
+    strictTransportSecurity: HSTS_BY_SCOPE[scope],
+    /** Deny by default; a product that needs a camera opts in here explicitly. */
+    permissionsPolicy: { camera: [], microphone: [], geolocation: [], payment: [] },
+  });
+}
+
+/** One instance per scope, built at module load; the request picks one. */
+const SECURE_HEADERS: Record<HstsScope, MiddlewareHandler> = {
+  host: secureHeadersFor("host"),
+  subdomains: secureHeadersFor("subdomains"),
+  preload: secureHeadersFor("preload"),
+};
+
+// `c.env` is undefined when a request is made without one, as unit tests do.
+export const securityHeaders = createMiddleware<{ Bindings: { HSTS_SCOPE?: string } }>((c, next) =>
+  SECURE_HEADERS[hstsScope(c.env?.HSTS_SCOPE)](c, next),
+);
 
 /** True when this response will accept header writes. */
 function headersAreWritable(res: Response): boolean {

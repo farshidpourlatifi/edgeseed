@@ -24,6 +24,8 @@ export interface ServerEnv {
     EMAIL_FROM?: string;
     /** Marketing origin. Unset ⇒ one origin serves everything (docs/domains.md). */
     MARKETING_URL?: string;
+    /** `subdomains` or `preload` widens HSTS to the zone. Unset ⇒ host-only (docs/domains.md). */
+    HSTS_SCOPE?: string;
   };
   Variables: ObservabilityEnv["Variables"] & {
     db: import("@starter/db").Database;

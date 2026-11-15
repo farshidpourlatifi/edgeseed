@@ -191,6 +191,83 @@ happens.
 
 ---
 
+## HSTS scope
+
+| `HSTS_SCOPE` | Header sent                                    | What it tells a browser                                                                              |
+| ------------ | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| unset        | `max-age=63072000`                             | Use HTTPS for this hostname for two years                                                            |
+| `subdomains` | `max-age=63072000; includeSubDomains`          | The same, for this hostname and every name beneath it                                                |
+| `preload`    | `max-age=63072000; includeSubDomains; preload` | The same, and the owner consents to the domain being built into browsers' HTTPS-only (preload) lists |
+
+**The default is host-only.** The header binds the hostname that sent it for two
+years, always. The two wider forms bind hostnames this Worker does not serve and
+cannot list, so they are sent only when the deployment says so.
+
+**Which hostname sends the header decides its reach.** From the apex
+(`example.com`) `includeSubDomains` covers the whole zone; from
+`app.example.com` it covers only names beneath `app.`. A split-origin deployment
+serves the apex, so opting in there is a claim about the zone.
+
+**What the default gives up:** protection for cookies set for the whole
+registrable domain (RFC 6797 §14.4), which a host-only policy leaves reachable
+through a subdomain that still answers over plain HTTP. The starter's session
+cookie is host-scoped, so it is not one of them. A product that sets a
+domain-wide cookie has a reason to opt in.
+
+### Before `subdomains`
+
+List every hostname in the zone — DNS records including DNS-only ones,
+delegated sub-zones, and internal names resolved elsewhere — and confirm each
+answers on HTTPS with a certificate browsers accept. The usual failures are
+third-party targets: a status page, a docs host, a help desk, link or
+click-tracking domains.
+
+### Before `preload`, in addition
+
+- The commitment covers every present **and future** subdomain, internal ones
+  included.
+- Plain HTTP on the apex must redirect to HTTPS on the same host. That is
+  Cloudflare's Always Use HTTPS; this Worker does not redirect plain HTTP (see
+  "The comparison is hostname and port, not scheme" under
+  [Failure modes](#failure-modes)).
+- `www` must serve HTTPS if it has a DNS record.
+- The header must come from the registrable domain. A deployment that serves
+  only a subdomain gains nothing from `preload`.
+- Sending the token is consent. The form at <https://hstspreload.org/> accepts a
+  domain from anyone, and listing is still a separate manual submission there.
+- Removal takes months, with no guarantee for every browser.
+
+### Setting it
+
+```bash
+wrangler secret put HSTS_SCOPE   # subdomains | preload — run from apps/web/
+```
+
+Never in `vars`: that block is shared with local dev, it is inherited by every
+clone of the repository, and a `var` shadows a same-named secret. Any value
+other than the two refuses every request with a 500, as an invalid `LOG_LEVEL`
+does.
+
+Check what is being sent:
+
+```bash
+curl -sI https://example.com/ | grep -i strict-transport-security
+```
+
+**Backing out of `subdomains`:** delete the secret. A browser drops the
+subdomain rule the next time it loads that hostname over HTTPS; one that never
+returns keeps it until `max-age` runs out (RFC 6797 §8.1).
+
+Two notes:
+
+- A domain already on the preload list that wants to stay there sets
+  `HSTS_SCOPE=preload` **before** deploying a version with this default.
+  Dropping `preload` from the header makes a listed domain eligible for removal.
+- A hostname under a TLD that is itself preloaded (`.dev`, `.app`) is
+  HTTPS-only in browsers whatever this setting says.
+
+---
+
 ## Why the middleware, rather than a Cloudflare Redirect Rule
 
 The same split can be done with Redirect Rules in the Cloudflare dashboard, and

@@ -133,6 +133,15 @@ export const webEnvSchema = sharedEnvSchema.extend({
    * app paths move to `BETTER_AUTH_URL`'s origin. See docs/domains.md.
    */
   MARKETING_URL: optionalBinding(z.string().url()),
+  /**
+   * How far the `Strict-Transport-Security` header reaches.
+   *
+   * Optional, and absent is the default: the header covers the hostname that
+   * sent it and nothing else. `subdomains` adds `includeSubDomains`, `preload`
+   * adds `includeSubDomains; preload` — each is a claim about every hostname in
+   * the zone, not just the ones this Worker serves. See docs/domains.md.
+   */
+  HSTS_SCOPE: optionalBinding(z.enum(["subdomains", "preload"])),
 });
 
 /** MCP server Worker bindings — no BETTER_AUTH_URL: `baseURL` derives from the request origin. */

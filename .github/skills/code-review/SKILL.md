@@ -146,6 +146,9 @@ following whenever the diff touches the relevant surface.
   environment files.
 - Preserve immutable-response handling, the ordered `securityMiddleware` mount,
   and `Cache-Control: no-store` for authenticated responses.
+- Keep the default `Strict-Transport-Security` host-only. `includeSubDomains`
+  and `preload` are sent only for an exact `HSTS_SCOPE` value, and never from a
+  `wrangler.jsonc` `var` or a constant in the repository.
 - Keep CSP hashes quoted and tested, pass the nonce to `ServerRouter`, preserve
   `<Links nonce="">`, and do not add `unsafe-inline` or `unsafe-eval` to
   `script-src`.
