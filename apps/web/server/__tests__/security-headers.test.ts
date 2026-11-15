@@ -200,6 +200,70 @@ describe("noStoreForAuthenticated", () => {
 });
 
 /**
+ * The header covers the sending hostname unless the deployment opts the zone
+ * in. Exact strings throughout: a substring match passes for every scope.
+ */
+describe("Strict-Transport-Security scope", () => {
+  const HSTS = "strict-transport-security";
+  const request = (scope?: string) =>
+    appWith(securityHeaders).request(
+      "/thing",
+      {},
+      scope === undefined ? undefined : { HSTS_SCOPE: scope },
+    );
+
+  it("covers the sending hostname only when nothing is set", async () => {
+    const res = await appWith(securityHeaders).request("/thing");
+    expect(res.headers.get(HSTS)).toBe("max-age=63072000");
+  });
+
+  it.each(["", "host", "PRELOAD", "preload ", "true", "includeSubDomains", "subdomains; preload"])(
+    "stays host-only for the unrecognised value %j",
+    async (value) => {
+      const res = await request(value);
+      expect(res.headers.get(HSTS)).toBe("max-age=63072000");
+    },
+  );
+
+  it("adds includeSubDomains for subdomains", async () => {
+    const res = await request("subdomains");
+    expect(res.headers.get(HSTS)).toBe("max-age=63072000; includeSubDomains");
+  });
+
+  it("adds includeSubDomains and preload for preload", async () => {
+    const res = await request("preload");
+    expect(res.headers.get(HSTS)).toBe("max-age=63072000; includeSubDomains; preload");
+  });
+
+  const nonceOf = (res: Response) =>
+    /'nonce-[^']+'/.exec(res.headers.get("content-security-policy") ?? "")?.[0];
+
+  const otherHeaders = (res: Response) =>
+    Object.fromEntries(
+      [...res.headers.entries()]
+        .filter(([name]) => name !== HSTS)
+        .map(([name, value]) => [name, value.replace(/'nonce-[^']+'/, "'nonce-fixed'")]),
+    );
+
+  it.each(["subdomains", "preload"])("changes no other header for %s", async (scope) => {
+    const baseline = await request();
+    const first = await request(scope);
+    const second = await request(scope);
+
+    expect(otherHeaders(first)).toEqual(otherHeaders(baseline));
+    expect(nonceOf(first)).toBeTruthy();
+    expect(nonceOf(first)).not.toBe(nonceOf(second));
+  });
+
+  it.each(["/gone", "/immutable"])("reaches the redirect at %s", async (path) => {
+    const res = await appWith(...securityMiddleware).request(path, {}, { HSTS_SCOPE: "preload" });
+
+    expect(res.status).toBe(302);
+    expect(res.headers.get(HSTS)).toBe("max-age=63072000; includeSubDomains; preload");
+  });
+});
+
+/**
  * These assert the three middlewares in their real registration order, which is
  * how they run in `server/index.ts`. Testing each in isolation is what let an
  * immutable response reach `hono/secure-headers` unguarded: it threw

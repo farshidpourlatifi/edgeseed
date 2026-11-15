@@ -147,6 +147,7 @@ describe("the OAUTH_KV binding", () => {
 describe("blank optional bindings", () => {
   const blankable = [
     "MARKETING_URL",
+    "HSTS_SCOPE",
     "GITHUB_CLIENT_ID",
     "GITHUB_CLIENT_SECRET",
     "GOOGLE_CLIENT_ID",
@@ -184,6 +185,15 @@ describe("blank optional bindings", () => {
   it("still rejects a malformed value that is not blank", () => {
     expect(() => parseEnv(webEnvSchema, createFakeEnv({ MARKETING_URL: "not-a-url" }))).toThrow();
     expect(() => parseEnv(webEnvSchema, createFakeEnv({ LOG_LEVEL: "loud" }))).toThrow();
+  });
+
+  it.each(["subdomains", "preload"])("accepts HSTS_SCOPE=%s", (value) => {
+    const env = parseEnv(webEnvSchema, createFakeEnv({ HSTS_SCOPE: value }));
+    expect(env.HSTS_SCOPE).toBe(value);
+  });
+
+  it.each(["host", "includeSubDomains", "PRELOAD"])("rejects HSTS_SCOPE=%s", (value) => {
+    expect(() => parseEnv(webEnvSchema, createFakeEnv({ HSTS_SCOPE: value }))).toThrow();
   });
 });
 

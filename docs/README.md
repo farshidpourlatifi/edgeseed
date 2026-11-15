@@ -180,6 +180,15 @@ reachable on — a third route, a dashboard zone route, an enabled `workers.dev`
 or preview URL — answers 404 instead of serving auth. Check that list before you
 set it. See [Domain Topology](./domains.md).
 
+**Optional — widen HSTS to the whole zone.** By default the
+`Strict-Transport-Security` header covers only the hostname that sent it. Both
+values bind every hostname in the DNS zone and are slow or impossible to take
+back, so read [HSTS scope](./domains.md#hsts-scope) first:
+
+```bash
+wrangler secret put HSTS_SCOPE   # subdomains | preload
+```
+
 **Optional — GitHub social login.** Create an OAuth app at
 https://github.com/settings/developers with the callback URL
 `{BETTER_AUTH_URL}/api/auth/callback/github`, then:

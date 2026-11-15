@@ -67,6 +67,46 @@ describe("the web server chain", () => {
     const res = await app.request(`${APP}/api/v1/me`, {}, splitEnv());
     expect(res.status).toBe(401);
   });
+
+  it("sends a host-only HSTS header when HSTS_SCOPE is unset", async () => {
+    const res = await app.request(`${APP}/api/v1/health`, {}, splitEnv());
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("strict-transport-security")).toBe("max-age=63072000");
+  });
+
+  it("widens HSTS on served responses and origin redirects when HSTS_SCOPE opts in", async () => {
+    const env = { ...splitEnv(), HSTS_SCOPE: "preload" };
+    const served = await app.request(`${APP}/api/v1/health`, {}, env);
+    const redirect = await app.request(`${MARKETING}/dashboard`, {}, env);
+
+    expect(served.status).toBe(200);
+    expect(served.headers.get("strict-transport-security")).toBe(
+      "max-age=63072000; includeSubDomains; preload",
+    );
+    expect(redirect.status).toBe(302);
+    expect(redirect.headers.get("strict-transport-security")).toBe(
+      "max-age=63072000; includeSubDomains; preload",
+    );
+  });
+
+  // Refused, not downgraded: the schema rejects the value, and the refusal
+  // itself carries the host-only header rather than a guess at what was meant.
+  it("refuses an unrecognised HSTS_SCOPE and keeps the header host-only", async () => {
+    const env = { ...splitEnv(), HSTS_SCOPE: "includeSubDomains" };
+    const res = await app.request(`${APP}/api/v1/health`, {}, env);
+
+    expect(res.status).toBe(500);
+    expect(res.headers.get("strict-transport-security")).toBe("max-age=63072000");
+  });
+
+  it("treats a blank HSTS_SCOPE as unset", async () => {
+    const env = { ...splitEnv(), HSTS_SCOPE: "" };
+    const res = await app.request(`${APP}/api/v1/health`, {}, env);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("strict-transport-security")).toBe("max-age=63072000");
+  });
 });
 
 describe("the web server chain — an unconfigured origin (issue #6)", () => {

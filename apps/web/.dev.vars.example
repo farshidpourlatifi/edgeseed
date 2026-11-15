@@ -19,6 +19,12 @@ BETTER_AUTH_URL=http://localhost:5173
 # /dashboard and /api move to the app origin. Full setup: docs/domains.md
 MARKETING_URL=
 
+# Optional — a production decision; leave EMPTY. By default the HSTS header
+# covers only the hostname that sent it. `subdomains` adds includeSubDomains;
+# `preload` adds includeSubDomains; preload. Both bind every hostname in the
+# DNS zone, so read docs/domains.md ("HSTS scope") first.
+HSTS_SCOPE=
+
 # Optional — GitHub social login; auto-enables when both are set.
 # Callback URL: {BETTER_AUTH_URL}/api/auth/callback/github
 GITHUB_CLIENT_ID=
