@@ -7,7 +7,8 @@ They are **not registered as routes** — they exist as copy-paste starting poin
 
 1. Copy the file:
    - `dashboard-with-widgets.tsx` replaces the dashboard home. Copy it to
-     `app/product/` (e.g., `cp _examples/dashboard-with-widgets.tsx ../../product/home.tsx`)
+     `app/product/` (e.g., from `app/routes/`:
+     `cp _examples/dashboard-with-widgets.tsx ../product/home.tsx`)
      and set `DASHBOARD_HOME_ROUTE` in `app/product/dashboard.ts` to
      `"product/home.tsx"`. Leave `app/routes/dashboard._index.tsx` in place: it
      is un-mounted, not deleted (`docs/starter-as-upstream.md`, "Product seams").

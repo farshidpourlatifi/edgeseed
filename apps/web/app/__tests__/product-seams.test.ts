@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { join, sep } from "node:path";
+import { join, posix, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { RouteConfigEntry } from "@react-router/dev/routes";
@@ -22,8 +22,12 @@ function unmountedRouteTypeImports(
   sources: Record<string, string>,
   mounted: readonly string[],
 ): string[] {
-  void mounted;
-  return Object.keys(sources).filter((file) => sources[file].includes("+types/dashboard._index"));
+  const modules = new Set(mounted.map((file) => file.replace(/\.tsx?$/, "")));
+  return Object.keys(sources).filter((file) =>
+    [...sources[file].matchAll(/["'](\.[^"']*)\+types\/([^"']+)["']/g)].some(
+      ([, directory, name]) => !modules.has(posix.join(posix.dirname(file), directory, name)),
+    ),
+  );
 }
 
 afterEach(() => {

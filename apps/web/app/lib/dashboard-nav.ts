@@ -22,7 +22,7 @@ export function dashboardNavigation(productNav: readonly NavItem[]): NavItem[] {
 
 /** One trailing slash is the same page; React Router matches both. */
 function withoutTrailingSlash(pathname: string): string {
-  return pathname.length > 1 && pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+  return pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
 }
 
 export function isDashboardHome(pathname: string): boolean {

@@ -139,6 +139,22 @@ gitignored from then on. Nothing needs regenerating by hand — `pnpm verify` ru
 an upstream release that adds a route and a product that adds its own merge
 cleanly.
 
+### Adopting the release that added the product seams
+
+Applies to a product that customised `apps/web/app/routes/dashboard._index.tsx`
+before the seams existed. That file conflicts on this merge, and resolving in
+the product's favour (rule 3) leaves two things to do by hand:
+
+- **Remove the first-run organization card from your home.** The card moved
+  into the layout (`apps/web/app/routes/dashboard.tsx`), which now renders it on
+  `/dashboard` for an account with no organization. A home that kept its own
+  copy shows two, and a locator for "Create organization" matches both.
+- **Move the home behind the seam, when convenient.** Move your module to
+  `apps/web/app/product/`, name it in `DASHBOARD_HOME_ROUTE`, and take
+  upstream's `dashboard._index.tsx`. The file then stops conflicting. Until
+  then your home keeps working where it is: it is still mounted, so its
+  `./+types/dashboard._index` import still resolves.
+
 ## Proving the clone path — the manual release exercise
 
 Most of the adoption path is covered automatically: `init-product.test.ts`
