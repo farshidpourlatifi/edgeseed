@@ -132,7 +132,10 @@ does not cover it. Copy the template and fill it in:
 cp apps/mcp/.dev.vars.example apps/mcp/.dev.vars
 ```
 
-It needs `BETTER_AUTH_SECRET` (32+ chars). It deliberately has **no**
+It needs `BETTER_AUTH_SECRET` — the **same value** as in `apps/web/.dev.vars`,
+not a second one: the two Workers share one database and one user set, so a
+different secret here mints sessions the web app rejects. `pnpm test:e2e`
+refuses to start when the two differ. It deliberately has **no**
 `BETTER_AUTH_URL`: `auth-app.ts` derives its origin from each request, so dev
 and production both work without one.
 

@@ -37,7 +37,9 @@ Do **not** run `pnpm init:product` when contributing to the starter itself — i
 the product identity, which is exactly what a contribution should leave alone.
 
 Working on `apps/mcp` too? It is a separate Worker with its own env:
-`cp apps/mcp/.dev.vars.example apps/mcp/.dev.vars`.
+`cp apps/mcp/.dev.vars.example apps/mcp/.dev.vars`. `pnpm verify` needs that file too — the e2e suite boots the MCP Worker — with
+the same secret as the web app's `BETTER_AUTH_SECRET`; otherwise the suite stops
+in its first seconds, naming the file and the key.
 
 ## The gate
 

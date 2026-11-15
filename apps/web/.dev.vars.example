@@ -6,6 +6,7 @@
 # Validated by webEnvSchema in packages/config/src/env.ts.
 
 # Required — session signing key, 32+ chars: `openssl rand -hex 32`
+# apps/mcp/.dev.vars takes this same value.
 BETTER_AUTH_SECRET=replace-with-a-random-string-of-32-plus-characters
 
 # Required — public origin of this app during local dev. In a split-origin
