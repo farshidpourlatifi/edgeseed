@@ -16,7 +16,7 @@ import { Alert, AlertDescription } from "@starter/ui/components/ui/alert";
 import { Spinner } from "@starter/ui/components/ui/spinner";
 import { ThemeToggle } from "@starter/ui/components/ui/theme-toggle";
 import { AlertCircle, MailCheck } from "lucide-react";
-import { BrandMark } from "~/components/brand/brand-mark";
+import { BrandLogo } from "~/components/brand/brand-logo";
 import { AuthNotice } from "~/components/auth/auth-notice";
 
 export default function ForgotPasswordPage() {
@@ -73,9 +73,7 @@ export default function ForgotPasswordPage() {
           {/* reloadDocument: `/` is the marketing page, which may live on
               another origin — see site-header.tsx and docs/domains.md */}
           <Link reloadDocument to="/" className="mx-auto flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
-              <BrandMark className="h-6 w-6 text-primary-foreground" />
-            </div>
+            <BrandLogo size="lg" showName={false} />
           </Link>
           {!submittedEmail && (
             <div>

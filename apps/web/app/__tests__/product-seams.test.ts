@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 import type { RouteConfigEntry } from "@react-router/dev/routes";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { STARTER_LANDING_ROUTE } from "../lib/starter-landing";
+
 // Resolved from this file, not the working directory: Stryker runs the suite
 // from a sandbox copy.
 const APP_DIR = fileURLToPath(new URL("..", import.meta.url));
@@ -47,7 +49,23 @@ function unmountedRouteTypeImports(
 
 afterEach(() => {
   vi.doUnmock("../product/dashboard");
+  vi.doUnmock("../product/landing");
   vi.resetModules();
+});
+
+describe("landing seam", () => {
+  it("mounts the module the product names at /", async () => {
+    vi.resetModules();
+    vi.doMock("../product/landing", () => ({ LANDING_ROUTE: "product/acme-landing.tsx" }));
+
+    const { default: routes } = (await import("../routes")) as { default: RouteConfigEntry[] };
+
+    // One index entry: the default landing module is un-mounted, not mounted
+    // beside the product's.
+    expect(routes.filter((entry) => entry.index === true).map((entry) => entry.file)).toEqual([
+      "product/acme-landing.tsx",
+    ]);
+  });
 });
 
 describe("dashboard home seam", () => {
@@ -126,9 +144,14 @@ describe("dashboard home seam", () => {
         .map((file) => [file.split(sep).join("/"), readFileSync(join(APP_DIR, file), "utf8")]),
     );
 
+    // The default landing module counts as un-mounted even while it is the
+    // one mounted: a product swaps it out without editing it, so nothing,
+    // itself included, may need its generated types.
     const offenders = unmountedRouteTypeImports(
       sources,
-      flatten(routes).map((entry) => entry.file),
+      flatten(routes)
+        .map((entry) => entry.file)
+        .filter((file) => file !== STARTER_LANDING_ROUTE),
     );
 
     expect(

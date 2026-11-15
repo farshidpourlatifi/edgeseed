@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 import { PRODUCT_REPO_URL } from "@starter/config/product";
-import { waitForHydration } from "./helpers";
+import { NOT_STARTER_LANDING, STARTER_LANDING_MOUNTED, waitForHydration } from "./helpers";
 
 /**
  * The landing page must never scroll horizontally.
@@ -39,47 +39,53 @@ for (const viewport of VIEWPORTS) {
   });
 }
 
-test("the surfaces tabs stack vertically rather than sitting beside their panel", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 375, height: 812 });
-  await page.goto("/");
+test.describe("the starter's surfaces section", () => {
+  test.skip(() => !STARTER_LANDING_MOUNTED, NOT_STARTER_LANDING);
 
-  // The direct assertion on the defect: a row here is what collapsed the panel.
-  const tabs = page.locator("#surfaces [data-slot='tabs']");
-  await expect(tabs).toHaveCSS("flex-direction", "column");
+  test("the surfaces tabs stack vertically rather than sitting beside their panel", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/");
 
-  // And its consequence — the panel keeps real width to lay its content out in.
-  const panelWidth = await page
-    .locator("#surfaces [data-slot='tabs-content']:not([hidden])")
-    .evaluate((el) => el.getBoundingClientRect().width);
-  expect(panelWidth).toBeGreaterThan(280);
-});
+    // The direct assertion on the defect: a row here is what collapsed the panel.
+    const tabs = page.locator("#surfaces [data-slot='tabs']");
+    await expect(tabs).toHaveCSS("flex-direction", "column");
 
-test("a long code sample scrolls inside its own box, not the page", async ({ page }) => {
-  await page.setViewportSize({ width: 375, height: 812 });
-  await page.goto("/");
+    // And its consequence — the panel keeps real width to lay its content out in.
+    const panelWidth = await page
+      .locator("#surfaces [data-slot='tabs-content']:not([hidden])")
+      .evaluate((el) => el.getBoundingClientRect().width);
+    expect(panelWidth).toBeGreaterThan(280);
+  });
 
-  const pre = page.locator("#surfaces pre").first();
-  const box = await pre.evaluate((el) => ({
-    clientWidth: el.clientWidth,
-    scrollWidth: el.scrollWidth,
-    overflowX: getComputedStyle(el).overflowX,
-  }));
+  test("a long code sample scrolls inside its own box, not the page", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/");
 
-  expect(box.overflowX).toBe("auto");
-  // Its own scroll container absorbs the overflow instead of widening the page.
-  expect(box.clientWidth).toBeLessThanOrEqual(375);
+    const pre = page.locator("#surfaces pre").first();
+    const box = await pre.evaluate((el) => ({
+      clientWidth: el.clientWidth,
+      scrollWidth: el.scrollWidth,
+      overflowX: getComputedStyle(el).overflowX,
+    }));
+
+    expect(box.overflowX).toBe("auto");
+    // Its own scroll container absorbs the overflow instead of widening the page.
+    expect(box.clientWidth).toBeLessThanOrEqual(375);
+  });
 });
 
 /**
  * The served page points at the repository this build declares, and at nothing
  * else — in whichever state this checkout is in.
  *
- * These run unskipped in a clone that declares none, where every count is
- * asserted to be zero. That matters because the empty case is the one issue #32
- * is about: skipping it here would leave the shipped default untested by the
- * only suite that exercises a real server. The rendered-markup half, which can
+ * These run unskipped in a clone that keeps the starter's landing page and
+ * declares no repository, where every count is asserted to be zero. That
+ * matters because the empty case is the one issue #32 is about: skipping it
+ * here would leave the shipped default untested by the only suite that
+ * exercises a real server. They skip only when the product mounts its own
+ * landing page, which these links are not on. The rendered-markup half, which can
  * mock the constant and so can check both states in one run, is
  * `apps/web/app/__tests__/landing-render.test.ts`.
  *
@@ -87,6 +93,8 @@ test("a long code sample scrolls inside its own box, not the page", async ({ pag
  * runs these unchanged.
  */
 test.describe("repository links", () => {
+  test.skip(() => !STARTER_LANDING_MOUNTED, NOT_STARTER_LANDING);
+
   test("every outbound link is the declared repository, or there are none", async ({ page }) => {
     await page.goto("/");
 
