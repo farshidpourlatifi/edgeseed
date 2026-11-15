@@ -9,7 +9,9 @@
 
 const NAME = "[A-Za-z][A-Za-z0-9:_-]*";
 
-const RUN_IN_WORKFLOW = new RegExp(`(?<![\\w/.-])pnpm\\s+(?:run\\s+)?(${NAME})`, "g");
+// Everything after `pnpm` up to the next shell separator: one invocation.
+const RUN_IN_WORKFLOW = /(?<![\w/.-])pnpm[ \t]+([^\s&|;][^&|;]*)/g;
+const NAMED = new RegExp(`^(?:run\\s+)?(${NAME})`);
 const RUN_IN_SCRIPT = new RegExp(`^pnpm\\s+(?:run\\s+)?(${NAME})(?=\\s|$)`);
 
 const unique = (values: string[]): string[] => [...new Set(values)];
@@ -20,15 +22,25 @@ const unique = (values: string[]): string[] => [...new Set(values)];
  *
  * A comment or a step's `name:` may mention a command without running it, so
  * both are skipped. The lookbehind keeps `pnpm/action-setup` and a path ending
- * in `pnpm` out; requiring a name after the space keeps `cache: pnpm` and
- * `pnpm --filter x exec y` out, since a flag is not a command name.
+ * in `pnpm` out; requiring an argument keeps `cache: pnpm` out.
+ *
+ * An invocation that does not start with a command name — `pnpm -s db:seed`,
+ * `pnpm --filter x run y`, `pnpm "$CMD"` — is returned whole rather than
+ * dropped. Reading the name out of it would mean knowing which flags take a
+ * value, and a filtered command is not the root script of that name anyway.
+ * Returned whole it matches nothing the gate runs, so the comparison reports
+ * it; dropped, CI could run a command the gate never sees and still compare
+ * equal.
  */
 export function pnpmCommandsRun(workflowSource: string): string[] {
   const commands: string[] = [];
   for (const raw of workflowSource.split("\n")) {
     const line = raw.trim();
     if (line.startsWith("#") || /^(?:-\s*)?name:/.test(line)) continue;
-    for (const match of line.matchAll(RUN_IN_WORKFLOW)) commands.push(match[1]);
+    for (const match of line.matchAll(RUN_IN_WORKFLOW)) {
+      const invocation = match[1].trim();
+      commands.push(NAMED.exec(invocation)?.[1] ?? invocation);
+    }
   }
   return unique(commands);
 }
