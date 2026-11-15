@@ -9,40 +9,77 @@
  *    quietly turn a documented path into a 404.
  * 4. Every MCP tool and every API path the code exposes must be named in the
  *    README, so the public capability claims cannot drift below what ships.
+ * 5. `pnpm verify` and ci.yml must run the same pnpm commands, so the gate
+ *    cannot pass what CI then refuses, or the reverse.
+ * 6. Every Playwright container tag in a workflow must name the version
+ *    package.json pins.
  *
- * These run on every PR and in the weekly cron. They are the mechanical half of
+ * These run inside `pnpm verify`, on every PR and in the weekly cron. They are the mechanical half of
  * keeping docs true; the judgement half is the sweep in docs/housekeeping.md.
  *
- * The comparison logic lives in ./lib/docs-sync so its deny paths are unit-
- * and mutation-tested.
+ * The comparison logic lives in ./lib/docs-sync and ./lib/ci-sync so its deny
+ * paths are unit- and mutation-tested.
  */
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import {
   brokenRelativeLinks,
   compareEnvExample,
   exampleKeys,
+  expandImports,
   mcpToolNames,
   schemaBlockKeys,
   undocumentedNames,
   undocumentedScripts,
 } from "./lib/docs-sync";
+import {
+  gateCiDrift,
+  gateCommands,
+  playwrightImageProblems,
+  playwrightImageVersions,
+  pnpmCommandsRun,
+} from "./lib/ci-sync";
 
 const IGNORED = new Set(["prepare"]);
 
 // AGENTS.md, not CLAUDE.md: AGENTS.md is the canonical instruction file and
 // CLAUDE.md is a thin `@AGENTS.md` import, so checking CLAUDE.md would only ever
-// assert against a pointer.
+// assert against a pointer. The same reasoning one level further: a file
+// AGENTS.md imports is part of what an agent reads as AGENTS.md, so its text
+// counts for it.
 const DOC_FILES = ["README.md", "docs/README.md", "AGENTS.md"];
 
-const scripts = Object.keys(
-  (JSON.parse(readFileSync("package.json", "utf8")) as { scripts: Record<string, string> }).scripts,
-).filter((s) => !IGNORED.has(s));
+// An agent file's `@path` line is how it pulls another file in. GitHub renders
+// the other two docs, where such a line is plain text — following it there
+// would count a command a reader cannot see.
+const IMPORTING_DOCS = new Set(["AGENTS.md"]);
+
+/** The text of an existing file; `null` for a directory or a missing path. */
+const readRepoFile = (path: string): string | null =>
+  statSync(path, { throwIfNoEntry: false })?.isFile() ? readFileSync(path, "utf8") : null;
+
+const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
+  scripts: Record<string, string>;
+  devDependencies?: Record<string, string>;
+};
+const scripts = Object.keys(pkg.scripts).filter((s) => !IGNORED.has(s));
 
 let failed = false;
+const docLabels: string[] = [];
 for (const file of DOC_FILES) {
-  const missing = undocumentedScripts(scripts, readFileSync(file, "utf8"));
+  const raw = readFileSync(file, "utf8");
+  const expanded = IMPORTING_DOCS.has(file)
+    ? expandImports(raw, file, readRepoFile)
+    : { content: raw, imported: [], missing: [] };
+  if (expanded.missing.length > 0) {
+    failed = true;
+    console.error(`${file} imports missing files: ${expanded.missing.join(", ")}`);
+  }
+  docLabels.push(
+    expanded.imported.length > 0 ? `${file} (+ ${expanded.imported.join(", ")})` : file,
+  );
+  const missing = undocumentedScripts(scripts, expanded.content);
   if (missing.length > 0) {
     failed = true;
     console.error(`${file} is missing: ${missing.map((m) => `pnpm ${m}`).join(", ")}`);
@@ -173,17 +210,87 @@ if (undocumentedPaths.length > 0) {
   console.error(`README.md does not mention API paths: ${undocumentedPaths.join(", ")}`);
 }
 
+// --- Checks 5 and 6: the CI workflows against the gate and package.json ---
+
+const WORKFLOWS_DIR = ".github/workflows";
+const CI_WORKFLOW = join(WORKFLOWS_DIR, "ci.yml");
+const GATE_SCRIPT = "verify";
+// What ci.yml may run that the gate does not. `db:migrate` prepares the e2e
+// database before Playwright starts: setup, not a check. Locally, e2e's
+// global-setup resets the database itself.
+const CI_ONLY = new Set(["db:migrate"]);
+
+let ciSummary = `; no ${CI_WORKFLOW}, CI checks skipped`;
+if (existsSync(CI_WORKFLOW)) {
+  // Check 5. The gate's one non-pnpm step, the gitleaks scan, is the `scan`
+  // job in gitleaks.yml and is outside this comparison.
+  const ci = pnpmCommandsRun(readFileSync(CI_WORKFLOW, "utf8"));
+  const gate = gateCommands(pkg.scripts, GATE_SCRIPT);
+  const drift = gateCiDrift(gate, ci, CI_ONLY);
+  const named = (commands: string[]) => commands.map((c) => `pnpm ${c}`).join(", ");
+  // Same floor as the MCP tool scan above: finding nothing means the scan
+  // broke, and an empty list would otherwise agree with nothing to compare.
+  if (ci.length === 0) {
+    failed = true;
+    console.error(
+      `No pnpm commands found in ${CI_WORKFLOW} — the scan is broken, not the workflow.`,
+    );
+  }
+  if (drift.ciOnly.length > 0) {
+    failed = true;
+    console.error(
+      `ci.yml runs commands \`pnpm ${GATE_SCRIPT}\` never reaches: ${named(drift.ciOnly)}`,
+    );
+  }
+  if (drift.gateOnly.length > 0) {
+    failed = true;
+    console.error(
+      `\`pnpm ${GATE_SCRIPT}\` runs commands ci.yml never runs: ${named(drift.gateOnly)}`,
+    );
+  }
+
+  // Check 6. One fact, two files: the e2e job runs Playwright's container
+  // image, and its tag has to name the version installed from package.json. A
+  // mismatch fails e2e with "Executable doesn't exist", which reads as a broken
+  // test run rather than a stale tag — so it is caught here, by name, instead.
+  //
+  // Every workflow, not just ci.yml — release.yml runs the same image, and a
+  // tag that drifted only there would surface for the first time during a
+  // release, which is the worst moment to learn it.
+  //
+  // Workflows that do not use the image at all pass: this runs in a clone's
+  // gate too, and a clone may run Playwright without the container.
+  const workflowSources = readdirSync(WORKFLOWS_DIR)
+    .filter((f) => f.endsWith(".yml"))
+    .map((f) => readFileSync(join(WORKFLOWS_DIR, f), "utf8"));
+  const pinned = pkg.devDependencies?.["@playwright/test"];
+  for (const problem of playwrightImageProblems(pinned, workflowSources)) {
+    failed = true;
+    console.error(problem);
+  }
+
+  ciSummary =
+    `; gate and ci.yml run the same ${gate.length} pnpm commands; ` +
+    (playwrightImageVersions(workflowSources).length > 0
+      ? `Playwright image tags match ${pinned}`
+      : "no Playwright image in workflows");
+}
+
 if (failed) {
   console.error(
     "\nFix the drift above: document the commands (or add to IGNORED with a reason)," +
-      " keep .dev.vars.example matching the env schema, repair the links, and make the" +
-      " README name every tool and path that ships.",
+      " restore or remove an AGENTS.md import whose file is gone," +
+      " keep .dev.vars.example matching the env schema, repair the links, make the" +
+      " README name every tool and path that ships, add a check to both `pnpm verify`" +
+      " and ci.yml or to neither, and keep the Playwright image tags on the version" +
+      " package.json pins.",
   );
   process.exit(1);
 }
 console.log(
-  `docs-sync ok: ${scripts.length} scripts documented in ${DOC_FILES.join(", ")}; ` +
+  `docs-sync ok: ${scripts.length} scripts documented in ${docLabels.join(", ")}; ` +
     `env keys mirrored (${mirrored.join(", ")}); ` +
     `links resolved in ${linksChecked} docs; ` +
-    `${toolNames.length} MCP tools and ${apiPaths.length} API paths documented`,
+    `${toolNames.length} MCP tools and ${apiPaths.length} API paths documented` +
+    ciSummary,
 );

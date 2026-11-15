@@ -15,6 +15,9 @@ permissions:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    # These are the commands of `pnpm verify:fast`, one per step so a failure
+    # names itself. `check:docs-sync` fails when this file and the gate run
+    # different commands, so add a check to `verify:fast` and here together.
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -46,33 +49,12 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: OpenAPI spec must be committed in sync with the API
-        run: |
-          pnpm api:spec
-          git diff --exit-code docs/api/openapi.json
-      - name: README command tables must document every script
+        run: pnpm api:spec --check
+      # Also holds the two checks about this file: every Playwright container
+      # tag names the version package.json pins, and the gate runs the same
+      # commands these jobs do.
+      - name: Docs, env examples and CI pins must agree with the code
         run: pnpm check:docs-sync
-      # One fact, two files: the e2e job runs Playwright's container image, and
-      # its tag has to name the version installed from package.json. A mismatch
-      # fails e2e with "Executable doesn't exist", which reads as a broken test
-      # run rather than a stale tag — so it is caught here, by name, instead.
-      - name: Playwright container tags must match the pinned version
-        run: |
-          pinned=$(node -p "require('./package.json').devDependencies['@playwright/test']")
-          # Every workflow, not just ci.yml — release.yml runs the same image,
-          # and a tag that drifted only there would surface for the first time
-          # during a release, which is the worst moment to learn it.
-          tags=$(sed -n 's|.*mcr\.microsoft\.com/playwright:v\([0-9][0-9.]*\)-.*|\1|p' .github/workflows/*.yml | sort -u)
-          if [ -z "$tags" ]; then
-            echo "::error::no Playwright container image found in .github/workflows/"
-            exit 1
-          fi
-          for tagged in $tags; do
-            if [ "$pinned" != "$tagged" ]; then
-              echo "::error::package.json pins @playwright/test $pinned but a workflow runs the v$tagged image"
-              exit 1
-            fi
-          done
-          echo "Playwright $pinned matches every container image tag"
 
   e2e:
     runs-on: ubuntu-latest

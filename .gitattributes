@@ -1,0 +1,6 @@
+# A lockfile is a resolution graph, not text: two graphs merged line by line can
+# name versions no install ever resolved together. With `-merge`, when both
+# sides of a merge changed it, git keeps the current branch's copy and reports
+# a conflict instead. Resolution: docs/starter-as-upstream.md, "When both sides
+# changed pnpm-lock.yaml". Diffs stay textual — this is not the `binary` macro.
+pnpm-lock.yaml -merge

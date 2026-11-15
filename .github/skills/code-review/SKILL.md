@@ -207,6 +207,10 @@ workflow still passes, so a green run is not evidence.
 - Keep remote D1 migrations out of the release workflow. They are applied
   deliberately before the tag is pushed, so a destructive migration is never
   discovered running automatically during an incident.
+- `ci.yml` and `pnpm verify` run the same `pnpm` commands, and `check:docs-sync`
+  refuses a difference. Add a check to both or to neither, and do not widen
+  `CI_ONLY` to make a mismatch pass. `pnpm-lock.yaml` stays `-merge` in
+  `.gitattributes`.
 
 ### Data, MCP, and observability
 

@@ -74,12 +74,39 @@ real id.
 ```bash
 git fetch upstream
 git merge upstream/main
-pnpm install          # lockfile may have changed
+pnpm install --frozen-lockfile   # refuses a lockfile that disagrees with a package.json
 pnpm verify           # full gate before pushing the merge
 ```
 
 Do this on a branch if the diff is big. Never rebase the product's main onto
 upstream — merge, so product history stays intact.
+
+### When both sides changed pnpm-lock.yaml
+
+`.gitattributes` marks `pnpm-lock.yaml` as `-merge`, so when the product and upstream
+have both changed it the merge stops with:
+
+```
+CONFLICT (content): Merge conflict in pnpm-lock.yaml
+```
+
+A lockfile is a resolution graph, and two graphs merged line by line can name versions
+no install ever resolved together. Git therefore leaves the product's copy in place,
+without conflict markers, and waits. Take the copy from the ref being merged and let
+pnpm add what the product needs on top:
+
+```bash
+git checkout upstream/main -- pnpm-lock.yaml   # the graph upstream tested
+pnpm install                                   # adds what your package.json files need
+git add pnpm-lock.yaml
+git commit                                     # completes the merge
+pnpm verify
+```
+
+The merge that first brings `.gitattributes` in is not covered by it: git reads
+attributes from the tree being merged into, which does not have the file yet, so that
+one merge may still combine the lockfile by line. On that merge
+`pnpm install --frozen-lockfile` is the check.
 
 ### Adopting the release that untracked the route types — one manual step
 

@@ -7,14 +7,20 @@ believed. This file is the routine that keeps that from rotting.
 
 ## What is already automatic
 
-`pnpm check:docs-sync` runs on every PR and in the weekly CI cron, and fails on:
+`pnpm check:docs-sync` runs inside `pnpm verify`, on every PR and in the weekly CI cron,
+and fails on:
 
 1. A root `package.json` script missing from `README.md`, `docs/README.md` or `AGENTS.md`.
+   A file `AGENTS.md` imports with a line that is exactly `@path` counts as part of
+   `AGENTS.md`, one level deep; an import whose file is missing fails.
 2. A `.dev.vars.example` that has drifted from the env schema in `packages/config`.
 3. A relative link in the public docs whose target does not exist.
 4. An MCP tool or API path that ships but is not named in the README.
+5. A Playwright image tag in a workflow that differs from the version `package.json` pins.
+6. A `pnpm` command `ci.yml` runs that `pnpm verify` does not reach, or the reverse.
 
-CI separately regenerates the OpenAPI spec and fails if the committed copy differs.
+`pnpm api:spec --check` runs in the gate and in CI too, and fails if the committed
+OpenAPI spec differs from the one the API renders.
 
 **Everything below is what those checks cannot judge.** A machine can prove a link
 resolves; it cannot prove a sentence is still true.
@@ -104,7 +110,5 @@ sweep's diff meaningful.
 
 Then run **`pnpm check:docs-sync`**, because docs changes are exactly what breaks it.
 
-Note it is **not** part of `pnpm verify` — that is lint, format, test, gitleaks, build,
-typecheck, boot and e2e. The drift checks (`check:docs-sync`, and the `api:spec` diff)
-live in CI's `drift` job alone, so a sweep that edits the README or moves a doc goes green
-locally and red on the pull request unless you run it yourself.
+It is part of `pnpm verify`, so a sweep that edits the README or moves a doc fails
+locally.
