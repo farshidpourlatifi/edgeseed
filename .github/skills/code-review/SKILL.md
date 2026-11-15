@@ -204,6 +204,16 @@ workflow still passes, so a green run is not evidence.
   anything; a scanner that finds nothing passes every scan.
 - Keep the e2e `.dev.vars` values throwaway. They prove the app boots; they are
   not deployment configuration, and the deploy job reads none of them.
+- The e2e pre-flight (`packages/cli/src/lib/dev-vars.ts`, run by
+  `tests/e2e/global-setup.ts`) reports file paths and key names only. Reject a
+  change that puts a parsed value, a fingerprint or a length into one of its
+  messages, a log line or a thrown error, or that skips it in CI.
+  `startMcpWorker`'s start-up refusal also quotes the Worker's own last output
+  lines, which is safe only while those lines carry no env value: Wrangler
+  prints dev-var values as `"(hidden)"`, a zod issue names the key and not the
+  input, and request logs pass through `redact()`. Reject a change that makes
+  the Worker print one, or that adds anything read from a dev-vars file to that
+  message.
 - Keep remote D1 migrations out of the release workflow. They are applied
   deliberately before the tag is pushed, so a destructive migration is never
   discovered running automatically during an incident.

@@ -27,7 +27,9 @@ pnpm dev --filter @starter/web
 Open http://localhost:5173. Register an account to access the dashboard.
 
 Working on `apps/mcp` too? It is a separate Worker with its own env, so it
-needs its own `cp apps/mcp/.dev.vars.example apps/mcp/.dev.vars`.
+needs its own `cp apps/mcp/.dev.vars.example apps/mcp/.dev.vars`. `pnpm verify` needs that file too — the e2e suite boots the MCP Worker — with
+the same secret as the web app's `BETTER_AUTH_SECRET`; otherwise the suite stops
+in its first seconds, naming the file and the key.
 
 ### Social login (optional)
 

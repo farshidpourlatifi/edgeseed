@@ -34,6 +34,9 @@ export interface BootTarget {
   envProbe?: string;
 }
 
+/** The request that reaches `parseEnv` on a Worker running Better Auth. */
+export const AUTH_ENV_PROBE = "/api/auth/ok";
+
 export const BOOT_TARGETS: readonly BootTarget[] = [
   { name: "@starter/web", cwd: "apps/web", port: 8791, path: "/api/v1/health" },
   /**
@@ -48,7 +51,7 @@ export const BOOT_TARGETS: readonly BootTarget[] = [
    * passing, and the check would quietly stop proving anything. A 2xx ties it
    * to a route that must actually exist.
    */
-  { name: "@starter/mcp", cwd: "apps/mcp", port: 8792, path: "/", envProbe: "/api/auth/ok" },
+  { name: "@starter/mcp", cwd: "apps/mcp", port: 8792, path: "/", envProbe: AUTH_ENV_PROBE },
 ];
 
 /**

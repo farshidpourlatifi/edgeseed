@@ -1,6 +1,12 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { expect, type Page } from "@playwright/test";
 
+import { AUTH_ENV_PROBE, isHealthyStatus } from "../../packages/cli/src/lib/boot-check";
+import {
+  envRefusalMessage,
+  outputTail,
+  refusalOutputSettled,
+} from "../../packages/cli/src/lib/env-refusal";
 import { hostOf, portOccupied } from "../../packages/cli/src/lib/port";
 
 /**
@@ -85,6 +91,47 @@ const CLIENT_PROTOCOL_VERSION = "2025-06-18";
 
 let worker: ChildProcess | undefined;
 
+/** As much of the Worker's output as a failure message could use. */
+const OUTPUT_KEPT_CHARS = 64_000;
+
+// The env probe's bounds, the same numbers `check:boot` uses for the same
+// request: the whole probe including retries, and one attempt.
+const ENV_PROBE_TIMEOUT_MS = 45_000;
+const ENV_PROBE_REQUEST_TIMEOUT_MS = 30_000;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Request the env probe and resolve to its HTTP status, or to `null` when
+ * nothing answered in time.
+ *
+ * It never throws and never stops the Worker: the caller races it against the
+ * Worker exiting and acts on the answer afterwards, so a stop it performs
+ * cannot be mistaken for the Worker dying on its own. Only a transport error is
+ * retried — a status is a complete answer.
+ */
+async function probeMcpEnv(isAlive: () => boolean): Promise<number | null> {
+  const deadline = Date.now() + ENV_PROBE_TIMEOUT_MS;
+  while (Date.now() < deadline && isAlive()) {
+    // Clamped to what is left, so the deadline bounds the probe rather than
+    // only the moment its last attempt starts. The floor of 1 is for the
+    // sliver between the loop's check and this line: `AbortSignal.timeout`
+    // rejects a negative argument.
+    const remaining = Math.max(1, deadline - Date.now());
+    try {
+      const response = await fetch(`${MCP_ORIGIN}${AUTH_ENV_PROBE}`, {
+        signal: AbortSignal.timeout(Math.min(ENV_PROBE_REQUEST_TIMEOUT_MS, remaining)),
+      });
+      // Released rather than left open on a Worker that may be about to stop.
+      await response.body?.cancel().catch(() => undefined);
+      return response.status;
+    } catch {
+      await sleep(500);
+    }
+  }
+  return null;
+}
+
 /**
  * Boot the MCP Worker, and resolve once it answers.
  *
@@ -145,8 +192,22 @@ let worker: ChildProcess | undefined;
  * leave the Worker with no secret and every request refused. e2e needs a
  * realistic env; `check:boot` needs a minimal one. Same mechanism, opposite
  * requirement.
+ *
+ * `envFile` appends `--env-file <path>` to the spawn. Only
+ * `mcp-worker-env.spec.ts` passes it, at an empty file, to boot a Worker with
+ * no env on purpose; every other run is configured by `.dev.vars`, as above.
+ *
+ * **Two requests, because readiness proves less than it looks like.** `/`
+ * proves the Worker listens and reaches no binding. The second request,
+ * `/api/auth/ok`, is the one that reaches `parseEnv` — and without it a Worker
+ * with no secret passed readiness and failed minutes later at the login form,
+ * as a locator timeout that named nothing. A refusal there stops the Worker and
+ * throws with the rejected keys and the Worker's own last output lines.
  */
-export async function startMcpWorker(timeoutMs = 180_000): Promise<void> {
+export async function startMcpWorker(
+  options: { timeoutMs?: number; envFile?: string } = {},
+): Promise<void> {
+  const { timeoutMs = 180_000, envFile } = options;
   if (worker) return;
 
   /*
@@ -191,13 +252,27 @@ export async function startMcpWorker(timeoutMs = 180_000): Promise<void> {
       String(MCP_PORT),
       "--var",
       "SENTRY_DSN:",
+      ...(envFile ? ["--env-file", envFile] : []),
     ],
     // `detached` makes the child a process-group leader, which is what lets
     // `stopMcpWorker` signal the whole `pnpm → wrangler → workerd` chain by
     // negative pid. The trade is that it outlives this process if nothing kills
     // it, so the exit hook below is the safety net rather than a nicety.
-    { stdio: "ignore", detached: true },
+    //
+    // Output is piped, not discarded: it is the only account of *why* the
+    // Worker refused a request or died, and every failure below quotes its
+    // last lines.
+    { stdio: ["ignore", "pipe", "pipe"], detached: true },
   );
+
+  let output = "";
+  let lastOutputAt = Date.now();
+  const capture = (chunk: Buffer) => {
+    output = (output + chunk.toString()).slice(-OUTPUT_KEPT_CHARS);
+    lastOutputAt = Date.now();
+  };
+  worker.stdout?.on("data", capture);
+  worker.stderr?.on("data", capture);
 
   process.once("exit", () => {
     if (worker?.pid) {
@@ -209,10 +284,16 @@ export async function startMcpWorker(timeoutMs = 180_000): Promise<void> {
     }
   });
 
+  let alive = true;
   const exited = new Promise<never>((_, reject) => {
-    worker!.once("exit", (code) =>
-      reject(new Error(`The MCP Worker exited before it served a request (code ${code}).`)),
-    );
+    worker!.once("exit", (code) => {
+      alive = false;
+      reject(
+        new Error(
+          `The MCP Worker exited before it served a request (code ${code}).\n` + outputTail(output),
+        ),
+      );
+    });
   });
 
   const ready = (async () => {
@@ -228,10 +309,56 @@ export async function startMcpWorker(timeoutMs = 180_000): Promise<void> {
       }
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
-    throw new Error(`The MCP Worker did not answer on ${MCP_ORIGIN} within ${timeoutMs}ms.`);
+    throw new Error(
+      `The MCP Worker did not answer on ${MCP_ORIGIN} within ${timeoutMs}ms.\n` +
+        outputTail(output),
+    );
   })();
 
   await Promise.race([ready, exited]);
+
+  // Listening is not serving. The status is taken out of the race first and
+  // acted on below, so stopping the Worker here can never surface as the
+  // "exited before it served a request" rejection instead of the refusal.
+  const status = await Promise.race([probeMcpEnv(() => alive), exited]);
+
+  if (status !== null && isHealthyStatus(status)) return;
+
+  if (status === null) {
+    await stopMcpWorker();
+    throw new Error(
+      `The MCP Worker is listening on ${MCP_ORIGIN} but GET ${AUTH_ENV_PROBE} got no ` +
+        `answer in ${ENV_PROBE_TIMEOUT_MS / 1000}s.\n` +
+        outputTail(output),
+    );
+  }
+
+  // The Worker's lines for the refused request are not guaranteed to have
+  // reached this process when the response did, so the message is built only
+  // once the output has settled — bounded by `REFUSAL_SETTLE_CAP_MS`.
+  const answeredAt = Date.now();
+  for (;;) {
+    const now = Date.now();
+    const settled = refusalOutputSettled({
+      status,
+      output,
+      quietMs: now - Math.max(answeredAt, lastOutputAt),
+      waitedMs: now - answeredAt,
+    });
+    if (settled) break;
+    await sleep(100);
+  }
+
+  const message = envRefusalMessage({
+    origin: MCP_ORIGIN,
+    probe: AUTH_ENV_PROBE,
+    status,
+    devVarsFile: "apps/mcp/.dev.vars",
+    wranglerFile: "apps/mcp/wrangler.jsonc",
+    output,
+  });
+  await stopMcpWorker();
+  throw new Error(message);
 }
 
 /**
@@ -242,6 +369,11 @@ export async function startMcpWorker(timeoutMs = 180_000): Promise<void> {
  * negative pid signals the whole group. An orphaned dev server holding this
  * port or the shared D1 is one of the longest-running traps in this repo, and
  * it surfaces on the *next* run as something that looks nothing like a leak.
+ *
+ * It resolves once the port is free, or after 5s of waiting for that. workerd
+ * can outlive the process this suite spawned by a moment, and a second start
+ * straight after a stop would otherwise be refused as "something is already
+ * listening".
  */
 export async function stopMcpWorker(): Promise<void> {
   if (!worker?.pid) return;
@@ -254,7 +386,12 @@ export async function stopMcpWorker(): Promise<void> {
   }
   worker = undefined;
 
-  await Promise.race([stopped, new Promise((resolve) => setTimeout(resolve, 5_000))]);
+  await Promise.race([stopped, sleep(5_000)]);
+
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline && (await portOccupied(hostOf(MCP_ORIGIN), MCP_PORT, 500))) {
+    await sleep(100);
+  }
 }
 
 /** RFC 7636 §4.1–4.2 — the verifier, and the S256 challenge derived from it. */

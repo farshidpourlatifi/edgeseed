@@ -1,13 +1,19 @@
 # Local dev vars for the MCP Worker. Copy to .dev.vars (gitignored) and fill
 # in; wrangler merges it during `pnpm dev`. The MCP app is a separate Worker,
 # so it needs its own copy — the web app's .dev.vars does not cover it.
+# Start from this file, though: do not copy apps/web/.dev.vars over it. Its
+# social-login pairs would enable provider buttons whose callbacks are
+# registered for the web origin, and its SENTRY_DSN belongs to the web project.
 # Production values go through `wrangler secret put`, never here.
 # Agents never read the real .dev.vars — compare key names against this file
 # instead (AGENTS.md "Secret files are never read").
 # Validated by mcpEnvSchema in packages/config/src/env.ts.
 
-# Required — session signing key, 32+ chars: `openssl rand -hex 32`
-BETTER_AUTH_SECRET=replace-with-a-random-string-of-32-plus-characters
+# Required — the same value as BETTER_AUTH_SECRET in apps/web/.dev.vars, not
+# a second one. The two Workers share one D1 and one user set; a different
+# secret here mints sessions the web app rejects, which is not the production
+# shape. `pnpm test:e2e` refuses to start when the two differ.
+BETTER_AUTH_SECRET=replace-with-the-value-from-apps-web-dev-vars
 
 # Optional — GitHub social login; auto-enables when both are set. Each origin
 # needs its own registered callback — the web app's registration does not

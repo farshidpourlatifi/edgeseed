@@ -227,7 +227,8 @@ a release that changes cloning, identity stamping, or the first-run path.
 
 4. `cp apps/web/.dev.vars.example apps/web/.dev.vars`, generate a secret with
    `openssl rand -hex 32`, and leave every optional key empty. The clone must
-   boot on that alone.
+   boot on that alone. Step 11's `pnpm verify` also needs `apps/mcp/.dev.vars`,
+   from its own example, with the same secret.
 5. `pnpm db:migrate && pnpm db:seed && pnpm build && pnpm check:boot`.
 6. Drive register → verification gate → login → dashboard in a browser.
 7. **Real email**: set `RESEND_API_KEY` + `EMAIL_FROM` and confirm a

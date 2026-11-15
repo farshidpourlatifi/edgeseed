@@ -126,9 +126,9 @@ jobs:
       # organization deny paths that only exist on that surface.
       # `mcpEnvSchema` requires
       # BETTER_AUTH_SECRET through `sharedEnvSchema`, and `authFor` validates on
-      # every request — so without this the Worker listens, Playwright's port
-      # probe calls that a clean boot, and the failure surfaces much later as a
-      # 500 on /authorize.
+      # every request — so without this the suite refuses to start: its global
+      # setup checks both files for the keys the schemas require and for one
+      # shared secret, by name only.
       #
       # **The same secret as the web app, deliberately.** The two Workers share
       # one D1 and one user set; a different secret here would mint sessions the
