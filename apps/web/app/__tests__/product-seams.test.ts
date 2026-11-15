@@ -13,6 +13,19 @@ function flatten(entries: RouteConfigEntry[]): RouteConfigEntry[] {
   return entries.flatMap((entry) => [entry, ...flatten(entry.children ?? [])]);
 }
 
+/**
+ * Files importing generated route types (`+types/<module>`) for a module the
+ * route config does not mount. Only a mounted module gets generated types, so
+ * each of these stops typechecking. Paths are relative to `app/`, with `/`.
+ */
+function unmountedRouteTypeImports(
+  sources: Record<string, string>,
+  mounted: readonly string[],
+): string[] {
+  void mounted;
+  return Object.keys(sources).filter((file) => sources[file].includes("+types/dashboard._index"));
+}
+
 afterEach(() => {
   vi.doUnmock("../product/dashboard");
   vi.resetModules();
@@ -34,19 +47,47 @@ describe("dashboard home seam", () => {
     expect(flatten(routes).filter((entry) => entry.path === "dashboard")).toHaveLength(1);
   });
 
-  it("leaves no module depending on the default home's generated route types", () => {
-    // A module outside the route config gets no generated types, so anything
-    // importing these stops typechecking the moment a product mounts its own
-    // home.
-    const offenders = (readdirSync(APP_DIR, { recursive: true }) as string[])
-      .filter((file) => /\.tsx?$/.test(file))
-      .filter((file) => !file.split(sep).includes("__tests__"))
-      .filter((file) =>
-        readFileSync(join(APP_DIR, file), "utf8").includes("+types/dashboard._index"),
-      );
+  it("flags an import of generated route types for a module the config does not mount", () => {
+    const sources = {
+      "routes/dashboard.tsx": 'import type { Route } from "./+types/dashboard._index";',
+      "routes/_examples/widgets.tsx": 'import type { Route } from "../+types/dashboard._index";',
+    };
 
-    expect(offenders, `imports the default home's route types: ${offenders.join(", ")}`).toEqual(
-      [],
+    expect(
+      unmountedRouteTypeImports(sources, ["routes/dashboard.tsx", "product/home.tsx"]),
+    ).toEqual(["routes/dashboard.tsx", "routes/_examples/widgets.tsx"]);
+  });
+
+  it("passes a mounted module importing its own generated route types", () => {
+    // A product that customised the default home in place keeps this import,
+    // and its types exist for as long as the constant names the module.
+    const sources = {
+      "routes/dashboard._index.tsx": 'import type { Route } from "./+types/dashboard._index";',
+      "product/home.tsx": "import type { Route } from './+types/home';",
+    };
+
+    expect(
+      unmountedRouteTypeImports(sources, ["routes/dashboard._index.tsx", "product/home.tsx"]),
+    ).toEqual([]);
+  });
+
+  it("leaves no module importing generated route types the route config does not produce", async () => {
+    const { default: routes } = (await import("../routes")) as { default: RouteConfigEntry[] };
+    const sources = Object.fromEntries(
+      (readdirSync(APP_DIR, { recursive: true }) as string[])
+        .filter((file) => /\.tsx?$/.test(file))
+        .filter((file) => !file.split(sep).includes("__tests__"))
+        .map((file) => [file.split(sep).join("/"), readFileSync(join(APP_DIR, file), "utf8")]),
     );
+
+    const offenders = unmountedRouteTypeImports(
+      sources,
+      flatten(routes).map((entry) => entry.file),
+    );
+
+    expect(
+      offenders,
+      `imports route types of an un-mounted module: ${offenders.join(", ")}`,
+    ).toEqual([]);
   });
 });
