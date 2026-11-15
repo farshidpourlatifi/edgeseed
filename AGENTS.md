@@ -121,7 +121,8 @@ and compare names against the example, never values.
 
 - `pnpm build` proves a Worker **compiles**. `pnpm check:boot` proves it
   **runs**. Never report a Worker as working on the strength of a build.
-- `pnpm verify` is the gate: lint, format, tests, gitleaks, build, typecheck,
+- `pnpm verify` is the gate: a frozen-lockfile install, the drift checks
+  (OpenAPI spec, docs-sync), lint, format, tests, gitleaks, build, typecheck,
   boot check, e2e. Run it before calling work complete.
 - `pnpm verify:fast` is the same gate **minus e2e** — everything that runs in
   seconds to a couple of minutes, for the inner loop. It is deliberately the
@@ -131,15 +132,24 @@ and compare names against the example, never values.
 - **Stop dev servers before `pnpm test:e2e`.** e2e global-setup runs `db:reset`;
   a server holding the dropped D1 file makes every auth call fail with
   `SQLITE_CANTOPEN`, and an orphaned dev server bound IPv6-only produces
-  `ERR_CONNECTION_REFUSED`. Both look like code regressions and are not.
+  `ERR_CONNECTION_REFUSED`. Both look like code regressions and are not. A
+  third cause is not one either, and it names itself: e2e needs both
+  `apps/web/.dev.vars` and `apps/mcp/.dev.vars`, each with the keys its Worker
+  requires and the same `BETTER_AUTH_SECRET`, and global setup refuses at
+  start, naming the file and the key, when that is not so.
 - When you invalidate a claim in one file, **grep for its other homes**. Include
   `.github/skills/code-review/SKILL.md` when the claim is a review rule. Docs that
   contradict the code are worse than missing docs, because they are trusted.
 - **Docs drift is checked in two halves, and only one is automatic.**
-  `pnpm check:docs-sync` runs on every PR and fails on the mechanical kind:
+  `pnpm check:docs-sync` runs inside `pnpm verify` and on every PR, and fails
+  on the mechanical kind:
   an undocumented root script, a stale `.dev.vars.example`, a relative link
   whose target is gone, an MCP tool or API path that ships without a mention in
-  the README. It cannot judge whether a sentence is still _true_ — that is the
+  the README, a Playwright image tag in a workflow that differs from the
+  version `package.json` pins, and a `pnpm` command `ci.yml` runs that the gate
+  never reaches (or the reverse). For the root-script check, a file `AGENTS.md`
+  imports with an `@path` line counts as `AGENTS.md`.
+  It cannot judge whether a sentence is still _true_ — that is the
   quarterly sweep in `docs/housekeeping.md`, which a scheduled workflow opens an
   issue for. Adding a claim that only a human can verify means adding it there.
 - Do not read live project files as test fixtures. `pnpm init:product` rewrites
@@ -303,7 +313,8 @@ current code and updates the date to the day it actually happened.
 4. **Security headers ship — the CSP has four traps.** `security-headers.ts` is
    mounted above the origin redirect and carries CSP, HSTS, `X-Frame-Options`,
    `nosniff`, `Referrer-Policy`, and `no-store` for cookie-bearing requests
-   (`security-audit.md` #5, #14, resolved 2026-08-08). When touching it:
+   (`security-audit.md` #5, #14, resolved 2026-08-08). HSTS covers the sending
+   hostname alone unless `HSTS_SCOPE` widens it. When touching it:
    hash source expressions must be **quoted** (`'sha256-…'`) or browsers discard
    them silently; the nonce goes to `ServerRouter`, not just `<Scripts>`, or the
    mid-stream loader-data chunks are blocked; the theme script is admitted by
@@ -816,7 +827,8 @@ CLAUDE.md and `docs/security-audit.md` #8:
 
 Defined in `apps/web/app/routes.ts` (explicit route config, not file-based routing):
 
-- `/` — landing page
+- `/` — landing page, mounted from `LANDING_ROUTE` in
+  `apps/web/app/product/landing.ts`
 - `/login` — email/password + GitHub/Google social login
 - `/register` — with confirm password validation
 - `/forgot-password` — requests a reset link; enumeration-safe notice
@@ -828,7 +840,8 @@ Defined in `apps/web/app/routes.ts` (explicit route config, not file-based routi
   anonymous caller did not already supply. Signed out it offers `/login` and
   `/register` carrying `?invitation=<id>`, which both read to return the reader
   here instead of `/dashboard`
-- `/dashboard` — layout with sidebar, topbar, auth guard
+- `/dashboard` — layout with sidebar, topbar, auth guard. Its home is mounted
+  from `DASHBOARD_HOME_ROUTE` in `apps/web/app/product/dashboard.ts`
 - `/dashboard/members` — the active organization's members and its pending
   invitations, both bounded, plus every membership write: invite, resend,
   revoke, change role, remove, leave. The invitations half is admin-and-owner
@@ -855,6 +868,19 @@ Defined in `apps/web/app/routes.ts` (explicit route config, not file-based routi
   authenticated miss on an unknown `/api/v1` path reached this page and served
   an API client HTML. Anonymous misses are still 401 from the deny guard
 
+`/` and the dashboard home are **product seams**: `routes.ts` mounts the module
+each constant names, and a product replaces a page by naming its own module
+under `app/product/`, leaving the starter's in place. The starter's default
+modules (`routes/_index.tsx`, `routes/dashboard._index.tsx`) therefore never
+import `./+types`: a module the route config does not mount has no generated
+route types, so the import stops typechecking in a clone that swapped the
+module out. `app/__tests__/product-seams.test.ts` fails on that import in
+`routes/_index.tsx`, which it counts as un-mounted even while it is the one
+mounted. It does **not** fail on it in `routes/dashboard._index.tsx` while
+`DASHBOARD_HOME_ROUTE` names that module, and typecheck passes here too, so
+for the default home the rule is kept by hand
+(`docs/starter-as-upstream.md`, "Product seams").
+
 When adding a dashboard page: add the route in `routes.ts`, then create the file
 in `app/routes/`. Route types regenerate on their own — see "TypeScript notes".
 
@@ -872,6 +898,11 @@ in `packages/ui/src/hooks/use-theme.tsx` manages light/dark/system via cookies.
 - **Sidebar** (desktop): collapsible, org switcher, nav links with active state, user dropdown
 - **Topbar**: breadcrumbs, mobile hamburger, theme toggle, notification bell, user menu
 - Sidebar/topbar code is inline in `dashboard.tsx`, not separate component files
+- Nav entries are `dashboardNavigation(PRODUCT_NAV)` (`app/lib/dashboard-nav.ts`):
+  the home, then the product's entries from `app/product/dashboard-nav.ts`, then
+  the starter's own pages
+- The first-run organization card is rendered by the layout on `/dashboard`, not
+  by the home module, so a product that replaces the home cannot drop it
 
 ### Auth in loaders
 
@@ -925,7 +956,7 @@ pnpm db:generate            # Generate Drizzle migration
 pnpm db:migrate             # Apply migrations (local)
 pnpm db:seed                # Seed dev data
 pnpm db:reset               # Drop and re-apply all migrations
-pnpm api:spec               # Generate OpenAPI spec
+pnpm api:spec               # Generate OpenAPI spec (--check compares without writing)
 pnpm api:call GET /me       # Call /api/v1 with STARTER_API_TOKEN (bearer)
 pnpm version:bump [type]    # Bump version + regenerate openapi.json, then print the tag steps
 pnpm test                   # Run Vitest
@@ -976,6 +1007,14 @@ pnpm release:notes <log>    # Version ID preamble for the GitHub Release body
   caught exactly that on its first run, when vite left `zod` external, wrangler
   resolved it to zod 3, and bundled better-auth called zod 4 APIs
   (`coerce.boolean(...).meta is not a function`).
+- **`ci.yml` and the gate run the same `pnpm` commands**, and `check:docs-sync`
+  fails on a difference in either direction, so a check is added to both or to
+  neither. `pnpm db:migrate` is the one command only CI runs: it prepares the
+  e2e database.
+- **`pnpm-lock.yaml` is `-merge` in `.gitattributes`.** A lockfile changed on
+  both sides of a merge conflicts instead of being merged line by line. Resolve
+  it by taking one side's copy whole and running `pnpm install`
+  (`docs/starter-as-upstream.md`, "When both sides changed pnpm-lock.yaml").
 - **Keep zod on one major.** better-auth ≥1.6 requires zod 4 and peers on
   `drizzle-orm@^0.45.2`; `@hono/zod-openapi` must be v1.x to match. These four move
   together — pinning any one back reintroduces the boot failure above.
@@ -1009,6 +1048,13 @@ pnpm release:notes <log>    # Version ID preamble for the GitHub Release body
 - **Toasts:** `import { toast } from "sonner"` — Toaster is mounted at root
 - **E2E locators:** `getByRole`/`getByLabel` first; `data-testid` only for
   role-less elements; never CSS class selectors — `tests/e2e/CLAUDE.md`
+- **E2E sign-in proof:** `signedInAs(page, email)` from `tests/e2e/helpers.ts`,
+  never a page's copy, which a product replaces — `tests/e2e/CLAUDE.md`
+- **Product-owned files** (`apps/web/app/product/*`,
+  `apps/web/app/components/brand/*`): the starter ships each once and afterwards
+  changes only the code that reads it, never its contents. A logo link takes
+  its accessible name from `BrandLogo`, which keeps the product name in the
+  accessibility tree when it is hidden
 - **New package:** follow `docs/creating-packages.md` (includes a required per-package context file)
 - **New organization-scoped feature:** follow [`docs/tenancy.md`](./docs/tenancy.md) — scoped tables, loaders, API routes, MCP tools, and the capability matrix
 
@@ -1310,6 +1356,13 @@ the leftovers. `check:deployed` requests `/api/v1/health` on every target
 `wrangler deploy` reports, so a leftover one fails the release on `HTTP 404`
 _after_ the deploy has landed (`docs/domains.md`).
 
+Optional (HSTS scope), web Worker only: `HSTS_SCOPE`, either `subdomains` or
+`preload`. Absent, the `Strict-Transport-Security` header covers the hostname
+that sent it and nothing else; the two values widen it to every name beneath
+that hostname. Set it with `wrangler secret put HSTS_SCOPE` from `apps/web/`,
+never in `vars`: every clone inherits that block. Read `docs/domains.md`,
+"HSTS scope", before opting in.
+
 Optional (social login): `GITHUB_CLIENT_ID`/`SECRET`, `GOOGLE_CLIENT_ID`/`SECRET`.
 
 **Effectively required in production (email):** `RESEND_API_KEY` and
@@ -1332,7 +1385,9 @@ Dev vars live in each app's `.dev.vars` (gitignored); wrangler merges them durin
 `pnpm dev`. `apps/mcp` needs its own copy — it is a separate Worker. Each app
 ships a committed `.dev.vars.example` — copy it to `.dev.vars` and fill it in;
 it is also the key-name reference for auditing a real file. Agents never read
-the real files — see "Secret files are never read".
+the real files — see "Secret files are never read". `apps/mcp/.dev.vars` takes
+the web app's `BETTER_AUTH_SECRET`, not a second one: the two Workers share
+one user set, and `pnpm test:e2e` refuses to start when the values differ.
 
 ---
 
@@ -1346,8 +1401,10 @@ registered as routes — copy-paste starting points.
 | `dashboard-with-widgets.tsx` | Stats cards, activity table with empty state, quick action cards                                  |
 | `settings-full.tsx`          | Tabbed settings (General/Team/Billing), profile with avatar upload, danger zone, team member list |
 
-To use one: copy to `app/routes/`, register in `routes.ts`, wire real data. See
-`_examples/README.md`.
+To use one: `dashboard-with-widgets.tsx` replaces the dashboard home, so copy it
+to `app/product/` and name it in `DASHBOARD_HOME_ROUTE`
+(`app/product/dashboard.ts`); copy any other example to `app/routes/` and
+register it in `routes.ts`. Then wire real data. See `_examples/README.md`.
 
 ## Generating new UI (design workflow)
 
