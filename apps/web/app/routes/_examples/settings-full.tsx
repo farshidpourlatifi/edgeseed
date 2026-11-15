@@ -5,7 +5,8 @@
  * Wire the save handler to auth.api.updateUser and team data to real org members.
  */
 import { useState } from "react";
-import type { Route } from "../+types/dashboard.settings";
+import { useLoaderData } from "react-router";
+import type { AppLoadContext, LoaderFunctionArgs } from "react-router";
 import {
   Card,
   CardContent,
@@ -24,7 +25,7 @@ import { Upload, Trash2, Users, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { requireUser } from "~/lib/require-user";
 
-export async function loader({ context, request }: Route.LoaderArgs) {
+export async function loader({ context, request }: LoaderFunctionArgs<AppLoadContext>) {
   // Redirects rather than returning `{ user: null }`. The soft return answered
   // 200 to an unauthenticated caller, and since this file exists to be copied,
   // it would have reintroduced audit #10 into every page copied from it.
@@ -33,8 +34,8 @@ export async function loader({ context, request }: Route.LoaderArgs) {
   return { user: session.user };
 }
 
-export default function SettingsFullPage({ loaderData }: Route.ComponentProps) {
-  const { user } = loaderData;
+export default function SettingsFullPage() {
+  const { user } = useLoaderData<typeof loader>();
   const [name, setName] = useState(user?.name ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
   const [isSaving, setIsSaving] = useState(false);

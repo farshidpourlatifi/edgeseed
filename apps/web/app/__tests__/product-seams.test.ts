@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { join, posix, sep } from "node:path";
+import { join, posix, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { RouteConfigEntry } from "@react-router/dev/routes";
@@ -14,20 +14,35 @@ function flatten(entries: RouteConfigEntry[]): RouteConfigEntry[] {
 }
 
 /**
- * Files importing generated route types (`+types/<module>`) for a module the
- * route config does not mount. Only a mounted module gets generated types, so
- * each of these stops typechecking. Paths are relative to `app/`, with `/`.
+ * Files importing generated route types (`+types/<module>`) that the route
+ * config does not produce for them. Only a mounted module gets generated
+ * types, so an import of an un-mounted module's stops typechecking. A file
+ * under `routes/_examples/` is flagged for any such import: it is never
+ * mounted itself, and the module it borrows from is un-mounted in a clone
+ * that swapped it out. Paths are relative to `app/`, with `/`.
  */
 function unmountedRouteTypeImports(
   sources: Record<string, string>,
   mounted: readonly string[],
+  appDir: string = APP_DIR,
 ): string[] {
-  const modules = new Set(mounted.map((file) => file.replace(/\.tsx?$/, "")));
-  return Object.keys(sources).filter((file) =>
-    [...sources[file].matchAll(/["'](\.[^"']*)\+types\/([^"']+)["']/g)].some(
-      ([, directory, name]) => !modules.has(posix.join(posix.dirname(file), directory, name)),
+  // React Router's own normalisation: a route file may be written bare,
+  // `./`-prefixed or absolute, and all three name the same module.
+  const modules = new Set(
+    mounted.map((file) =>
+      relative(appDir, resolve(appDir, file))
+        .split(sep)
+        .join("/")
+        .replace(/\.[a-z0-9]+$/i, ""),
     ),
   );
+  return Object.keys(sources).filter((file) => {
+    const imports = [...sources[file].matchAll(/["'](\.[^"']*)\+types\/([^"']+)["']/g)];
+    if (file.startsWith("routes/_examples/")) return imports.length > 0;
+    return imports.some(
+      ([, directory, name]) => !modules.has(posix.join(posix.dirname(file), directory, name)),
+    );
+  });
 }
 
 afterEach(() => {
