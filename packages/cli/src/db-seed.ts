@@ -31,9 +31,10 @@ INSERT OR IGNORE INTO member (id, organizationId, userId, role, createdAt)
 VALUES ('seed-member-1', 'seed-org-1', 'seed-user-1', 'owner', unixepoch());
 `;
 
+// stdin is detached so wrangler has no terminal to prompt on (see db-reset.ts).
 console.log("Seeding development data...");
 execSync(
   `pnpm --filter @starter/web exec wrangler d1 execute ${D1_BINDING} --local --command "${seedSQL.replace(/\n/g, " ")}"`,
-  { stdio: "inherit", cwd: process.cwd() },
+  { stdio: ["ignore", "inherit", "inherit"], cwd: process.cwd() },
 );
 console.log(`Seed complete. Sign in as ${SEED_EMAIL} / ${SEED_PASSWORD}`);
